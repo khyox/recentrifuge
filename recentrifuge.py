@@ -4,7 +4,7 @@ Post-process Centrifuge/Kraken report files for Krona.
 """
 # pylint: disable=not-an-iterable, bad-reversed-sequence
 
-__version__ = '0.6.0'
+__version__ = '0.6.1'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jun 2017'
 
@@ -18,11 +18,16 @@ import platform
 import subprocess
 import sys
 from enum import Enum, unique
-from typing import Iterable, Dict, Counter, Tuple, List, Any
+from typing import Iterable, Dict, Counter, Tuple, List, Set
 from typing import NewType, Iterator, Union
 
 # Type annotations
-TaxId = NewType('TaxId', str)  # pylint: disable=invalid-name
+# pylint: disable=invalid-name
+TaxId = NewType('TaxId', str)
+Parents = NewType('Parents', Dict[TaxId, TaxId])
+Names = NewType('Names', Dict[TaxId, str])
+Children = NewType('Children', Dict[TaxId, Dict[TaxId, int]])
+# pylint: enable=invalid-name
 
 # Predefined internal constants
 _PATH = '.'
@@ -66,7 +71,6 @@ class TaxLevel(Enum):
     S = 'Species'
     H = 'otHer'
     W = 'unknoWn'
-
     # pylint: enable=invalid-name
 
 
@@ -129,9 +133,9 @@ class Taxonomy:
                  ) -> None:
 
         # Type data declaration and initialization
-        self.parents: Dict[TaxId, TaxId] = {}
-        self.names: Dict[TaxId, str] = {}
-        self.children: Dict[TaxId, Dict[TaxId, int]] = {}
+        self.parents: Parents = Parents({})
+        self.names: Names = Names({})
+        self.children: Children = Children({})
         self.collapse: bool = collapse
 
         # Initialization methods
@@ -163,7 +167,9 @@ class Taxonomy:
         try:
             with open(nodes_file, 'r') as file:
                 for line in file:
-                    tid, parent, *_ = line.split('\t|\t')
+                    _tid, _parent, *_ = line.split('\t|\t')
+                    tid = TaxId(_tid)
+                    parent = TaxId(_parent)
                     self.parents[tid] = parent
         except:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
@@ -172,7 +178,7 @@ class Taxonomy:
             print('\033[92m OK! \033[0m')
 
     def read_names(self, names_file: str) -> None:
-        """Build dict with name for a given taxid (key)"""
+        """Build dict with name for a given taxid (key)."""
         print('\033[90mLoading NCBI names...\033[0m', end='')
         sys.stdout.flush()
         try:
@@ -188,11 +194,11 @@ class Taxonomy:
             print('\033[92m OK! \033[0m')
 
     def build_children(self) -> None:
-        """Build dict of children for a given parent taxid (key)"""
+        """Build dict of children for a given parent taxid (key)."""
         print('\033[90mBuilding dict of parent to children taxa...\033[0m',
               end='')
         sys.stdout.flush()
-        self.children: Dict[TaxId, Dict[TaxId, int]] = {}
+        self.children: Children = Children({})
         for tid in self.parents:
             if self.parents[tid] not in self.children:
                 self.children[self.parents[tid]] = {}
@@ -234,6 +240,72 @@ class TaxTree(dict):
                     self[parentid].grow(children, child, path + [parentid],
                                         abundances, taxlevels)
 
+    def trace(self,
+              target: TaxId,
+              nodes: List[TaxId],
+              ) -> bool:
+        """
+        Recursively get a list of nodes from self to target taxid.
+
+        Args:
+            target: TaxId of the node to trace
+            nodes: Input/output list of TaxIds: at 1st entry is empty.
+
+        Returns:
+            Boolean about the success of the tracing.
+
+        """
+        target_found: bool = False
+        for tid in self:
+            if self[tid]:
+                nodes.append(tid)
+                if target in self[tid] and target != _ROOT:
+                    # Avoid to append more than once the root node
+                    nodes.append(target)
+                    target_found = True
+                    break
+                if self[tid].trace(target, nodes):
+                    target_found = True
+                    break
+                else:
+                    nodes.pop()
+        return target_found
+
+    def get_lineage(self,
+                    parents: Parents,
+                    taxids: Iterable
+                    ) -> Tuple[str, Dict[TaxId, List[TaxId]]]:
+        """
+        Build dict with taxid as keys, whose values are the list of
+            nodes in the tree in the path from root to such a taxid.
+
+        Args:
+            parents: dictionary of taxids parents.
+            taxids: collection with the taxids to process.
+
+        Returns:
+            Log string, dict with the list of nodes for each taxid.
+
+        """
+        output = io.StringIO(newline='')
+        output.write('  \033[90mGetting lineage of taxa...\033[0m')
+        nodes_traced: Dict[TaxId, List[TaxId]] = {}
+        for tid in taxids:
+            if tid == _ROOT:
+                nodes_traced[_ROOT] = [_ROOT, ]  # Root node special case
+            elif tid in parents:
+                nodes: List[TaxId] = []
+                if self.trace(tid, nodes):  # list nodes is populated
+                    nodes_traced[tid] = nodes
+                else:
+                    output.write('[\033[93mWARNING\033[0m: Failed tracing '
+                                 f'of taxid {tid}: missing in tree]\n')
+            else:
+                output.write('[\033[93mWARNING\033[0m: Discarded unknown '
+                             f'taxid {tid}: missing in parents]\n')
+        output.write('\033[92m OK! \033[0m\n')
+        return output.getvalue(), nodes_traced
+
 
 def prune_tree(subtree, nmin=1, collapse=False, verb=False):
     """Recursive function to collapse low abundant taxa of the taxonomy tree"""
@@ -273,8 +345,8 @@ def get_taxa(subtree: TaxTree,
 
     Args:
         subtree: TaxTree structure.
-        abundance: Is a input/output Counter: at entry it's empty.
-        taxlevels: Is a input/output dict: at entry it's empty.
+        abundance: Input/output Counter; at 1st entry it's empty.
+        taxlevels: Input/output dict; at 1st entry it's empty.
         mindepth: 0 gets the taxa from the very beginning depth level.
         maxdepth: 0 does not stop the search at any depth level.
         include: contains the root taxid of the subtrees to be
@@ -318,7 +390,8 @@ def read_report(report_file: str) -> Tuple[str, Counter,
     Args:
         report_file: report file name
 
-    Returns: log string, abundances counter, taxlevel dict
+    Returns:
+        log string, abundances counter, taxlevel dict
 
     """
     output: io.StringIO = io.StringIO(newline='')
@@ -328,7 +401,8 @@ def read_report(report_file: str) -> Tuple[str, Counter,
     try:
         with open(report_file, 'r') as file:
             for report_line in file:
-                _, _, taxnum, taxlev, tid, *_ = report_line.split('\t')
+                _, _, taxnum, taxlev, _tid, _ = report_line.split('\t')
+                tid = TaxId(_tid)
                 abundances[tid] = int(taxnum)
                 level_dic[tid] = TaxLevel.centrifuge(taxlev)
     except:
@@ -339,55 +413,7 @@ def read_report(report_file: str) -> Tuple[str, Counter,
     return output.getvalue(), abundances, level_dic
 
 
-def trace_node(tree: TaxTree,
-               targets: List[TaxId],
-               nodes: List[TaxId]):
-    """Recursive function to build a list of nodes from root to target taxid"""
-    for tid in tree:
-        if tree[tid]:
-            nodes.append(tid)
-            if targets[0] in tree[tid]:
-                target = targets.pop()
-                if target != _ROOT:  # Avoid to append twice the root node
-                    nodes.append(target)
-                break
-            trace_node(tree[tid], targets, nodes)
-            if not targets:
-                break
-            else:
-                nodes.pop()
-
-
-def get_lineage(parents: Dict[TaxId, TaxId],
-                tree: TaxTree,
-                tid_iter: Iterable):
-    """
-    Build dict with taxid as keys, whose values are the list of nodes
-        in the tree in the path from root to such a taxid
-    """
-    output = io.StringIO('  \033[90mGetting lineage of taxa...\033[0m',
-                         newline='')
-    tid_node_dic: Dict[TaxId, List[TaxId]] = {}
-    for tid in tid_iter:
-        if tid == _ROOT:
-            tid_node_dic[tid] = [_ROOT]
-        elif tid in parents:
-            node_lst: List[TaxId] = []
-            target_lst = [tid]
-            trace_node(tree, target_lst, node_lst)
-            if node_lst:
-                tid_node_dic[tid] = node_lst
-            else:
-                output.write('[\033[93mWARNING\033[0m: Failed trace_node '
-                             f'of tid {tid}]\n')
-        else:
-            output.write('[\033[93mWARNING\033[0m: Discarded unknown tid '
-                         f'{tid}]\n')
-    output.write('\033[92m OK! \033[0m\n')
-    return output.getvalue(), tid_node_dic
-
-
-def write_lineage(parents: Dict[TaxId, TaxId],
+def write_lineage(parents: Parents,
                   names: Dict[TaxId, str],
                   tree: TaxTree,
                   lineage_file: str,
@@ -408,14 +434,15 @@ def write_lineage(parents: Dict[TaxId, TaxId],
     Returns: A string with the output messages
 
     """
-    log, taxids_dic = get_lineage(parents, tree, iter(nodes))
-    output = io.StringIO(log, newline='')
+    log, taxids_dic = tree.get_lineage(parents, iter(nodes))
+    output: io.StringIO = io.StringIO(newline='')
+    output.write(log)
     if collapse:  # Collapse taxid 131567 (cellular organisms) if desired
         for tid in taxids_dic:
             if len(taxids_dic[tid]) > 2:  # Not collapse for unclassified
                 try:
                     taxids_dic[tid].remove(
-                        '131567')  # TaxId cellular organisms
+                        TaxId('131567'))  # TaxId cellular organisms
                 except ValueError:
                     pass
     lineage_dic = {tax_id: [names[tid] for tid in taxids_dic[tax_id]]
@@ -540,18 +567,18 @@ def process_taxlevel(*args, **kwargs):
 
     # Shared (in common) taxa analysis
     output.write('  \033[90mAnalyzing shared taxa...\033[0m')
-    include_set = set()
+    include: Set[TaxId] = set()
     for sublevel in level.taxlevels_from_general:
         include_subset = taxid_dic[filerep_lst[0]][sublevel]
         for filerep in filerep_lst[1:]:
             include_subset &= taxid_dic[filerep][sublevel]
-        include_set |= include_subset
+        include |= include_subset
 
     # weight = 1.0/len(filerep_lst)
     # Calculate shared taxa abundance as mean of the abs counts in each dataset
     abundances = col.Counter({taxid: sum([abund_dic[fn][taxid]
                                         for fn in filerep_lst]) // len(
-        filerep_lst) for taxid in include_set})
+        filerep_lst) for taxid in include})
     #    for filerep in filerep_lst:
     #        for tid in include_set:
     #            abun_cnt[tid] += weight*abund_dic[filerep][tid]
@@ -715,8 +742,6 @@ def main():
                 args=[filerep],
                 kwds=kwargs
             ) for filerep in filerep_lst]
-            pool.close()
-            map(mp.pool.ApplyResult.wait, async_results)
             for filerep, (filen, tree_dic[filerep], taxid_dic[filerep],
                           abund_dic[filerep]) in zip(filerep_lst,
                                                      [r.get() for r in
@@ -745,8 +770,6 @@ def main():
                     args=[level],
                     kwds=kwargs
                 ) for level in TaxLevel.selected_taxlevels]
-                pool.close()
-                map(mp.pool.ApplyResult.wait, async_results)
                 for level, (filen_diff_dic[level]) in zip(
                         TaxLevel.selected_taxlevels,
                         [r.get() for r in async_results]):
@@ -774,58 +797,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# Other useful functions or examples
-#    print_tree(tree)
-#    print_nodes(tree, nmin=1)
-#    print(nodecnt.most_common(10))
-#    nodeset = set(root)
-#    get_taxa(tree, nodeset, maxdepth=3)
-#    write_tsv(filerep + '.tsv', nodecnt)
-#
-# def get_taxa_bkp(subtree, node_container, mindepth=0, maxdepth=0, branch=False):
-#     """
-#     Recursive function to get the taxa between min and max depth levels
-#
-#     mindepth 0 (default) gets the taxa from the very beginning depth level.
-#     maxdepth 0 (default) does not stop the search at any depth level.
-#     node_container is a input/output set or col.Counter: at entry it should contain
-#         the root of the subtree, while at output it will contain all the nodes
-#         from the root to the maxdepth level (if any).
-#     branch controls whether the root of the subtree in node_container at entry
-#         should be considered the root of the branch whose taxa is to be got or
-#         not (default).
-#     """
-#     _isset = False
-#     if isinstance(node_container, set):
-#         _isset = True
-#     elif isinstance(node_container, col.Counter):
-#         pass
-#     else:
-#         raise Exception('\n\033[91mERROR!\033[0m get_taxa: ' +
-#                         'container for taxa not supported (use set or col.Counter)')
-#     mindepth -= 1
-#     maxdepth -= 1
-#     for tid in subtree:
-#         if subtree[tid]:
-#             if (not branch) or (tid in node_container):
-#                 if not maxdepth:
-#                     break
-#                 if mindepth <= 0:
-#                     for child in subtree[tid]:
-#                         if _isset:
-#                             node_container.add(child)
-#                         else:
-#                             node_container[child] = subtree[tid][child].counts
-#             get_taxa(subtree[tid], node_container, mindepth, maxdepth, branch)
-#
-# def write_tsv(tsvfile, node_cnt):
-#     """Write tab separated values file with taxId and abundances."""
-#     print('\033[90mSaving tsv file', tsvfile, '...\033[0m', end='')
-#     sys.stdout.flush()
-#     with open(tsvfile, 'w', newline='') as tsv_handle:
-#         tsvwriter = csv.writer(tsv_handle, dialect='krona')
-#         tsvwriter.writerow(["#taxID", "Abundance"])
-#         for tax_id in node_cnt:
-#             tsvwriter.writerow([tax_id, node_cnt[tax_id]])
-#     print('\033[92m OK! \033[0m')
