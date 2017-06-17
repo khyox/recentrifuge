@@ -4,7 +4,7 @@ Post-process Centrifuge/Kraken report files for Krona.
 """
 # pylint: disable=not-an-iterable, bad-reversed-sequence
 
-__version__ = '0.6.1'
+__version__ = '0.6.2'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jun 2017'
 
@@ -27,6 +27,7 @@ TaxId = NewType('TaxId', str)
 Parents = NewType('Parents', Dict[TaxId, TaxId])
 Names = NewType('Names', Dict[TaxId, str])
 Children = NewType('Children', Dict[TaxId, Dict[TaxId, int]])
+TaxLevels = NewType('TaxLevels', Dict[TaxId, 'TaxLevel'])
 # pylint: enable=invalid-name
 
 # Predefined internal constants
@@ -306,80 +307,95 @@ class TaxTree(dict):
         output.write('\033[92m OK! \033[0m\n')
         return output.getvalue(), nodes_traced
 
+    def get_taxa(self,
+                 abundance: Counter,
+                 taxlevels: TaxLevels,
+                 mindepth: int = 0,
+                 maxdepth: int = 0,
+                 include: Tuple = (),
+                 exclude: Tuple = (),
+                 just_level: TaxLevel = None,
+                 _in_branch: bool = False
+                 ) -> None:
+        """
+        Recursively get the taxa between min and max depth levels.
 
-def prune_tree(subtree, nmin=1, collapse=False, verb=False):
-    """Recursive function to collapse low abundant taxa of the taxonomy tree"""
-    for tid in list(subtree):
-        if subtree[tid]:  # Check if every subtree tid is already a leaf
-            if prune_tree(subtree[tid],
-                          nmin=nmin) and subtree[tid].counts < nmin:
-                if collapse:
-                    subtree.counts += subtree[
-                        tid].counts  # Acc abundance in higher tax
-                subtree.pop(tid)  # Prune branch if it has no leafs anymore
-            elif verb:
-                print("NOT pruning branch", tid, "with", subtree[tid].counts)
-        else:
-            if subtree[tid].counts < nmin:
-                if collapse:
-                    subtree.counts += subtree[
-                        tid].counts  # Accumulate abundance in higher tax
-                subtree.pop(tid)  # Prune leaf
-            elif verb:
-                print("NOT pruning leaf", tid, "with", subtree[tid].counts)
-    return not subtree  # returns True if this subtree is a leaf
+        Args:
+            abundance: Input/output Counter; at 1st entry it's empty.
+            taxlevels: Input/output dict; at 1st entry it's empty.
+            mindepth: 0 gets the taxa from the very beginning depth.
+            maxdepth: 0 does not stop the search at any depth level.
+            include: contains the root taxid of the subtrees to be
+                included. If it is empty (default) all the taxa is
+                included (except explicitly excluded).
+            exclude: contains the root taxid of the subtrees to be
+                excluded
+            just_level: If set, just taxa in this taxlevel will be
+                counted.
+            _in_branch: is like a static variable to tell the
+                recursive function that it is in a subtree that is
+                a branch of a taxon in the include list.
 
+        Returns: None
 
-def get_taxa(subtree: TaxTree,
-             abundance: Counter,
-             taxlevels: Dict[TaxId, TaxLevel],
-             mindepth: int = 0,
-             maxdepth: int = 0,
-             include: Tuple = (),
-             exclude: Tuple = (),
-             just_level: TaxLevel = None,
-             _in_branch: bool = False
-             ) -> None:
-    """
-    Recursive function to get the taxa between min and max depth levels
+        """
+        mindepth -= 1
+        if maxdepth != 1:
+            maxdepth -= 1
+            for tid in self:
+                in_branch: bool = (
+                    (_in_branch or  # called with flag activated? or
+                     not include or  # include by default? or
+                     (tid in include))  # tid is to be included?
+                    and tid not in exclude  # and not in exclude list
+                )
+                if (mindepth <= 0
+                    and in_branch
+                    and (just_level is None
+                         or self[tid].taxlevel is just_level)):
+                    abundance[tid] = self[tid].counts
+                    taxlevels[tid] = self[tid].taxlevel
+                if self[tid]:
+                    self[tid].get_taxa(abundance, taxlevels,
+                             mindepth, maxdepth,
+                             include, exclude,
+                             just_level, in_branch)
 
-    Args:
-        subtree: TaxTree structure.
-        abundance: Input/output Counter; at 1st entry it's empty.
-        taxlevels: Input/output dict; at 1st entry it's empty.
-        mindepth: 0 gets the taxa from the very beginning depth level.
-        maxdepth: 0 does not stop the search at any depth level.
-        include: contains the root taxid of the subtrees to be
-            included. If it is empty (default) all the taxa is included
-            (except explicitly excluded).
-        exclude: contains the root taxid of the subtrees to be excluded
-        just_level: If set, just taxa in this taxlevel will be counted.
-        _in_branch: is like a static variable to tell the recursive
-            function that it is in a subtree that is a branch of a
-            taxon in the include list.
+    def prune(self,
+              mintaxa: int = 1,
+              collapse: bool = True,
+              verb: bool = False,
+              ) -> bool:
+        """
+        Recursively prune/collapse low abundant taxa of the TaxTree.
 
-    Returns: None
+        Args:
+            mintaxa: minimum taxa to avoid pruning/collapsing
+                one level to the parent one.
+            collapse:
+            verb: increase output verbosity
 
-    """
-    mindepth -= 1
-    if maxdepth != 1:
-        maxdepth -= 1
-        for tid in subtree:
-            in_branch: bool = ((_in_branch or  # called with flag activated? or
-                                not include or  # include by default? or
-                                (tid in include))  # tid is to be included?
-                               and tid not in exclude)  # and not to exclude
-            if (mindepth <= 0
-                and in_branch
-                and (just_level is None
-                     or subtree[tid].taxlevel is just_level)):
-                abundance[tid] = subtree[tid].counts
-                taxlevels[tid] = subtree[tid].taxlevel
-            if subtree[tid]:
-                get_taxa(subtree[tid], abundance, taxlevels,
-                         mindepth, maxdepth,
-                         include, exclude,
-                         just_level, in_branch)
+        Returns: True if this node is a leaf
+
+        """
+        for tid in list(self):
+            if self[tid]:  # Check if every subtree tid is already a leaf
+                if self[tid].prune(mintaxa) and self[tid].counts < mintaxa:
+                    if collapse:
+                        self.counts += self[
+                            tid].counts  # Acc abundance in higher tax
+                    self.pop(tid)  # Prune branch if it has no leafs anymore
+                elif verb:
+                    print("NOT pruning branch", tid, "with", self[tid].counts)
+            else:
+                if self[tid].counts < mintaxa:
+                    if collapse:
+                        self.counts += self[
+                            tid].counts  # Accumulate abundance in higher tax
+                    self.pop(tid)  # Prune leaf
+                elif verb:
+                    print("NOT pruning leaf", tid, "with", self[tid].counts)
+        return not self  # returns True if this node is a leaf
 
 
 def read_report(report_file: str) -> Tuple[str, Counter,
@@ -492,14 +508,14 @@ def process_report(*args, **kwargs):
 
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
-    prune_tree(tree, nmin=mintaxa, collapse=collapse, verb=verb)
+    tree.prune(mintaxa, collapse, verb)
     output.write('\033[92m OK! \033[0m\n')
 
     # Get the taxa with their abundances and taxonomical levels
     output.write('  \033[90mFiltering taxa...\033[0m')
     abundances: Counter[TaxId] = col.Counter()
-    taxlevels: Dict[TaxId, TaxLevel] = {}
-    get_taxa(tree, abundances, taxlevels,
+    taxlevels: TaxLevels = TaxLevels({})
+    tree.get_taxa(abundances, taxlevels,
              mindepth=0, maxdepth=0,
              include=including,  # ('2759',),  # ('135613',),
              exclude=excluding)  # ('9606',))  # ('255526',))
@@ -534,6 +550,9 @@ def process_taxlevel(*args, **kwargs):
     taxid_dic = kwargs['taxid_dic']
     abund_dic = kwargs['abund_dic']
     filerep_lst = kwargs['filerep_lst']
+    verb = kwargs['verb']
+    abundances: Counter[TaxId]
+    taxlevels: TaxLevels
 
     filen_lst = []
     output: io.StringIO = io.StringIO(newline='')
@@ -549,9 +568,9 @@ def process_taxlevel(*args, **kwargs):
             output.write(f'  \033[90mExcluding {len(exclude_tup)} taxa from '
                          f'{filerep} at taxlevel "{level.value}"\n'
                          '  \033[90mFiltering shared taxa...\033[0m')
-        abundances: Counter[TaxId] = col.Counter()
-        taxlevels: Dict[TaxId, TaxLevel] = {}
-        get_taxa(tree_dic[filerep], abundances, taxlevels,
+        abundances = col.Counter()
+        taxlevels = TaxLevels({})
+        tree_dic[filerep].get_taxa(abundances, taxlevels,
                  mindepth=0, maxdepth=0,
                  include=including,
                  exclude=exclude_tup,
@@ -592,13 +611,13 @@ def process_taxlevel(*args, **kwargs):
     output.write('\033[92m OK! \033[0m\n')
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
-    prune_tree(tree, nmin=mintaxa, collapse=kollapse)
+    tree.prune(mintaxa, kollapse, verb)
     output.write('\033[92m OK! \033[0m\n')
     # Get the taxa with their abundances and taxonomical levels
     output.write('  \033[90mFiltering taxa...\033[0m')
     abundances = col.Counter()
-    taxlevels = {}
-    get_taxa(tree, abundances, taxlevels,
+    taxlevels = TaxLevels({})
+    tree.get_taxa(abundances, taxlevels,
              mindepth=0, maxdepth=0,
              include=including, exclude=excluding)
     abundances = +abundances  # remove zero and negative counts
@@ -640,7 +659,7 @@ def main():
         '-v', '--verbose',
         action='count',
         default=0,
-        help='increase output verbosity (from -v to -vvv)'
+        help='increase output verbosity'
     )
     parser.add_argument(
         '-n', '--nodespath',
