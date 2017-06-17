@@ -74,9 +74,19 @@ class TaxLevel(Enum):
     W = 'unknoWn'
     # pylint: enable=invalid-name
 
+    @classproperty
+    def taxlevels(cls):  # pylint: disable=no-self-argument
+        """Tax levels ordered by taxonomical level"""
+        _taxlevels: Tuple['TaxLevel', ...] = (cls.S, cls.G, cls.F, cls.O,
+                                              cls.C, cls.P, cls.K, cls.D)
+        return _taxlevels
 
-    def __repr__(self):
-        return '<%s.%s>' % (self.__class__.__name__, self.name)
+    @classproperty
+    def selected_taxlevels(cls):  # pylint: disable=no-self-argument
+        """Tax levels selected for deep analysis and comparisons"""
+        _selected_taxlevels: List['TaxLevel'] = [cls.S, cls.G, cls.F, cls.O,
+                                                 cls.C, cls.P, cls.K, cls.D]
+        return _selected_taxlevels
 
     @classmethod
     def centrifuge(cls, tax_level: str) -> 'TaxLevel':
@@ -99,15 +109,10 @@ class TaxLevel(Enum):
                                 tax_levels[item] is cls[taxlevel]} for
                 taxlevel in cls.__members__}  # type: ignore
 
-    @classproperty
-    def selected_taxlevels(cls):  # pylint: disable=no-self-argument
-        """Tax levels selected for deep analysis and comparisons"""
-        return [cls.S, cls.G, cls.F, cls.O, cls.C, cls.P, cls.K, cls.D]
-
     @property
     def taxlevels_from_specific(self) -> Iterator['TaxLevel']:
         """Generator returning selected taxlevels from specific to general."""
-        for taxlevel in self.__class__.selected_taxlevels:  # type: ignore
+        for taxlevel in TaxLevel.selected_taxlevels:
             yield taxlevel
             if taxlevel is self:
                 break
@@ -116,10 +121,23 @@ class TaxLevel(Enum):
     def taxlevels_from_general(self) -> Iterator['TaxLevel']:
         """Generator returning selected taxlevels from general to specific."""
         for taxlevel in reversed(
-                self.__class__.selected_taxlevels):  # type: ignore
+                TaxLevel.selected_taxlevels):
             yield taxlevel
             if taxlevel is self:
                 break
+
+    def __repr__(self):
+        return '<%s.%s>' % (self.__class__.__name__, self.name)
+
+    def __lt__(self, other):
+        if not isinstance(other, TaxLevel):
+            return NotImplemented
+        return TaxLevel.taxlevels.index(self) < TaxLevel.taxlevels.index(other)
+
+    def __gt__(self, other):
+        if not isinstance(other, TaxLevel):
+            return NotImplemented
+        return TaxLevel.taxlevels.index(self) > TaxLevel.taxlevels.index(other)
 
 
 class Taxonomy:
@@ -387,7 +405,7 @@ class TaxTree(dict):
                     self.pop(tid)  # Prune branch if it has no leafs anymore
                 elif verb:
                     print("NOT pruning branch", tid, "with", self[tid].counts)
-            else:
+            else:  # self[tid] is a leaf
                 if self[tid].counts < mintaxa:
                     if collapse:
                         self.counts += self[
