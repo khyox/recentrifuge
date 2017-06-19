@@ -2,14 +2,14 @@
 """
 Post-process Centrifuge/Kraken report files for Krona.
 """
-# pylint: disable=not-an-iterable, bad-reversed-sequence
-
+# pylint: disable=not-an-iterable, bad-reversed-sequence, E0203
 __version__ = '0.6.2'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jun 2017'
 
 import argparse
 import collections as col
+import copy
 import csv
 import io
 import multiprocessing as mp
@@ -132,13 +132,50 @@ class TaxLevel(Enum):
     def __lt__(self, other):
         if not isinstance(other, TaxLevel):
             return NotImplemented
-        return TaxLevel.taxlevels.index(self) < TaxLevel.taxlevels.index(other)
+        less: bool
+        try:
+            # pylint: disable=no-member
+            less = (TaxLevel.taxlevels.index(self)
+                    < TaxLevel.taxlevels.index(other))
+        except ValueError:
+            less = False  # self, other are not comparable (not in taxlevels)
+        return less
+
+    def __le__(self, other):
+        if not isinstance(other, TaxLevel):
+            return NotImplemented
+        less_eq: bool
+        try:
+            # pylint: disable=no-member
+            less_eq = (TaxLevel.taxlevels.index(self)
+                    <= TaxLevel.taxlevels.index(other))
+        except ValueError:
+            less_eq = False  # self, other not comparable (not in taxlevels)
+        return less_eq
 
     def __gt__(self, other):
         if not isinstance(other, TaxLevel):
             return NotImplemented
-        return TaxLevel.taxlevels.index(self) > TaxLevel.taxlevels.index(other)
+        greater: bool
+        try:
+            # pylint: disable=no-member
+            greater = (TaxLevel.taxlevels.index(self)
+                       > TaxLevel.taxlevels.index(other))
+        except ValueError:
+            greater = False  # self, other not comparable (not in taxlevels)
+        return greater
 
+    def __ge__(self, other):
+        if not isinstance(other, TaxLevel):
+            return NotImplemented
+        great_eq: bool
+        try:
+            # pylint: disable=no-member
+            great_eq = (TaxLevel.taxlevels.index(self)
+                       > TaxLevel.taxlevels.index(other))
+        except ValueError:
+            great_eq = False  # self, other not comparable (not in taxlevels)
+        return great_eq
 
 class Taxonomy:
     """Taxonomy related data and methods."""
@@ -292,7 +329,7 @@ class TaxTree(dict):
 
     def get_lineage(self,
                     parents: Parents,
-                    taxids: Iterable
+                    taxids: Iterable,
                     ) -> Tuple[str, Dict[TaxId, List[TaxId]]]:
         """
         Build dict with taxid as keys, whose values are the list of
@@ -381,6 +418,7 @@ class TaxTree(dict):
 
     def prune(self,
               mintaxa: int = 1,
+              minlevel: TaxLevel = None,
               collapse: bool = True,
               verb: bool = False,
               ) -> bool:
@@ -390,30 +428,35 @@ class TaxTree(dict):
         Args:
             mintaxa: minimum taxa to avoid pruning/collapsing
                 one level to the parent one.
-            collapse:
+            minlevel: if any, minimum TaxLevel allowed in the TaxTree.
+            collapse: selects if a lower level should be accumulated in
+                the higher one before pruning a node (do so by default).
             verb: increase output verbosity
 
         Returns: True if this node is a leaf
 
         """
         for tid in list(self):
-            if self[tid]:  # Check if every subtree tid is already a leaf
-                if self[tid].prune(mintaxa) and self[tid].counts < mintaxa:
-                    if collapse:
-                        self.counts += self[
-                            tid].counts  # Acc abundance in higher tax
-                    self.pop(tid)  # Prune branch if it has no leafs anymore
-                elif verb:
-                    print("NOT pruning branch", tid, "with", self[tid].counts)
-            else:  # self[tid] is a leaf
-                if self[tid].counts < mintaxa:
+            if (self[tid]  # If the subtree has branches,
+                    and self[tid].prune(  # then prune that subtree
+                        mintaxa, minlevel, collapse, verb)):
+                # The pruned subtree keeps having branches (still not a leaf!)
+                if verb:
+                    print(f'NOT pruning branch {tid} with {self[tid].counts}')
+            else:  # self[tid] is a leaf (after pruning its branches or not)
+                if (self[tid].counts < mintaxa  # Not enough counts, or check
+                        or (minlevel  # if minlevel is set, then check if level
+                            and (self[tid].taxlevel < minlevel  # is lower or
+                                 or self.taxlevel <= minlevel))):  # otHer case
                     if collapse:
                         self.counts += self[
                             tid].counts  # Accumulate abundance in higher tax
+                    if verb and self[tid].counts:
+                        print(f'Pruning branch {tid} with {self[tid].counts}')
                     self.pop(tid)  # Prune leaf
                 elif verb:
-                    print("NOT pruning leaf", tid, "with", self[tid].counts)
-        return not self  # returns True if this node is a leaf
+                    print(f'NOT pruning leaf {tid} with {self[tid].counts}')
+        return bool(self)  # True if this node has branches (is not a leaf)
 
 
 def read_report(report_file: str) -> Tuple[str, Counter,
@@ -526,7 +569,7 @@ def process_report(*args, **kwargs):
 
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
-    tree.prune(mintaxa, collapse, verb)
+    tree.prune(mintaxa, None, collapse, verb)
     output.write('\033[92m OK! \033[0m\n')
 
     # Get the taxa with their abundances and taxonomical levels
@@ -560,10 +603,10 @@ def process_taxlevel(*args, **kwargs):
     parents = kwargs['taxonomy'].parents
     children = kwargs['taxonomy'].children
     names = kwargs['taxonomy'].names
-    mintaxa = kwargs['mintaxa']
     kollapse = kwargs['taxonomy'].collapse
     including = kwargs['taxonomy'].including
     excluding = kwargs['taxonomy'].excluding
+    mintaxa = kwargs['mintaxa']
     tree_dic = kwargs['tree_dic']
     taxid_dic = kwargs['taxid_dic']
     abund_dic = kwargs['abund_dic']
@@ -588,11 +631,13 @@ def process_taxlevel(*args, **kwargs):
                          '  \033[90mFiltering shared taxa...\033[0m')
         abundances = col.Counter()
         taxlevels = TaxLevels({})
-        tree_dic[filerep].get_taxa(abundances, taxlevels,
-                 mindepth=0, maxdepth=0,
-                 include=including,
-                 exclude=exclude_tup,
-                 just_level=level,
+        leveled_tree = copy.deepcopy(tree_dic[filerep])
+        leveled_tree.prune(mintaxa, level)
+        leveled_tree.get_taxa(abundances, taxlevels,
+                              mindepth=0, maxdepth=0,
+                              include=including,
+                              exclude=exclude_tup,
+                              just_level=level,
                  )
         output.write('\033[92m OK! \033[0m\n')
         abundances = +abundances  # remove zero and negative counts
@@ -607,8 +652,8 @@ def process_taxlevel(*args, **kwargs):
     include: Set[TaxId] = set()
     for sublevel in level.taxlevels_from_general:
         include_subset = taxid_dic[filerep_lst[0]][sublevel]
-        for filerep in filerep_lst[1:]:
-            include_subset &= taxid_dic[filerep][sublevel]
+        for filerep in filerep_lst:
+            include_subset &= taxid_dic[filerep][sublevel]  # Acc intersection
         include |= include_subset
 
     # weight = 1.0/len(filerep_lst)
@@ -629,15 +674,17 @@ def process_taxlevel(*args, **kwargs):
     output.write('\033[92m OK! \033[0m\n')
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
-    tree.prune(mintaxa, kollapse, verb)
+    tree.prune(mintaxa, None)
     output.write('\033[92m OK! \033[0m\n')
     # Get the taxa with their abundances and taxonomical levels
     output.write('  \033[90mFiltering taxa...\033[0m')
     abundances = col.Counter()
     taxlevels = TaxLevels({})
     tree.get_taxa(abundances, taxlevels,
-             mindepth=0, maxdepth=0,
-             include=including, exclude=excluding)
+                  mindepth=0, maxdepth=0,
+                  include=including, exclude=excluding,
+                  just_level=level,
+                  )
     abundances = +abundances  # remove zero and negative counts
     output.write('\033[92m OK! \033[0m\n')
     # Save the taxonomy in tsv file
