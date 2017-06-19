@@ -25,9 +25,10 @@ from typing import NewType, Iterator, Union
 # pylint: disable=invalid-name
 TaxId = NewType('TaxId', str)
 Parents = NewType('Parents', Dict[TaxId, TaxId])
+Ranks = NewType('Ranks', Dict[TaxId, 'Rank'])
 Names = NewType('Names', Dict[TaxId, str])
 Children = NewType('Children', Dict[TaxId, Dict[TaxId, int]])
-TaxLevels = NewType('TaxLevels', Dict[TaxId, 'TaxLevel'])
+TaxLevels = NewType('TaxLevels', Dict[TaxId, 'Rank'])
 # pylint: enable=invalid-name
 
 # Predefined internal constants
@@ -57,41 +58,71 @@ class UnsupportedTaxLevelError(Exception):
     """Raised if a unsupported tx level is found."""
 
 
-@unique
-class TaxLevel(Enum):
+class Rank(Enum):
     """Enumeration with codes for taxonomical levels."""
     # pylint: disable=invalid-name
-    U = 'Unclassified'
-    D = 'Domain'
-    K = 'Kingdom'
-    P = 'Phylum'
-    C = 'Class'
-    O = 'Order'
-    F = 'Family'
-    G = 'Genus'
-    S = 'Species'
+    NO_RANK = 'no rank'
+    DOMAIN = 'domain'
+    D = 'domain'
+    SUPERKINGDOM = 'superkingdom'
+    KINGDOM = 'kingdom'
+    SUBKINGDOM = 'subkingdom'
+    K = 'kingdom'
+    SUPERPHYLUM = 'superphylum'
+    PHYLUM = 'phylum'
+    P = 'phylum'
+    SUBPHYLUM = 'subphylum'
+    SUPERCLASS = 'superclass'
+    CLASS = 'class'
+    C = 'class'
+    SUBCLASS = 'subclass'
+    INFRACLASS = 'infraclass'
+    COHORT = 'cohort'
+    SUPERORDER = 'superorder'
+    ORDER = 'order'
+    O = 'order'
+    SUBORDER = 'suborder'
+    INFRAORDER = 'infraorder'
+    PARVORDER = 'parvorder'
+    SUPERFAMILY = 'superfamily'
+    FAMILY = 'family'
+    F = 'family'
+    SUBFAMILY = 'subfamily'
+    TRIBE = 'tribe'
+    SUBTRIBE = 'subtribe'
+    GENUS = 'genus'
+    G = 'genus'
+    SUBGENUS = 'subgenus'
+    SPECIES_GROUP = 'species group'
+    SPECIES_SUBGROUP = 'species subgroup'
+    SPECIES = 'species'
+    S = 'species'
+    SUBSPECIES = 'subspecies'
+    VARIETAS = 'varietas'
+    FORMA = 'forma'
     H = 'otHer'
+    U = 'Unclassified'
     W = 'unknoWn'
     # pylint: enable=invalid-name
 
     @classproperty
     def taxlevels(cls):  # pylint: disable=no-self-argument
         """Tax levels ordered by taxonomical level"""
-        _taxlevels: Tuple['TaxLevel', ...] = (cls.S, cls.G, cls.F, cls.O,
-                                              cls.C, cls.P, cls.K, cls.D)
+        _taxlevels: Tuple['Rank', ...] = (cls.S, cls.G, cls.F, cls.O,
+                                          cls.C, cls.P, cls.K, cls.D)
         return _taxlevels
 
     @classproperty
     def selected_taxlevels(cls):  # pylint: disable=no-self-argument
         """Tax levels selected for deep analysis and comparisons"""
-        _selected_taxlevels: List['TaxLevel'] = [cls.S, cls.G, cls.F, cls.O,
-                                                 cls.C, cls.P, cls.K, cls.D]
+        _selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O,
+                                             cls.C, cls.P, cls.K, cls.D]
         return _selected_taxlevels
 
     @classmethod
-    def centrifuge(cls, tax_level: str) -> 'TaxLevel':
+    def centrifuge(cls, tax_level: str) -> 'Rank':
         """Transforms Centrifuge codes for taxonomical levels"""
-        taxonomic_level: TaxLevel
+        taxonomic_level: Rank
         if tax_level == '-':
             taxonomic_level = cls.H
         else:
@@ -104,24 +135,24 @@ class TaxLevel(Enum):
 
     @classmethod
     def invert_dict(cls, tax_levels: dict) -> dict:
-        """Invert dictionary from items->TaxLevel to TaxLevel->set(items)"""
+        """Invert dictionary from items->Rank to Rank->set(items)"""
         return {cls[taxlevel]: {item for item in tax_levels if
                                 tax_levels[item] is cls[taxlevel]} for
                 taxlevel in cls.__members__}  # type: ignore
 
     @property
-    def taxlevels_from_specific(self) -> Iterator['TaxLevel']:
+    def taxlevels_from_specific(self) -> Iterator['Rank']:
         """Generator returning selected taxlevels from specific to general."""
-        for taxlevel in TaxLevel.selected_taxlevels:
+        for taxlevel in Rank.selected_taxlevels:
             yield taxlevel
             if taxlevel is self:
                 break
 
     @property
-    def taxlevels_from_general(self) -> Iterator['TaxLevel']:
+    def taxlevels_from_general(self) -> Iterator['Rank']:
         """Generator returning selected taxlevels from general to specific."""
         for taxlevel in reversed(
-                TaxLevel.selected_taxlevels):
+                Rank.selected_taxlevels):
             yield taxlevel
             if taxlevel is self:
                 break
@@ -130,52 +161,53 @@ class TaxLevel(Enum):
         return '<%s.%s>' % (self.__class__.__name__, self.name)
 
     def __lt__(self, other):
-        if not isinstance(other, TaxLevel):
+        if self.__class__ is not other.__class__:
             return NotImplemented
         less: bool
         try:
             # pylint: disable=no-member
-            less = (TaxLevel.taxlevels.index(self)
-                    < TaxLevel.taxlevels.index(other))
+            less = (Rank.taxlevels.index(self)
+                    < Rank.taxlevels.index(other))
         except ValueError:
             less = False  # self, other are not comparable (not in taxlevels)
         return less
 
     def __le__(self, other):
-        if not isinstance(other, TaxLevel):
+        if self.__class__ is not other.__class__:
             return NotImplemented
         less_eq: bool
         try:
             # pylint: disable=no-member
-            less_eq = (TaxLevel.taxlevels.index(self)
-                    <= TaxLevel.taxlevels.index(other))
+            less_eq = (Rank.taxlevels.index(self)
+                       <= Rank.taxlevels.index(other))
         except ValueError:
             less_eq = False  # self, other not comparable (not in taxlevels)
         return less_eq
 
     def __gt__(self, other):
-        if not isinstance(other, TaxLevel):
+        if self.__class__ is not other.__class__:
             return NotImplemented
         greater: bool
         try:
             # pylint: disable=no-member
-            greater = (TaxLevel.taxlevels.index(self)
-                       > TaxLevel.taxlevels.index(other))
+            greater = (Rank.taxlevels.index(self)
+                       > Rank.taxlevels.index(other))
         except ValueError:
             greater = False  # self, other not comparable (not in taxlevels)
         return greater
 
     def __ge__(self, other):
-        if not isinstance(other, TaxLevel):
+        if self.__class__ is not other.__class__:
             return NotImplemented
         great_eq: bool
         try:
             # pylint: disable=no-member
-            great_eq = (TaxLevel.taxlevels.index(self)
-                       > TaxLevel.taxlevels.index(other))
+            great_eq = (Rank.taxlevels.index(self)
+                        > Rank.taxlevels.index(other))
         except ValueError:
             great_eq = False  # self, other not comparable (not in taxlevels)
         return great_eq
+
 
 class Taxonomy:
     """Taxonomy related data and methods."""
@@ -190,12 +222,13 @@ class Taxonomy:
 
         # Type data declaration and initialization
         self.parents: Parents = Parents({})
+        self.ranks: Ranks = Ranks({})
         self.names: Names = Names({})
         self.children: Children = Children({})
         self.collapse: bool = collapse
 
         # Initialization methods
-        self.read_parents(nodes_file)
+        self.read_nodes(nodes_file)
         self.read_names(names_file)
         self.build_children()
 
@@ -216,20 +249,28 @@ class Taxonomy:
                 print(f'\t\t{taxid}\t{self.names[taxid]}')
         self.excluding: Tuple[TaxId, ...] = excluding
 
-    def read_parents(self, nodes_file: str) -> None:
-        """Build dict with parent for a given taxid (key)"""
+    def read_nodes(self, nodes_file: str) -> None:
+        """Build dicts of parent and rank for a given taxid (key)"""
         print('\033[90mLoading NCBI nodes...\033[0m', end='')
         sys.stdout.flush()
         try:
             with open(nodes_file, 'r') as file:
                 for line in file:
-                    _tid, _parent, *_ = line.split('\t|\t')
+                    _tid, _parent, _rank, *_ = line.split('\t|\t')
                     tid = TaxId(_tid)
                     parent = TaxId(_parent)
                     self.parents[tid] = parent
-        except:
-            raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
-                            nodes_file + '"')
+                    rank: Rank
+                    try:
+                        rank = Rank[_rank.upper().replace(" ", "_")]
+                    except KeyError:
+                        raise UnsupportedTaxLevelError(
+                            f'Unknown tax level {_rank}')
+                    self.ranks[tid] = rank
+
+        except OSError:
+            print(f'\n\033[91mERROR!\033[0m Cannot read {nodes_file}')
+            raise
         else:
             print('\033[92m OK! \033[0m')
 
@@ -267,11 +308,11 @@ class TaxTree(dict):
 
     def __init__(self, *args,
                  counts: int = 0,
-                 taxlevel: TaxLevel = TaxLevel.W
+                 taxlevel: Rank = Rank.W
                  ) -> None:
         super().__init__(args)
         self.counts: int = counts
-        self.taxlevel: TaxLevel = taxlevel
+        self.taxlevel: Rank = taxlevel
 
     def __str__(self, num_min: int = 1) -> None:
         """Recursively print populated nodes of the taxonomy tree"""
@@ -290,7 +331,7 @@ class TaxTree(dict):
         if parentid not in path:  # Avoid loops for repeated taxid (like root)
             self[parentid] = TaxTree(counts=abundances.get(parentid, 0),
                                      taxlevel=taxlevels.get(parentid,
-                                                            TaxLevel.W))
+                                                            Rank.W))
             if parentid in children:
                 for child in children[parentid]:
                     self[parentid].grow(children, child, path + [parentid],
@@ -369,7 +410,7 @@ class TaxTree(dict):
                  maxdepth: int = 0,
                  include: Tuple = (),
                  exclude: Tuple = (),
-                 just_level: TaxLevel = None,
+                 just_level: Rank = None,
                  _in_branch: bool = False
                  ) -> None:
         """
@@ -418,7 +459,7 @@ class TaxTree(dict):
 
     def prune(self,
               mintaxa: int = 1,
-              minlevel: TaxLevel = None,
+              minlevel: Rank = None,
               collapse: bool = True,
               verb: bool = False,
               ) -> bool:
@@ -428,7 +469,7 @@ class TaxTree(dict):
         Args:
             mintaxa: minimum taxa to avoid pruning/collapsing
                 one level to the parent one.
-            minlevel: if any, minimum TaxLevel allowed in the TaxTree.
+            minlevel: if any, minimum Rank allowed in the TaxTree.
             collapse: selects if a lower level should be accumulated in
                 the higher one before pruning a node (do so by default).
             verb: increase output verbosity
@@ -460,7 +501,7 @@ class TaxTree(dict):
 
 
 def read_report(report_file: str) -> Tuple[str, Counter,
-                                           Dict[TaxId, TaxLevel]]:
+                                           Dict[TaxId, Rank]]:
     """
     Read Centrifuge/Kraken report file
 
@@ -481,7 +522,7 @@ def read_report(report_file: str) -> Tuple[str, Counter,
                 _, _, taxnum, taxlev, _tid, _ = report_line.split('\t')
                 tid = TaxId(_tid)
                 abundances[tid] = int(taxnum)
-                level_dic[tid] = TaxLevel.centrifuge(taxlev)
+                level_dic[tid] = Rank.centrifuge(taxlev)
     except:
         raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
                         report_file + '"')
@@ -581,7 +622,7 @@ def process_report(*args, **kwargs):
              include=including,  # ('2759',),  # ('135613',),
              exclude=excluding)  # ('9606',))  # ('255526',))
     abundances = +abundances  # remove zero and negative counts
-    taxid: Dict[TaxLevel, TaxId] = TaxLevel.invert_dict(taxlevels)
+    taxid: Dict[Rank, TaxId] = Rank.invert_dict(taxlevels)
     output.write('\033[92m OK! \033[0m\n')
 
     # Write the lineage file
@@ -599,7 +640,7 @@ def process_taxlevel(*args, **kwargs):
     Process results for a taxlevel (to be usually called in parallel!).
     """
     # Recover input and parameters
-    level: TaxLevel = args[0]
+    level: Rank = args[0]
     parents = kwargs['taxonomy'].parents
     children = kwargs['taxonomy'].children
     names = kwargs['taxonomy'].names
@@ -848,18 +889,18 @@ def main():
         if platform.system() and not sequential:  # Only for known platforms
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(), len(
-                    TaxLevel.selected_taxlevels))) as pool:
+                    Rank.selected_taxlevels))) as pool:
                 async_results = [pool.apply_async(
                     process_taxlevel,
                     args=[level],
                     kwds=kwargs
-                ) for level in TaxLevel.selected_taxlevels]
+                ) for level in Rank.selected_taxlevels]
                 for level, (filen_diff_dic[level]) in zip(
-                        TaxLevel.selected_taxlevels,
+                        Rank.selected_taxlevels,
                         [r.get() for r in async_results]):
                     pass
         else:
-            for level in TaxLevel.selected_taxlevels:
+            for level in Rank.selected_taxlevels:
                 filen_diff_dic[level] = process_taxlevel(level, **kwargs)
 
     # Generate the Krona html file calling ktImportText
@@ -867,7 +908,7 @@ def main():
     subprc.extend(filen_lst)
     try:
         subprc.extend([filen_diff_dic[level][i]
-                       for level in TaxLevel.selected_taxlevels
+                       for level in Rank.selected_taxlevels
                        for i in range(len(filen_diff_dic[level]))])
     except KeyError:
         pass
