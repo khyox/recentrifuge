@@ -23,11 +23,15 @@ from typing import NewType, Iterator, Union, Optional
 
 # Type annotations
 # pylint: disable=invalid-name
+Filename = NewType('Filename', str)
+Sample = NewType('Sample', str)
 TaxId = NewType('TaxId', str)
-Parents = NewType('Parents', Dict[TaxId, TaxId])
-Ranks = NewType('Ranks', Dict[TaxId, 'Rank'])
-Names = NewType('Names', Dict[TaxId, str])
 Children = NewType('Children', Dict[TaxId, Dict[TaxId, int]])
+Names = NewType('Names', Dict[TaxId, str])
+Parents = NewType('Parents', Dict[TaxId, TaxId])
+# Ranks and Levels are devised to be one the inverse of the other
+Ranks = NewType('Ranks', Dict[TaxId, 'Rank'])  # Rank of each TaxId
+TaxLevels = NewType('TaxLevels', Dict['Rank', Set[TaxId]])  # TaxIds for rank
 # pylint: enable=invalid-name
 
 # Predefined internal constants
@@ -35,6 +39,7 @@ _PATH = '.'
 _NODESFILE = 'nodes.dmp'
 _NAMESFILE = 'names.dmp'
 _LINEAGEXT = '.lineage'
+_HTML_SUFFIX = '.commet.html'
 _DEFMINTAXA = 10
 _ROOT = TaxId('1')
 
@@ -136,11 +141,10 @@ class Rank(Enum):
         return taxonomic_level
 
     @classmethod
-    def invert_dict(cls, ranks: dict) -> dict:
-        """Invert dictionary from items->Rank to Rank->set(items)"""
-        return {cls[taxlevel]: {item for item in ranks if
-                                ranks[item] is cls[taxlevel]} for
-                taxlevel in cls.__members__}  # type: ignore
+    def ranks_to_taxlevels(cls, ranks: Ranks) -> TaxLevels:
+        """Generate TaxLevels (taxids of ranks) from Ranks (rank of taxids)."""
+        return TaxLevels({rank: {taxid for taxid in ranks if
+                                ranks[taxid] is rank} for rank in Rank})
 
     @property
     def ranks_from_specific(self) -> Iterator['Rank']:
@@ -325,18 +329,31 @@ class TaxTree(dict):
 
     def grow(self,
              taxonomy: Taxonomy,
-             abundances: Counter[TaxId],
-             taxid: TaxId,
-             path: List[TaxId]
+             abundance: Counter[TaxId],
+             taxid: TaxId = _ROOT,
+             _path: List[TaxId] = None,
              ) -> None:
-        """Recursive function to build a taxonomy tree"""
-        if taxid not in path:  # Avoid loops for repeated taxid (like root)
-            self[taxid] = TaxTree(counts=abundances.get(taxid, 0),
+        """
+        Recursively build a taxonomy tree.
+
+        Args:
+            taxonomy: Taxonomy object.
+            abundance: counter for taxids with their abundances.
+            taxid: A taxid that is the root one by default
+            _path: list used by the recursive algorithm to avoid loops
+
+        Returns: None
+
+        """
+        if not _path:
+            _path = []
+        if taxid not in _path:  # Avoid loops for repeated taxid (like root)
+            self[taxid] = TaxTree(counts=abundance.get(taxid, 0),
                                   rank=taxonomy.get_rank(taxid))
             if taxid in taxonomy.children:  # taxid has children
                 for child in taxonomy.children[taxid]:
-                    self[taxid].grow(taxonomy, abundances, child,
-                                     path + [taxid])
+                    self[taxid].grow(taxonomy, abundance, child,
+                                     _path + [taxid])
 
     def trace(self,
               target: TaxId,
@@ -405,8 +422,8 @@ class TaxTree(dict):
         return output.getvalue(), nodes_traced
 
     def get_taxa(self,
-                 abundance: Counter,
-                 ranks: Ranks,
+                 abundance: Counter[TaxId],
+                 ranks: Ranks = None,
                  mindepth: int = 0,
                  maxdepth: int = 0,
                  include: Union[Tuple, Set[TaxId]] = (),
@@ -419,7 +436,7 @@ class TaxTree(dict):
 
         Args:
             abundance: Input/output Counter; at 1st entry it's empty.
-            ranks: Input/output dict; at 1st entry it's empty.
+            ranks: Optional I/O dict; at 1st entry should be empty.
             mindepth: 0 gets the taxa from the very beginning depth.
             maxdepth: 0 does not stop the search at any depth level.
             include: contains the root taxid of the subtrees to be
@@ -451,7 +468,8 @@ class TaxTree(dict):
                     and (just_level is None
                          or self[tid].taxlevel is just_level)):
                     abundance[tid] = self[tid].counts
-                    ranks[tid] = self[tid].taxlevel
+                    if ranks is not None:
+                        ranks[tid] = self[tid].taxlevel
                 if self[tid]:
                     self[tid].get_taxa(abundance, ranks,
                                        mindepth, maxdepth,
@@ -499,6 +517,54 @@ class TaxTree(dict):
                 elif verb:
                     print(f'NOT pruning leaf {tid} with {self[tid].counts}')
         return bool(self)  # True if this node has branches (is not a leaf)
+
+
+class SharedCounter(col.Counter):
+    """Extends collection.Counter with useful ops. for shared taxa."""
+
+    def __ilshift__(self, other):
+        """c <<= d add counts of d but only in existing items in c."""
+        if isinstance(self, col.Counter) and isinstance(other, col.Counter):
+            for counter in other:
+                if counter in self:
+                    self[counter] += other[counter]
+            return self
+        return NotImplemented
+
+    def __and__(self, other):
+        """c & d add counts only for existing items in both c & d."""
+        if isinstance(self, col.Counter) and isinstance(other, col.Counter):
+            result: SharedCounter = SharedCounter()
+            for item in other:
+                if item in self:
+                    result[item] = self[item] + other[item]
+            return result
+        return NotImplemented
+
+    def __iand__(self, other):
+        """c &= d add counts only for existing items in both c & d."""
+        self = SharedCounter.__and__(self, other)
+        return self
+
+    def __floordiv__(self, other):
+        """c // i floor divide each element of c by integer i."""
+        if isinstance(self, col.Counter) and isinstance(other, int):
+            result: SharedCounter = SharedCounter()
+            for item in self:
+                result[item] = self[item] // other
+            return self
+        return NotImplemented
+
+    def __rfloordiv__(self, other):
+        return SharedCounter.__floordiv__(self, other)
+
+    def __ifloordiv__(self, other):
+        """c //= i floor divide each element of c by integer i."""
+        if isinstance(self, col.Counter) and isinstance(other, int):
+            for counter in self:
+                self[counter] //= other
+            return self
+        return NotImplemented
 
 
 def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
@@ -580,20 +646,22 @@ def write_lineage(parents: Parents,
     return output.getvalue()
 
 
-def process_report(*args, **kwargs):
+def process_report(*args,
+                   **kwargs
+                   ) -> Tuple[Filename, TaxTree, TaxLevels, Counter[TaxId]]:
     """
     Process Centrifuge/Kraken report files (to be usually called in parallel!).
     """
     # Recover input and parameters
-    filerep = args[0]
-    taxonomy = kwargs['taxonomy']
-    parents = taxonomy.parents
-    names = taxonomy.names
-    mintaxa = kwargs['mintaxa']
-    collapse = taxonomy.collapse
-    including = taxonomy.including
-    excluding = taxonomy.excluding
-    verb = kwargs['verb']
+    filerep: Filename = args[0]
+    taxonomy: Taxonomy = kwargs['taxonomy']
+    parents: Parents = taxonomy.parents
+    names: Names = taxonomy.names
+    mintaxa: int = kwargs['mintaxa']
+    collapse: bool = taxonomy.collapse
+    including: Set[TaxId] = taxonomy.including
+    excluding: Set[TaxId] = taxonomy.excluding
+    verb: bool = kwargs['verb']
     output: io.StringIO = io.StringIO(newline='')
 
     # Read Centrifuge/Kraken report file to get abundances
@@ -614,23 +682,23 @@ def process_report(*args, **kwargs):
     # Get the taxa with their abundances and taxonomical levels
     output.write('  \033[90mFiltering taxa...\033[0m')
     new_abund: Counter[TaxId] = col.Counter()
-    taxlevels: Ranks = Ranks({})
-    tree.get_taxa(new_abund, taxlevels,
+    ranks: Ranks = Ranks({})
+    tree.get_taxa(new_abund, ranks,
                   mindepth=0, maxdepth=0,
                   include=including,  # ('2759',),  # ('135613',),
                   exclude=excluding)  # ('9606',))  # ('255526',))
     new_abund = +new_abund  # remove zero and negative counts
-    taxid: Dict[Rank, TaxId] = Rank.invert_dict(taxlevels)
+    taxlevels: TaxLevels = Rank.ranks_to_taxlevels(ranks)
     output.write('\033[92m OK! \033[0m\n')
 
     # Write the lineage file
-    filename = filerep + _LINEAGEXT
+    filename = Filename(filerep + _LINEAGEXT)
     log = write_lineage(parents, names, tree, filename, new_abund, collapse)
     output.write(log)
     print(output.getvalue())
     sys.stdout.flush()
     # Return
-    return filename, tree, taxid, new_abund
+    return filename, tree, taxlevels, new_abund
 
 
 def process_rank(*args, **kwargs):
@@ -646,97 +714,113 @@ def process_rank(*args, **kwargs):
     including = taxonomy.including
     excluding = taxonomy.excluding
     mintaxa = kwargs['mintaxa']
-    tree_dic = kwargs['tree_dic']
-    taxid_dic = kwargs['taxid_dic']
-    abund_dic = kwargs['abund_dic']
-    reports: List[str] = kwargs['filerep_lst']
+    trees: Dict[Sample, TaxTree] = kwargs['trees']
+    taxids: Dict[Sample, TaxLevels] = kwargs['taxids']
+    abundances: Dict[Sample, Counter[TaxId]] = kwargs['abundances']
+    reports: List[Sample] = kwargs['reports']
     verb: bool = kwargs['verb']
-    abundances: Counter[TaxId]
-    ranks: Ranks
 
-    filenames: List[str] = []
-    filename: str
+    # Declare/define variables
+    exclusive_abundance: Counter[TaxId]
+    ranks: Ranks
+    filenames: List[Filename] = []
+    sample: Sample
+    filename: Filename
+    include: Set[TaxId] = taxids[reports[0]][rank]  # Initialize to one sample
+    shared_abundance: SharedCounter = SharedCounter()
     output: io.StringIO = io.StringIO(newline='')
-    # Exclusive (not shared) taxa analysis
-    for report in reports:
+
+    # Cross analysis iterating by report: exclusive and part of shared
+    for i, report in zip(range(len(reports)), reports):
         exclude: Set[TaxId] = set()
         # Get taxids at this rank that are present in the other samples
-        for filename in (fn for fn in reports if fn != report):
-            exclude.update(taxid_dic[filename][rank])
+        for sample in (_report for _report in reports if _report != report):
+            exclude.update(taxids[sample][rank])
         exclude.update(excluding)  # Add explicit excluding taxa if any
         if exclude:
             output.write(f'  \033[90mExcluding {len(exclude)} taxa from '
                          f'{report} at rank "{rank.name.lower()}"\n'
                          '  \033[90mFiltering shared taxa...\033[0m')
-        abundances = col.Counter()
-        ranks = Ranks({})
-        leveled_tree = copy.deepcopy(tree_dic[report])
-        leveled_tree.prune(mintaxa, rank)
-        leveled_tree.get_taxa(abundances, ranks,
+        leveled_tree = copy.deepcopy(trees[report])
+        leveled_tree.prune(mintaxa, rank)  # Prune the copy to the desired rank
+        # Get abundance for the exclusive analysis
+        exclusive_abundance = col.Counter()
+        leveled_tree.get_taxa(exclusive_abundance,
                               mindepth=0, maxdepth=0,
                               include=including,
-                              exclude=exclude,
+                              exclude=exclude,  # Extended exclusion set
+                              just_level=rank,
+                              )
+        # Get partial abundance for the shared analysis
+        sub_shared_abundance = SharedCounter()
+        leveled_tree.get_taxa(sub_shared_abundance,
+                              mindepth=0, maxdepth=0,
+                              include=including,
+                              exclude=excluding,
                               just_level=rank,
                               )
         output.write('\033[92m OK! \033[0m\n')
-        abundances = +abundances  # remove zero and negative counts
-        filename = f'EXCLUSIVE_{rank.name.lower()}_{report}{_LINEAGEXT}'
-        log: str = write_lineage(parents, names, tree_dic[report],
-                                 filename, abundances, collapse)
+        exclusive_abundance = +exclusive_abundance  # remove counts <= 0
+        filename = Filename(f'EXCLUSIVE_{rank.name.lower()}_'
+                            f'{report}{_LINEAGEXT}')
+        log: str = write_lineage(parents, names, trees[report],
+                                 filename, exclusive_abundance, collapse)
         output.write(log)
         filenames.append(filename)
+        # Shared taxa partial evaluations
+        if not i:  # Initialize abundance for the 1st iteration
+            shared_abundance.update(sub_shared_abundance)
+        else:  # Accumulate shared abundances
+            shared_abundance &= sub_shared_abundance
+        # for j in sub_shared_abundance:
+        #     print(j, ' ', end='')
+        # print(' <-- Sub_shared')
+        # for j in shared_abundance:
+        #     print(j, ' ', end='')
+        # print(' <-- Shared')
 
-    # Shared (in common) taxa analysis
+    # Shared taxa final analysis
     output.write('  \033[90mAnalyzing shared taxa...\033[0m')
-    include: Set[TaxId] = set()
-    for subrank in rank.ranks_from_general:
-        include_subset = taxid_dic[reports[0]][subrank]
-        for report in reports:
-            include_subset &= taxid_dic[report][subrank]  # Acc intersection
-        include |= include_subset
-
-    # weight = 1.0/len(filerep_lst)
-    # Calculate shared taxa abundance as mean of the abs counts in each dataset
-    abundances = col.Counter({taxid: sum([abund_dic[fn][taxid]
-                                          for fn in reports]) // len(
-        reports) for taxid in include})
-    #    for filerep in filerep_lst:
-    #        for tid in include_set:
-    #            abun_cnt[tid] += weight*abund_dic[filerep][tid]
+    shared_abundance //= len(reports)  # Get averaged abundance
     output.write('\033[92m OK! \033[0m\n')
-    if abundances:
-        output.write(f'  \033[90mIncluding {len(abundances)} taxa at '
+    if shared_abundance:
+        output.write(f'  \033[90mIncluding {len(shared_abundance)} taxa at '
                      f'rank "{rank.name.lower()}"\033[0m\n'
                      '  \033[90mBuilding taxonomy tree...\033[0m')
-    tree = TaxTree()
-    tree.grow(taxonomy, abundances, _ROOT, [])
-    output.write('\033[92m OK! \033[0m\n')
-    # Prune the tree
-    output.write('  \033[90mPruning taxonomy tree...\033[0m')
-    tree.prune(mintaxa, None, collapse, verb)
-    output.write('\033[92m OK! \033[0m\n')
-    # Get the taxa with their abundances and taxonomical levels
-    output.write('  \033[90mFiltering taxa...\033[0m')
-    abundances = col.Counter()
-    ranks = Ranks({})
-    tree.get_taxa(abundances, ranks,
-                  mindepth=0, maxdepth=0,
-                  include=including, exclude=excluding,
-                  just_level=rank,
-                  )
-    abundances = +abundances  # remove zero and negative counts
-    output.write('\033[92m OK! \033[0m\n')
-    # Save the taxonomy in tsv file
-    filename = f'SHARED_{rank.name.lower()}{_LINEAGEXT}'
-    log = write_lineage(parents, names, tree,
-                        filename, abundances, collapse)
-    output.write(log)
-    filenames.append(filename)
+        tree = TaxTree()
+        tree.grow(taxonomy, shared_abundance)
+        output.write('\033[92m OK! \033[0m\n')
+        filename = Filename(f'SHARED_{rank.name.lower()}{_LINEAGEXT}')
+        log = write_lineage(parents, names, tree,
+                            filename, shared_abundance, collapse)
+        output.write(log)
+        filenames.append(filename)
     print(output.getvalue())
     sys.stdout.flush()
 
     # Return
     return filenames
+
+
+def write_krona(samples: List[Sample],
+                outputs: Dict[Rank, Filename],
+                htmlfile: Filename = Filename('Output' + _HTML_SUFFIX),
+                ):
+    """Generate the Krona html file calling ktImportText."""
+    subprc = ["ktImportText"]
+    subprc.extend(samples)
+    try:
+        subprc.extend([outputs[level][i]
+                       for level in Rank.selected_ranks
+                       for i in range(len(outputs[level]))])
+    except KeyError:
+        pass
+    subprc.extend(["-o", htmlfile])
+    try:
+        subprocess.run(subprc, check=True)
+    except subprocess.CalledProcessError:
+        print('\n\033[91mERROR!\033[0m ktImportText: ' +
+              'returned a non-zero exit status (Krona plot built failed)')
 
 
 def main():
@@ -825,7 +909,7 @@ def main():
 
     # Parse arguments
     args = parser.parse_args()
-    filerep_lst = args.filerep
+    reports = args.filerep
     verb = args.verbose
     nodesfile = os.path.join(args.nodespath, _NODESFILE)
     namesfile = os.path.join(args.nodespath, _NAMESFILE)
@@ -835,9 +919,9 @@ def main():
     including: Set[TaxId] = set(args.include)
     sequential = args.sequential
     avoidcross = args.avoidcross
-    htmlfile = args.outhtml
+    htmlfile: Filename = args.outhtml
     if not htmlfile:
-        htmlfile = filerep_lst[0].split('_mhl')[0] + '.cf2krona.html'
+        htmlfile = reports[0].split('_mhl')[0] + _HTML_SUFFIX
 
     # Program header and chdir
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
@@ -847,11 +931,11 @@ def main():
     ncbi: Taxonomy = Taxonomy(nodesfile, namesfile,
                               collapse, excluding, including)
 
-    tree_dic = {}  # dict with the tree of every sample
-    abund_dic = {}  # sample dict with col.Counter with abundances of taxa
-    #    level_dic = {}  # sample dict with the taxonomic levels of taxa
-    taxid_dic = {}  # sample dict with dict of taxids for every taxlevel
-    filen_lst = []  # sample dict with the name of the output file (w/o ext)
+    # Declare variables that will hold results for the samples analyzed
+    trees: Dict[Sample, TaxTree] = {}
+    abundances: Dict[Sample, Counter[TaxId]] = {}
+    taxids: Dict[Sample, TaxLevels] = {}
+    samples: List[Sample] = []
     # Processing of report files in parallel
     print('\033[90mPlease, wait, processing files in parallel...\033[0m\n')
     kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa, 'verb': verb}
@@ -859,31 +943,33 @@ def main():
     if platform.system() and not sequential:  # Only for known platforms
         mpctx = mp.get_context('spawn')  # Important for OSX&Win
         with mpctx.Pool(processes=min(os.cpu_count(),
-                                      len(filerep_lst))) as pool:
+                                      len(reports))) as pool:
             async_results = [pool.apply_async(
                 process_report,
                 args=[filerep],
                 kwds=kwargs
-            ) for filerep in filerep_lst]
-            for filerep, (filen, tree_dic[filerep], taxid_dic[filerep],
-                          abund_dic[filerep]) in zip(filerep_lst,
-                                                     [r.get() for r in
-                                                      async_results]):
-                filen_lst.append(filen)
-    else:
-        for filerep in filerep_lst:
-            filen, tree_dic[filerep], taxid_dic[filerep], abund_dic[filerep] = \
-                process_report(filerep, **kwargs)
-            filen_lst.append(filen)
+            ) for filerep in reports]
+            for sample, (filename, trees[sample], taxids[sample],
+                         abundances[sample]) in zip(reports,
+                                                    [r.get() for r in
+                                                     async_results]):
+                samples.append(filename)
+    else:  # sequential processing of each sample
+        for sample in reports:
+            (filename,
+             trees[sample],
+             taxids[sample],
+             abundances[sample]) = process_report(sample, **kwargs)
+            samples.append(filename)
 
     # Cross analysis of samples in parallel by taxlevel
-    filen_diff_dic = {}  # taxlevel dict with the name of output file (w/o ext)
+    outputs: Dict[Rank, Filename] = {}  # dict: rank to output files (w/o ext)
     # Avoid if just a single report file of explicitly stated by flag
-    if len(filerep_lst) > 1 and not avoidcross:
+    if len(reports) > 1 and not avoidcross:
         print('\033[90mPlease, wait. ' +
               'Performing cross analysis in parallel...\033[0m\n')
-        kwargs.update({'tree_dic': tree_dic, 'taxid_dic': taxid_dic,
-                       'abund_dic': abund_dic, 'filerep_lst': filerep_lst})
+        kwargs.update({'trees': trees, 'taxids': taxids,
+                       'abundances': abundances, 'reports': reports})
         if platform.system() and not sequential:  # Only for known platforms
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(), len(
@@ -893,32 +979,17 @@ def main():
                     args=[level],
                     kwds=kwargs
                 ) for level in Rank.selected_ranks]
-                for level, (filen_diff_dic[level]) in zip(
+                for level, (outputs[level]) in zip(
                         Rank.selected_ranks,
                         [r.get() for r in async_results]):
                     pass
-        else:
+        else:  # sequential processing of each selected rank
             for level in Rank.selected_ranks:
-                filen_diff_dic[level] = process_rank(level, **kwargs)
+                outputs[level] = process_rank(level, **kwargs)
 
-    # Generate the Krona html file calling ktImportText
-    subprc = ["ktImportText"]
-    subprc.extend(filen_lst)
-    try:
-        subprc.extend([filen_diff_dic[level][i]
-                       for level in Rank.selected_ranks
-                       for i in range(len(filen_diff_dic[level]))])
-    except KeyError:
-        pass
-    subprc.extend(["-o", htmlfile])
-    try:
-        subprocess.run(subprc, check=True)
-    except subprocess.CalledProcessError:
-        print('\n\033[91mERROR!\033[0m ktImportText: ' +
-              'returned a non-zero exit status (Krona plot built failed)')
+    # Generate Krona plot with all the results
+    write_krona(samples, outputs, htmlfile)
 
 
 if __name__ == '__main__':
-    # for name, member in Rank.__members__.items():
-    #     print(name, member, member.value)
     main()
