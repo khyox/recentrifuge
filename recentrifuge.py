@@ -19,7 +19,7 @@ import subprocess
 import sys
 from enum import Enum
 from typing import Iterable, Dict, Counter, Tuple, List, Set
-from typing import NewType, Iterator, Union
+from typing import NewType, Iterator, Union, Optional
 
 # Type annotations
 # pylint: disable=invalid-name
@@ -111,6 +111,7 @@ class Rank(Enum):
     UNCLASSIFIED = 0
     U = 'UNCLASSIFIED'
     NO_RANK = -1
+
     # pylint: enable=invalid-name
 
     @classproperty
@@ -208,8 +209,8 @@ class Taxonomy:
                  nodes_file: str,
                  names_file: str,
                  collapse: bool,
-                 excluding: Tuple[TaxId, ...],
-                 including: Tuple[TaxId, ...],
+                 excluding: Set[TaxId],
+                 including: Set[TaxId],
                  ) -> None:
 
         # Type data declaration and initialization
@@ -232,14 +233,14 @@ class Taxonomy:
                 print(f'\t\t{taxid}\t{self.names[taxid]}')
         else:
             # To excluding to operate not on single taxa but on subtrees
-            including = (_ROOT,)
-        self.including: Tuple[TaxId, ...] = including
+            including = {_ROOT}
+        self.including: Set[TaxId] = including
         if excluding:
             print('List of taxa (and below) to be excluded:')
             print('\t\tTaxId\tScientific Name')
             for taxid in excluding:
                 print(f'\t\t{taxid}\t{self.names[taxid]}')
-        self.excluding: Tuple[TaxId, ...] = excluding
+        self.excluding: Set[TaxId] = excluding
 
     def read_nodes(self, nodes_file: str) -> None:
         """Build dicts of parent and rank for a given taxid (key)"""
@@ -334,7 +335,8 @@ class TaxTree(dict):
                                   rank=taxonomy.get_rank(taxid))
             if taxid in taxonomy.children:  # taxid has children
                 for child in taxonomy.children[taxid]:
-                    self[taxid].grow(taxonomy, abundances, child, path+[taxid])
+                    self[taxid].grow(taxonomy, abundances, child,
+                                     path + [taxid])
 
     def trace(self,
               target: TaxId,
@@ -404,11 +406,11 @@ class TaxTree(dict):
 
     def get_taxa(self,
                  abundance: Counter,
-                 taxlevels: Ranks,
+                 ranks: Ranks,
                  mindepth: int = 0,
                  maxdepth: int = 0,
-                 include: Tuple = (),
-                 exclude: Tuple = (),
+                 include: Union[Tuple, Set[TaxId]] = (),
+                 exclude: Union[Tuple, Set[TaxId]] = (),
                  just_level: Rank = None,
                  _in_branch: bool = False
                  ) -> None:
@@ -417,7 +419,7 @@ class TaxTree(dict):
 
         Args:
             abundance: Input/output Counter; at 1st entry it's empty.
-            taxlevels: Input/output dict; at 1st entry it's empty.
+            ranks: Input/output dict; at 1st entry it's empty.
             mindepth: 0 gets the taxa from the very beginning depth.
             maxdepth: 0 does not stop the search at any depth level.
             include: contains the root taxid of the subtrees to be
@@ -449,12 +451,12 @@ class TaxTree(dict):
                     and (just_level is None
                          or self[tid].taxlevel is just_level)):
                     abundance[tid] = self[tid].counts
-                    taxlevels[tid] = self[tid].taxlevel
+                    ranks[tid] = self[tid].taxlevel
                 if self[tid]:
-                    self[tid].get_taxa(abundance, taxlevels,
-                             mindepth, maxdepth,
-                             include, exclude,
-                             just_level, in_branch)
+                    self[tid].get_taxa(abundance, ranks,
+                                       mindepth, maxdepth,
+                                       include, exclude,
+                                       just_level, in_branch)
 
     def prune(self,
               mintaxa: int = 1,
@@ -478,16 +480,16 @@ class TaxTree(dict):
         """
         for tid in list(self):
             if (self[tid]  # If the subtree has branches,
-                    and self[tid].prune(  # then prune that subtree
-                        mintaxa, minlevel, collapse, verb)):
+                and self[tid].prune(  # then prune that subtree
+                    mintaxa, minlevel, collapse, verb)):
                 # The pruned subtree keeps having branches (still not a leaf!)
                 if verb:
                     print(f'NOT pruning branch {tid} with {self[tid].counts}')
             else:  # self[tid] is a leaf (after pruning its branches or not)
                 if (self[tid].counts < mintaxa  # Not enough counts, or check
-                        or (minlevel  # if minlevel is set, then check if level
-                            and (self[tid].taxlevel < minlevel  # is lower or
-                                 or self.taxlevel <= minlevel))):  # other test
+                    or (minlevel  # if minlevel is set, then check if level
+                        and (self[tid].taxlevel < minlevel  # is lower or
+                             or self.taxlevel <= minlevel))):  # other test
                     if collapse:
                         self.counts += self[
                             tid].counts  # Accumulate abundance in higher tax
@@ -614,9 +616,9 @@ def process_report(*args, **kwargs):
     new_abund: Counter[TaxId] = col.Counter()
     taxlevels: Ranks = Ranks({})
     tree.get_taxa(new_abund, taxlevels,
-             mindepth=0, maxdepth=0,
-             include=including,  # ('2759',),  # ('135613',),
-             exclude=excluding)  # ('9606',))  # ('255526',))
+                  mindepth=0, maxdepth=0,
+                  include=including,  # ('2759',),  # ('135613',),
+                  exclude=excluding)  # ('9606',))  # ('255526',))
     new_abund = +new_abund  # remove zero and negative counts
     taxid: Dict[Rank, TaxId] = Rank.invert_dict(taxlevels)
     output.write('\033[92m OK! \033[0m\n')
@@ -637,7 +639,7 @@ def process_rank(*args, **kwargs):
     """
     # Recover input and parameters
     rank: Rank = args[0]
-    taxonomy = kwargs['taxonomy']
+    taxonomy: Taxonomy = kwargs['taxonomy']
     parents = taxonomy.parents
     names = taxonomy.names
     collapse = taxonomy.collapse
@@ -647,58 +649,57 @@ def process_rank(*args, **kwargs):
     tree_dic = kwargs['tree_dic']
     taxid_dic = kwargs['taxid_dic']
     abund_dic = kwargs['abund_dic']
-    filerep_lst = kwargs['filerep_lst']
-    verb = kwargs['verb']
+    reports: List[str] = kwargs['filerep_lst']
+    verb: bool = kwargs['verb']
     abundances: Counter[TaxId]
     ranks: Ranks
 
-    filen_lst = []
+    filenames: List[str] = []
     filename: str
     output: io.StringIO = io.StringIO(newline='')
     # Exclusive (not shared) taxa analysis
-    for filerep in filerep_lst:
-        exclude_set: set = set()
-        for filename in (fn for fn in filerep_lst if fn != filerep):
-            for subrank in rank.ranks_from_specific:
-                exclude_set.update(taxid_dic[filename][subrank])
-        exclude_set.update(excluding)
-        exclude_tup: Tuple[TaxId, ...] = tuple(exclude_set)
-        if exclude_tup:
-            output.write(f'  \033[90mExcluding {len(exclude_tup)} taxa from '
-                         f'{filerep} at rank "{rank.name.lower()}"\n'
+    for report in reports:
+        exclude: Set[TaxId] = set()
+        # Get taxids at this rank that are present in the other samples
+        for filename in (fn for fn in reports if fn != report):
+            exclude.update(taxid_dic[filename][rank])
+        exclude.update(excluding)  # Add explicit excluding taxa if any
+        if exclude:
+            output.write(f'  \033[90mExcluding {len(exclude)} taxa from '
+                         f'{report} at rank "{rank.name.lower()}"\n'
                          '  \033[90mFiltering shared taxa...\033[0m')
         abundances = col.Counter()
         ranks = Ranks({})
-        leveled_tree = copy.deepcopy(tree_dic[filerep])
+        leveled_tree = copy.deepcopy(tree_dic[report])
         leveled_tree.prune(mintaxa, rank)
         leveled_tree.get_taxa(abundances, ranks,
                               mindepth=0, maxdepth=0,
                               include=including,
-                              exclude=exclude_tup,
+                              exclude=exclude,
                               just_level=rank,
-                 )
+                              )
         output.write('\033[92m OK! \033[0m\n')
         abundances = +abundances  # remove zero and negative counts
-        filename = f'EXCLUSIVE_{rank.name.lower()}_{filerep}{_LINEAGEXT}'
-        log: str = write_lineage(parents, names, tree_dic[filerep],
+        filename = f'EXCLUSIVE_{rank.name.lower()}_{report}{_LINEAGEXT}'
+        log: str = write_lineage(parents, names, tree_dic[report],
                                  filename, abundances, collapse)
         output.write(log)
-        filen_lst.append(filename)
+        filenames.append(filename)
 
     # Shared (in common) taxa analysis
     output.write('  \033[90mAnalyzing shared taxa...\033[0m')
     include: Set[TaxId] = set()
     for subrank in rank.ranks_from_general:
-        include_subset = taxid_dic[filerep_lst[0]][subrank]
-        for filerep in filerep_lst:
-            include_subset &= taxid_dic[filerep][subrank]  # Acc intersection
+        include_subset = taxid_dic[reports[0]][subrank]
+        for report in reports:
+            include_subset &= taxid_dic[report][subrank]  # Acc intersection
         include |= include_subset
 
     # weight = 1.0/len(filerep_lst)
     # Calculate shared taxa abundance as mean of the abs counts in each dataset
     abundances = col.Counter({taxid: sum([abund_dic[fn][taxid]
-                                        for fn in filerep_lst]) // len(
-        filerep_lst) for taxid in include})
+                                          for fn in reports]) // len(
+        reports) for taxid in include})
     #    for filerep in filerep_lst:
     #        for tid in include_set:
     #            abun_cnt[tid] += weight*abund_dic[filerep][tid]
@@ -730,12 +731,12 @@ def process_rank(*args, **kwargs):
     log = write_lineage(parents, names, tree,
                         filename, abundances, collapse)
     output.write(log)
-    filen_lst.append(filename)
+    filenames.append(filename)
     print(output.getvalue())
     sys.stdout.flush()
 
     # Return
-    return filen_lst
+    return filenames
 
 
 def main():
@@ -830,8 +831,8 @@ def main():
     namesfile = os.path.join(args.nodespath, _NAMESFILE)
     mintaxa = int(args.mintaxa)
     collapse = not args.nokollapse
-    excluding: Tuple[TaxId, ...] = tuple(args.exclude)
-    including: Tuple[TaxId, ...] = tuple(args.include)
+    excluding: Set[TaxId] = set(args.exclude)
+    including: Set[TaxId] = set(args.include)
     sequential = args.sequential
     avoidcross = args.avoidcross
     htmlfile = args.outhtml
