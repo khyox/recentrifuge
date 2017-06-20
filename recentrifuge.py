@@ -17,7 +17,7 @@ import os
 import platform
 import subprocess
 import sys
-from enum import Enum, unique
+from enum import Enum
 from typing import Iterable, Dict, Counter, Tuple, List, Set
 from typing import NewType, Iterator, Union
 
@@ -28,7 +28,6 @@ Parents = NewType('Parents', Dict[TaxId, TaxId])
 Ranks = NewType('Ranks', Dict[TaxId, 'Rank'])
 Names = NewType('Names', Dict[TaxId, str])
 Children = NewType('Children', Dict[TaxId, Dict[TaxId, int]])
-TaxLevels = NewType('TaxLevels', Dict[TaxId, 'Rank'])
 # pylint: enable=invalid-name
 
 # Predefined internal constants
@@ -59,62 +58,64 @@ class UnsupportedTaxLevelError(Exception):
 
 
 class Rank(Enum):
-    """Enumeration with codes for taxonomical levels."""
+    """Enumeration with ranks (taxonomical levels).
+
+    The members are initialized using a customized __new__ method so
+    that there are 3 different mechanisms to assign value to members:
+      1) Empty will imply decrease autonumbering starting at 99.
+      2) Direct assignation of an integer value is allowed.
+      3) A string with the name of a previously listed member will
+        assign that same value to the current member.
+    With this, different comparisons between ranks will be available.
+
+    """
     # pylint: disable=invalid-name
-    NO_RANK = 'no rank'
-    DOMAIN = 'domain'
-    D = 'domain'
-    SUPERKINGDOM = 'superkingdom'
-    KINGDOM = 'kingdom'
-    SUBKINGDOM = 'subkingdom'
-    K = 'kingdom'
-    SUPERPHYLUM = 'superphylum'
-    PHYLUM = 'phylum'
-    P = 'phylum'
-    SUBPHYLUM = 'subphylum'
-    SUPERCLASS = 'superclass'
-    CLASS = 'class'
-    C = 'class'
-    SUBCLASS = 'subclass'
-    INFRACLASS = 'infraclass'
-    COHORT = 'cohort'
-    SUPERORDER = 'superorder'
-    ORDER = 'order'
-    O = 'order'
-    SUBORDER = 'suborder'
-    INFRAORDER = 'infraorder'
-    PARVORDER = 'parvorder'
-    SUPERFAMILY = 'superfamily'
-    FAMILY = 'family'
-    F = 'family'
-    SUBFAMILY = 'subfamily'
-    TRIBE = 'tribe'
-    SUBTRIBE = 'subtribe'
-    GENUS = 'genus'
-    G = 'genus'
-    SUBGENUS = 'subgenus'
-    SPECIES_GROUP = 'species group'
-    SPECIES_SUBGROUP = 'species subgroup'
-    SPECIES = 'species'
-    S = 'species'
-    SUBSPECIES = 'subspecies'
-    VARIETAS = 'varietas'
-    FORMA = 'forma'
-    H = 'otHer'
-    U = 'Unclassified'
-    W = 'unknoWn'
+    DOMAIN = ()
+    D = 'DOMAIN'
+    SUPERKINGDOM = ()
+    KINGDOM = ()
+    K = 'KINGDOM'
+    SUBKINGDOM = ()
+    SUPERPHYLUM = ()
+    PHYLUM = ()
+    P = 'PHYLUM'
+    SUBPHYLUM = ()
+    SUPERCLASS = ()
+    CLASS = ()
+    C = 'CLASS'
+    SUBCLASS = ()
+    INFRACLASS = ()
+    COHORT = ()
+    SUPERORDER = ()
+    ORDER = ()
+    O = 'ORDER'
+    SUBORDER = ()
+    INFRAORDER = ()
+    PARVORDER = ()
+    SUPERFAMILY = ()
+    FAMILY = ()
+    F = 'FAMILY'
+    SUBFAMILY = ()
+    TRIBE = ()
+    SUBTRIBE = ()
+    GENUS = ()
+    G = 'GENUS'
+    SUBGENUS = ()
+    SPECIES_GROUP = ()
+    SPECIES_SUBGROUP = ()
+    SPECIES = ()
+    S = 'SPECIES'
+    SUBSPECIES = ()
+    VARIETAS = ()
+    FORMA = ()
+    UNCLASSIFIED = 0
+    U = 'UNCLASSIFIED'
+    NO_RANK = -1
     # pylint: enable=invalid-name
 
     @classproperty
-    def taxlevels(cls):  # pylint: disable=no-self-argument
-        """Tax levels ordered by taxonomical level"""
-        _taxlevels: Tuple['Rank', ...] = (cls.S, cls.G, cls.F, cls.O,
-                                          cls.C, cls.P, cls.K, cls.D)
-        return _taxlevels
-
-    @classproperty
-    def selected_taxlevels(cls):  # pylint: disable=no-self-argument
-        """Tax levels selected for deep analysis and comparisons"""
+    def selected_ranks(cls):  # pylint: disable=no-self-argument
+        """Ranks selected for deep analysis and comparisons"""
         _selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O,
                                              cls.C, cls.P, cls.K, cls.D]
         return _selected_taxlevels
@@ -124,7 +125,7 @@ class Rank(Enum):
         """Transforms Centrifuge codes for taxonomical levels"""
         taxonomic_level: Rank
         if tax_level == '-':
-            taxonomic_level = cls.H
+            taxonomic_level = cls.NO_RANK
         else:
             try:
                 taxonomic_level = cls[tax_level]
@@ -134,79 +135,70 @@ class Rank(Enum):
         return taxonomic_level
 
     @classmethod
-    def invert_dict(cls, tax_levels: dict) -> dict:
+    def invert_dict(cls, ranks: dict) -> dict:
         """Invert dictionary from items->Rank to Rank->set(items)"""
-        return {cls[taxlevel]: {item for item in tax_levels if
-                                tax_levels[item] is cls[taxlevel]} for
+        return {cls[taxlevel]: {item for item in ranks if
+                                ranks[item] is cls[taxlevel]} for
                 taxlevel in cls.__members__}  # type: ignore
 
     @property
-    def taxlevels_from_specific(self) -> Iterator['Rank']:
+    def ranks_from_specific(self) -> Iterator['Rank']:
         """Generator returning selected taxlevels from specific to general."""
-        for taxlevel in Rank.selected_taxlevels:
-            yield taxlevel
-            if taxlevel is self:
+        for rank in Rank.selected_ranks:
+            yield rank
+            if rank is self:
                 break
 
     @property
-    def taxlevels_from_general(self) -> Iterator['Rank']:
+    def ranks_from_general(self) -> Iterator['Rank']:
         """Generator returning selected taxlevels from general to specific."""
-        for taxlevel in reversed(
-                Rank.selected_taxlevels):
-            yield taxlevel
-            if taxlevel is self:
+        for rank in reversed(Rank.selected_ranks):
+            yield rank
+            if rank is self:
                 break
+
+    def __new__(cls, init=None):
+        _value: int
+        if isinstance(init, int):
+            _value = init
+        elif isinstance(init, str):
+            _value = cls[init].value
+        else:
+            _value = 99 - len(cls.__members__)  # Give decreasing values < 100
+        obj = object.__new__(cls)
+        obj._value_ = _value
+        return obj
 
     def __repr__(self):
         return '<%s.%s>' % (self.__class__.__name__, self.name)
 
     def __lt__(self, other):
-        if self.__class__ is not other.__class__:
-            return NotImplemented
-        less: bool
-        try:
-            # pylint: disable=no-member
-            less = (Rank.taxlevels.index(self)
-                    < Rank.taxlevels.index(other))
-        except ValueError:
-            less = False  # self, other are not comparable (not in taxlevels)
-        return less
+        if self.__class__ is other.__class__:
+            if self.value > 0 and other.value > 0:
+                return self.value < other.value
+            return False
+        return NotImplemented
 
     def __le__(self, other):
-        if self.__class__ is not other.__class__:
-            return NotImplemented
-        less_eq: bool
-        try:
-            # pylint: disable=no-member
-            less_eq = (Rank.taxlevels.index(self)
-                       <= Rank.taxlevels.index(other))
-        except ValueError:
-            less_eq = False  # self, other not comparable (not in taxlevels)
-        return less_eq
+        if self.__class__ is other.__class__:
+            if self.value > 0 and other.value > 0:
+                return self.value <= other.value
+            return False
+        return NotImplemented
 
     def __gt__(self, other):
-        if self.__class__ is not other.__class__:
-            return NotImplemented
-        greater: bool
-        try:
-            # pylint: disable=no-member
-            greater = (Rank.taxlevels.index(self)
-                       > Rank.taxlevels.index(other))
-        except ValueError:
-            greater = False  # self, other not comparable (not in taxlevels)
-        return greater
+        if self.__class__ is other.__class__:
+            if self.value > 0 and other.value > 0:
+                return self.value > other.value
+            return False
+        return NotImplemented
 
     def __ge__(self, other):
-        if self.__class__ is not other.__class__:
-            return NotImplemented
-        great_eq: bool
-        try:
-            # pylint: disable=no-member
-            great_eq = (Rank.taxlevels.index(self)
-                        > Rank.taxlevels.index(other))
-        except ValueError:
-            great_eq = False  # self, other not comparable (not in taxlevels)
-        return great_eq
+        if self.__class__ is other.__class__:
+            if self.value > 0 and other.value > 0:
+                return self.value >= other.value
+            return False
+        return NotImplemented
 
 
 class Taxonomy:
@@ -302,17 +294,21 @@ class Taxonomy:
             self.children[self.parents[tid]][tid] = 0
         print('\033[92m OK! \033[0m')
 
+    def get_rank(self, taxid: TaxId) -> Rank:
+        """Retrieve the rank for a TaxId."""
+        return self.ranks.get(taxid, Rank.UNCLASSIFIED)
+
 
 class TaxTree(dict):
     """Nodes of a taxonomical tree"""
 
     def __init__(self, *args,
                  counts: int = 0,
-                 taxlevel: Rank = Rank.W
+                 rank: Rank = Rank.UNCLASSIFIED
                  ) -> None:
         super().__init__(args)
         self.counts: int = counts
-        self.taxlevel: Rank = taxlevel
+        self.taxlevel: Rank = rank
 
     def __str__(self, num_min: int = 1) -> None:
         """Recursively print populated nodes of the taxonomy tree"""
@@ -326,16 +322,19 @@ class TaxTree(dict):
                 print('', end=',')
         print(')', end='')
 
-    def grow(self, children, parentid, path, abundances, taxlevels):
-        """Recursive function to build the taxonomy tree"""
-        if parentid not in path:  # Avoid loops for repeated taxid (like root)
-            self[parentid] = TaxTree(counts=abundances.get(parentid, 0),
-                                     taxlevel=taxlevels.get(parentid,
-                                                            Rank.W))
-            if parentid in children:
-                for child in children[parentid]:
-                    self[parentid].grow(children, child, path + [parentid],
-                                        abundances, taxlevels)
+    def grow(self,
+             taxonomy: Taxonomy,
+             abundances: Counter[TaxId],
+             taxid: TaxId,
+             path: List[TaxId]
+             ) -> None:
+        """Recursive function to build a taxonomy tree"""
+        if taxid not in path:  # Avoid loops for repeated taxid (like root)
+            self[taxid] = TaxTree(counts=abundances.get(taxid, 0),
+                                  rank=taxonomy.get_rank(taxid))
+            if taxid in taxonomy.children:  # taxid has children
+                for child in taxonomy.children[taxid]:
+                    self[taxid].grow(taxonomy, abundances, child, path+[taxid])
 
     def trace(self,
               target: TaxId,
@@ -405,7 +404,7 @@ class TaxTree(dict):
 
     def get_taxa(self,
                  abundance: Counter,
-                 taxlevels: TaxLevels,
+                 taxlevels: Ranks,
                  mindepth: int = 0,
                  maxdepth: int = 0,
                  include: Tuple = (),
@@ -488,7 +487,7 @@ class TaxTree(dict):
                 if (self[tid].counts < mintaxa  # Not enough counts, or check
                         or (minlevel  # if minlevel is set, then check if level
                             and (self[tid].taxlevel < minlevel  # is lower or
-                                 or self.taxlevel <= minlevel))):  # otHer case
+                                 or self.taxlevel <= minlevel))):  # other test
                     if collapse:
                         self.counts += self[
                             tid].counts  # Accumulate abundance in higher tax
@@ -500,7 +499,7 @@ class TaxTree(dict):
         return bool(self)  # True if this node has branches (is not a leaf)
 
 
-def read_report(report_file: str) -> Tuple[str, Counter,
+def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
                                            Dict[TaxId, Rank]]:
     """
     Read Centrifuge/Kraken report file
@@ -585,28 +584,25 @@ def process_report(*args, **kwargs):
     """
     # Recover input and parameters
     filerep = args[0]
-    parents = kwargs['taxonomy'].parents
-    children = kwargs['taxonomy'].children
-    names = kwargs['taxonomy'].names
+    taxonomy = kwargs['taxonomy']
+    parents = taxonomy.parents
+    names = taxonomy.names
     mintaxa = kwargs['mintaxa']
-    collapse = kwargs['taxonomy'].collapse
-    including = kwargs['taxonomy'].including
-    excluding = kwargs['taxonomy'].excluding
+    collapse = taxonomy.collapse
+    including = taxonomy.including
+    excluding = taxonomy.excluding
     verb = kwargs['verb']
     output: io.StringIO = io.StringIO(newline='')
 
     # Read Centrifuge/Kraken report file to get abundances
-    log, abund, level = read_report(filerep)
+    log, abundances, _ = read_report(filerep)
     output.write(log)
 
     # Build taxonomy tree
     output.write('  \033[90mBuilding taxonomy tree...\033[0m')
-    # tree_dic[filerep] = TaxTree([_ROOT, TaxTree()])
     tree = TaxTree()
-    # grow_tree(_ROOT, [], abund_dic[filerep], tree_dic[filerep][_ROOT])
-    tree.grow(children, _ROOT, [], abund, level)
+    tree.grow(taxonomy, abundances, _ROOT, [])  # Grow tax tree from root node
     output.write('\033[92m OK! \033[0m\n')
-    # print_tree(tree_dic[filerep])
 
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
@@ -615,38 +611,38 @@ def process_report(*args, **kwargs):
 
     # Get the taxa with their abundances and taxonomical levels
     output.write('  \033[90mFiltering taxa...\033[0m')
-    abundances: Counter[TaxId] = col.Counter()
-    taxlevels: TaxLevels = TaxLevels({})
-    tree.get_taxa(abundances, taxlevels,
+    new_abund: Counter[TaxId] = col.Counter()
+    taxlevels: Ranks = Ranks({})
+    tree.get_taxa(new_abund, taxlevels,
              mindepth=0, maxdepth=0,
              include=including,  # ('2759',),  # ('135613',),
              exclude=excluding)  # ('9606',))  # ('255526',))
-    abundances = +abundances  # remove zero and negative counts
+    new_abund = +new_abund  # remove zero and negative counts
     taxid: Dict[Rank, TaxId] = Rank.invert_dict(taxlevels)
     output.write('\033[92m OK! \033[0m\n')
 
     # Write the lineage file
     filename = filerep + _LINEAGEXT
-    log = write_lineage(parents, names, tree, filename, abundances, collapse)
+    log = write_lineage(parents, names, tree, filename, new_abund, collapse)
     output.write(log)
     print(output.getvalue())
     sys.stdout.flush()
     # Return
-    return filename, tree, taxid, abundances
+    return filename, tree, taxid, new_abund
 
 
-def process_taxlevel(*args, **kwargs):
+def process_rank(*args, **kwargs):
     """
     Process results for a taxlevel (to be usually called in parallel!).
     """
     # Recover input and parameters
-    level: Rank = args[0]
-    parents = kwargs['taxonomy'].parents
-    children = kwargs['taxonomy'].children
-    names = kwargs['taxonomy'].names
-    kollapse = kwargs['taxonomy'].collapse
-    including = kwargs['taxonomy'].including
-    excluding = kwargs['taxonomy'].excluding
+    rank: Rank = args[0]
+    taxonomy = kwargs['taxonomy']
+    parents = taxonomy.parents
+    names = taxonomy.names
+    collapse = taxonomy.collapse
+    including = taxonomy.including
+    excluding = taxonomy.excluding
     mintaxa = kwargs['mintaxa']
     tree_dic = kwargs['tree_dic']
     taxid_dic = kwargs['taxid_dic']
@@ -654,47 +650,48 @@ def process_taxlevel(*args, **kwargs):
     filerep_lst = kwargs['filerep_lst']
     verb = kwargs['verb']
     abundances: Counter[TaxId]
-    taxlevels: TaxLevels
+    ranks: Ranks
 
     filen_lst = []
+    filename: str
     output: io.StringIO = io.StringIO(newline='')
     # Exclusive (not shared) taxa analysis
     for filerep in filerep_lst:
         exclude_set: set = set()
         for filename in (fn for fn in filerep_lst if fn != filerep):
-            for sublevel in level.taxlevels_from_specific:
-                exclude_set.update(taxid_dic[filename][sublevel])
+            for subrank in rank.ranks_from_specific:
+                exclude_set.update(taxid_dic[filename][subrank])
         exclude_set.update(excluding)
         exclude_tup: Tuple[TaxId, ...] = tuple(exclude_set)
         if exclude_tup:
             output.write(f'  \033[90mExcluding {len(exclude_tup)} taxa from '
-                         f'{filerep} at taxlevel "{level.value}"\n'
+                         f'{filerep} at rank "{rank.name.lower()}"\n'
                          '  \033[90mFiltering shared taxa...\033[0m')
         abundances = col.Counter()
-        taxlevels = TaxLevels({})
+        ranks = Ranks({})
         leveled_tree = copy.deepcopy(tree_dic[filerep])
-        leveled_tree.prune(mintaxa, level)
-        leveled_tree.get_taxa(abundances, taxlevels,
+        leveled_tree.prune(mintaxa, rank)
+        leveled_tree.get_taxa(abundances, ranks,
                               mindepth=0, maxdepth=0,
                               include=including,
                               exclude=exclude_tup,
-                              just_level=level,
+                              just_level=rank,
                  )
         output.write('\033[92m OK! \033[0m\n')
         abundances = +abundances  # remove zero and negative counts
-        filen_diff = ('EXCLUSIVE_' + level.value + '_' + filerep + _LINEAGEXT)
+        filename = f'EXCLUSIVE_{rank.name.lower()}_{filerep}{_LINEAGEXT}'
         log: str = write_lineage(parents, names, tree_dic[filerep],
-                                 filen_diff, abundances, kollapse)
+                                 filename, abundances, collapse)
         output.write(log)
-        filen_lst.append(filen_diff)
+        filen_lst.append(filename)
 
     # Shared (in common) taxa analysis
     output.write('  \033[90mAnalyzing shared taxa...\033[0m')
     include: Set[TaxId] = set()
-    for sublevel in level.taxlevels_from_general:
-        include_subset = taxid_dic[filerep_lst[0]][sublevel]
+    for subrank in rank.ranks_from_general:
+        include_subset = taxid_dic[filerep_lst[0]][subrank]
         for filerep in filerep_lst:
-            include_subset &= taxid_dic[filerep][sublevel]  # Acc intersection
+            include_subset &= taxid_dic[filerep][subrank]  # Acc intersection
         include |= include_subset
 
     # weight = 1.0/len(filerep_lst)
@@ -708,32 +705,32 @@ def process_taxlevel(*args, **kwargs):
     output.write('\033[92m OK! \033[0m\n')
     if abundances:
         output.write(f'  \033[90mIncluding {len(abundances)} taxa at '
-                     f'taxlevel "{level.value}"\033[0m\n'
+                     f'rank "{rank.name.lower()}"\033[0m\n'
                      '  \033[90mBuilding taxonomy tree...\033[0m')
     tree = TaxTree()
-    tree.grow(children, _ROOT, [], abundances, {})
+    tree.grow(taxonomy, abundances, _ROOT, [])
     output.write('\033[92m OK! \033[0m\n')
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
-    tree.prune(mintaxa, None)
+    tree.prune(mintaxa, None, collapse, verb)
     output.write('\033[92m OK! \033[0m\n')
     # Get the taxa with their abundances and taxonomical levels
     output.write('  \033[90mFiltering taxa...\033[0m')
     abundances = col.Counter()
-    taxlevels = TaxLevels({})
-    tree.get_taxa(abundances, taxlevels,
+    ranks = Ranks({})
+    tree.get_taxa(abundances, ranks,
                   mindepth=0, maxdepth=0,
                   include=including, exclude=excluding,
-                  just_level=level,
+                  just_level=rank,
                   )
     abundances = +abundances  # remove zero and negative counts
     output.write('\033[92m OK! \033[0m\n')
     # Save the taxonomy in tsv file
-    filen_shared = 'SHARED_' + level.value + _LINEAGEXT
+    filename = f'SHARED_{rank.name.lower()}{_LINEAGEXT}'
     log = write_lineage(parents, names, tree,
-                        filen_shared, abundances, kollapse)
+                        filename, abundances, collapse)
     output.write(log)
-    filen_lst.append(filen_shared)
+    filen_lst.append(filename)
     print(output.getvalue())
     sys.stdout.flush()
 
@@ -889,26 +886,26 @@ def main():
         if platform.system() and not sequential:  # Only for known platforms
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(), len(
-                    Rank.selected_taxlevels))) as pool:
+                    Rank.selected_ranks))) as pool:
                 async_results = [pool.apply_async(
-                    process_taxlevel,
+                    process_rank,
                     args=[level],
                     kwds=kwargs
-                ) for level in Rank.selected_taxlevels]
+                ) for level in Rank.selected_ranks]
                 for level, (filen_diff_dic[level]) in zip(
-                        Rank.selected_taxlevels,
+                        Rank.selected_ranks,
                         [r.get() for r in async_results]):
                     pass
         else:
-            for level in Rank.selected_taxlevels:
-                filen_diff_dic[level] = process_taxlevel(level, **kwargs)
+            for level in Rank.selected_ranks:
+                filen_diff_dic[level] = process_rank(level, **kwargs)
 
     # Generate the Krona html file calling ktImportText
     subprc = ["ktImportText"]
     subprc.extend(filen_lst)
     try:
         subprc.extend([filen_diff_dic[level][i]
-                       for level in Rank.selected_taxlevels
+                       for level in Rank.selected_ranks
                        for i in range(len(filen_diff_dic[level]))])
     except KeyError:
         pass
@@ -921,4 +918,6 @@ def main():
 
 
 if __name__ == '__main__':
+    # for name, member in Rank.__members__.items():
+    #     print(name, member, member.value)
     main()
