@@ -3,7 +3,7 @@
 Post-process Centrifuge/Kraken report files for Krona.
 """
 # pylint: disable=not-an-iterable, bad-reversed-sequence, E0203
-__version__ = '0.6.2'
+__version__ = '0.6.3'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jun 2017'
 
@@ -716,35 +716,34 @@ def process_rank(*args, **kwargs):
     mintaxa = kwargs['mintaxa']
     trees: Dict[Sample, TaxTree] = kwargs['trees']
     taxids: Dict[Sample, TaxLevels] = kwargs['taxids']
-    abundances: Dict[Sample, Counter[TaxId]] = kwargs['abundances']
     reports: List[Sample] = kwargs['reports']
-    verb: bool = kwargs['verb']
+    control: bool = kwargs['control']
 
     # Declare/define variables
-    exclusive_abundance: Counter[TaxId]
-    ranks: Ranks
+    control_abundance: Counter[TaxId]
+    #ranks: Ranks
     filenames: List[Filename] = []
-    sample: Sample
+    report: Sample
     filename: Filename
-    include: Set[TaxId] = taxids[reports[0]][rank]  # Initialize to one sample
+    log: str
     shared_abundance: SharedCounter = SharedCounter()
+    shared_ctrl_abundance: SharedCounter = SharedCounter()
     output: io.StringIO = io.StringIO(newline='')
 
-    # Cross analysis iterating by report: exclusive and part of shared
+    # Cross analysis iterating by report: exclusive and part of shared&ctrl
     for i, report in zip(range(len(reports)), reports):
         exclude: Set[TaxId] = set()
         # Get taxids at this rank that are present in the other samples
         for sample in (_report for _report in reports if _report != report):
             exclude.update(taxids[sample][rank])
         exclude.update(excluding)  # Add explicit excluding taxa if any
-        if exclude:
-            output.write(f'  \033[90mExcluding {len(exclude)} taxa from '
-                         f'{report} at rank "{rank.name.lower()}"\n'
-                         '  \033[90mFiltering shared taxa...\033[0m')
+        output.write(f'  \033[90mExcluding {len(exclude)} taxa from '
+                     f'{report} at rank "{rank.name.lower()}"\n'
+                     '  \033[90mFiltering shared taxa...\033[0m')
         leveled_tree = copy.deepcopy(trees[report])
         leveled_tree.prune(mintaxa, rank)  # Prune the copy to the desired rank
         # Get abundance for the exclusive analysis
-        exclusive_abundance = col.Counter()
+        exclusive_abundance: Counter[TaxId] = col.Counter()
         leveled_tree.get_taxa(exclusive_abundance,
                               mindepth=0, maxdepth=0,
                               include=including,
@@ -752,7 +751,7 @@ def process_rank(*args, **kwargs):
                               just_level=rank,
                               )
         # Get partial abundance for the shared analysis
-        sub_shared_abundance = SharedCounter()
+        sub_shared_abundance: SharedCounter = SharedCounter()
         leveled_tree.get_taxa(sub_shared_abundance,
                               mindepth=0, maxdepth=0,
                               include=including,
@@ -763,21 +762,19 @@ def process_rank(*args, **kwargs):
         exclusive_abundance = +exclusive_abundance  # remove counts <= 0
         filename = Filename(f'EXCLUSIVE_{rank.name.lower()}_'
                             f'{report}{_LINEAGEXT}')
-        log: str = write_lineage(parents, names, trees[report],
-                                 filename, exclusive_abundance, collapse)
+        log = write_lineage(parents, names, trees[report],
+                            filename, exclusive_abundance, collapse)
         output.write(log)
         filenames.append(filename)
-        # Shared taxa partial evaluations
-        if not i:  # Initialize abundance for the 1st iteration
+        # Shared and shared-control taxa partial evaluations
+        if i == 0:  # 1st iteration: Initialize shared_abundance
             shared_abundance.update(sub_shared_abundance)
+        elif i == 1:  # 2nd iteration: Initialize shared_ctrl_abundance
+            shared_abundance &= sub_shared_abundance
+            shared_ctrl_abundance.update(sub_shared_abundance)
         else:  # Accumulate shared abundances
             shared_abundance &= sub_shared_abundance
-        # for j in sub_shared_abundance:
-        #     print(j, ' ', end='')
-        # print(' <-- Sub_shared')
-        # for j in shared_abundance:
-        #     print(j, ' ', end='')
-        # print(' <-- Shared')
+            shared_ctrl_abundance &= sub_shared_abundance
 
     # Shared taxa final analysis
     output.write('  \033[90mAnalyzing shared taxa...\033[0m')
@@ -795,10 +792,64 @@ def process_rank(*args, **kwargs):
                             filename, shared_abundance, collapse)
         output.write(log)
         filenames.append(filename)
+
+    if control:
+        # Control sample substraction
+        output.write(f'  \033[90m{reports[0]} is selected as control '
+                     f'sample for subtractions.\033[0m\n')
+        # Get taxids at this rank that are present in the ctrl sample
+        exclude = set(taxids[reports[0]][rank])
+        exclude.update(excluding)  # Add explicit excluding taxa if any
+        for report in reports[1::]:
+            output.write(f'  \033[90mExcluding {len(exclude)} ctrl taxa '
+                         f'from {report} at rank "{rank.name.lower()}"\n'
+                         '  \033[90mFiltering taxa from control...\033[0m')
+            leveled_tree = copy.deepcopy(trees[report])
+            leveled_tree.prune(mintaxa, rank)
+            control_abundance = col.Counter()
+            leveled_tree.get_taxa(control_abundance,
+                                  include=including,
+                                  exclude=exclude,  # Extended exclusion set
+                                  just_level=rank,
+                                  )
+            output.write('\033[92m OK! \033[0m\n')
+            control_abundance = +control_abundance  # remove counts <= 0
+            filename = Filename(f'CONTROL_{rank.name.lower()}_'
+                                f'{report}{_LINEAGEXT}')
+            log = write_lineage(parents, names, trees[report],
+                                filename, control_abundance, collapse)
+            output.write(log)
+            filenames.append(filename)
+
+        # Shared-control taxa final analysis
+        output.write('  \033[90mAnalyzing shared-control taxa...\033[0m')
+        shared_ctrl_abundance //= (len(reports) - 1)  # Get averaged abundance
+        output.write('\033[92m OK! \033[0m\n')
+        if shared_ctrl_abundance:
+            output.write(
+                f'  \033[90mIncluding {len(shared_ctrl_abundance)} taxa at '
+                f'rank "{rank.name.lower()}"\033[0m\n'
+                '  \033[90mBuilding taxonomy tree...\033[0m')
+            tree = TaxTree()
+            tree.grow(taxonomy, shared_ctrl_abundance)
+            tree.prune(mintaxa, rank)
+            new_shared_ctrl_abundance: Counter[TaxId] = col.Counter()
+            tree.get_taxa(new_shared_ctrl_abundance,
+                          include=including,
+                          exclude=exclude,  # Extended exclusion set
+                          just_level=rank,
+                          )
+            output.write('\033[92m OK! \033[0m\n')
+            filename = Filename(f'SHARED_CONTROL_{rank.name.lower()}'
+                                f'{_LINEAGEXT}')
+            log = write_lineage(parents, names, tree,
+                                filename, new_shared_ctrl_abundance, collapse)
+            output.write(log)
+            filenames.append(filename)
+
+    # Print output and return
     print(output.getvalue())
     sys.stdout.flush()
-
-    # Return
     return filenames
 
 
@@ -906,6 +957,11 @@ def main():
         action='store_true',
         help='Avoid cross analysis.'
     )
+    parser.add_argument(
+        '-c', '--control',
+        action='store_true',
+        help='Take the first sample as negative control.'
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -919,6 +975,7 @@ def main():
     including: Set[TaxId] = set(args.include)
     sequential = args.sequential
     avoidcross = args.avoidcross
+    control = args.control
     htmlfile: Filename = args.outhtml
     if not htmlfile:
         htmlfile = reports[0].split('_mhl')[0] + _HTML_SUFFIX
@@ -969,7 +1026,8 @@ def main():
         print('\033[90mPlease, wait. ' +
               'Performing cross analysis in parallel...\033[0m\n')
         kwargs.update({'trees': trees, 'taxids': taxids,
-                       'abundances': abundances, 'reports': reports})
+                       'abundances': abundances, 'reports': reports,
+                       'control': control})
         if platform.system() and not sequential:  # Only for known platforms
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(), len(
