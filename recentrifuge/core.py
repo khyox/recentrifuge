@@ -893,7 +893,6 @@ def process_rank(*args, **kwargs):
             leveled_tree.prune(mintaxa, rank)
             leveled_tree.accumulate()  # Calculate the accumulated values
             control_abundance: Counter[TaxId] = col.Counter()
-            control_acc: Counter[TaxId] = col.Counter()
             leveled_tree.get_taxa(control_abundance,
                                   include=including,
                                   exclude=exclude,  # Extended exclusion set
@@ -903,7 +902,7 @@ def process_rank(*args, **kwargs):
             tree = TaxTree()
             tree.grow(taxonomy, control_abundance)
             tree.accumulate()  # Calculate the accumulated values
-            control_acc = col.Counter()
+            control_acc: Counter[TaxId] = col.Counter()
             tree.get_taxa(None, control_acc,
                           include=including,
                           exclude=excluding)
@@ -911,8 +910,8 @@ def process_rank(*args, **kwargs):
             control_abundance = +control_abundance  # remove counts <= 0
             sample = Sample(f'CONTROL_{rank.name.lower()}_{report}')
             samples.append(sample)
-        abundances[Sample(sample)] = control_abundance
-        accumulators[Sample(sample)] = control_acc
+            abundances[sample] = control_abundance
+            accumulators[sample] = control_acc
 
         # Shared-control taxa final analysis
         output.write('  \033[90mAnalyzing shared-control taxa...\033[0m')
@@ -945,8 +944,8 @@ def process_rank(*args, **kwargs):
             output.write('\033[92m OK! \033[0m\n')
             sample = Sample(f'SHARED_CONTROL_{rank.name.lower()}')
             samples.append(sample)
-            abundances[Sample(sample)] = new_shared_ctrl_abundance
-            accumulators[Sample(sample)] = new_shared_ctrl_acc
+            abundances[sample] = new_shared_ctrl_abundance
+            accumulators[sample] = new_shared_ctrl_acc
 
     # Print output and return
     print(output.getvalue())

@@ -17,7 +17,7 @@ from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree, krona_from_xml
 
-__version__ = '0.8.0'
+__version__ = '0.8.1'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jul 2017'
 
@@ -204,16 +204,19 @@ def main():
     # Generate Krona plot with all the results via Krona 2.0 XML spec
     #
     print('\033[90mBuilding the taxonomy multiple tree...\033[0m', end='')
+    sys.stdout.flush()
     krona: KronaTree = KronaTree(samples)
     polytree: MultiTree = MultiTree(samples=samples)
     polytree.grow(taxonomy=ncbi, abundances=abundances, accs=accs)
     print('\033[92m OK! \033[0m')
     print('\033[90mGenerating Krona XML file...\033[0m', end='')
+    sys.stdout.flush()
     polytree.toxml(taxonomy=ncbi, krona=krona)
     xmlfile: Filename = Filename(htmlfile + '.xml')
     krona.tofile(xmlfile)
     print('\033[92m OK! \033[0m')
     print('\033[90mGenerating final Krona plot...\033[0m')
+    sys.stdout.flush()
     krona_from_xml(xmlfile, htmlfile)
 
 
