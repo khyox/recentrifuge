@@ -4,82 +4,175 @@ Classes and functions directly related with Krona.
 """
 # pylint: disable=not-an-iterable
 import csv
-import io
 import subprocess
-from typing import Counter, List, Union, Dict
+from typing import List, Dict, NewType, Any
+import xml.etree.ElementTree as ETree
+from xml.dom import minidom
 
-from recentrifuge.config import Filename, Sample, TaxId, Parents
-from recentrifuge.config import HTML_SUFFIX
-from recentrifuge.core import Rank, TaxTree
+from recentrifuge.config import HTML_SUFFIX, Filename, Sample
+
+# from recentrifuge.config import HTML_SUFFIX
+
+# Type annotations
+# pylint: disable=invalid-name
+Attrib = NewType('Attrib', str)  # Refers to Krona attributes not XML ones
+Elm = ETree.Element
+# pylint: enable=invalid-name
+
+# Predefined constants
+COUNT = Attrib('count')
+UNASSIGNED = Attrib('unassigned')
+TID = Attrib('tid')
+RANK = Attrib('rank')
+SCORE = Attrib('score')
 
 # Define encoding dialect for TSV files expected by Krona
 csv.register_dialect('krona', 'unix', delimiter='\t', quoting=csv.QUOTE_NONE)
 
 
-def write_lineage(parents: Parents,
-                  names: Dict[TaxId, str],
-                  tree: TaxTree,
-                  lineage_file: str,
-                  nodes: Counter[TaxId],
-                  collapse: bool = True) -> str:
-    """
-    Writes a lineage file understandable by Krona.
+class KronaTree(ETree.ElementTree):
+    """Kronified ElementTree."""
 
-    Args:
-        parents: dictionary of parents for every TaxId.
-        names: dictionary of names for every TaxId.
-        tree: a TaxTree structure.
-        lineage_file: name of the lineage file
-        nodes: a counter for TaxIds
-        collapse: This bool controls the collapse of taxid 131567
-            (cellular organisms) and is True by default
+    @staticmethod
+    def sub(parent: Elm,
+            tag: str,
+            attrib: Dict[str, str] = None,
+            text: str = None,
+            ) -> Elm:
+        """Wrapper around ETree.SubElement."""
+        if attrib:
+            subelement = ETree.SubElement(parent, tag, attrib)
+        else:
+            subelement = ETree.SubElement(parent, tag)
+        if text is not None:
+            subelement.text = text
+        return subelement
 
-    Returns: A string with the output messages
+    def node(self,
+             parent: Elm,
+             name: str,
+             values: Dict[Attrib, Any],
+             ) -> Elm:
+        """Wrapper for creating a meaningful Krona node.
 
-    """
-    log, taxids_dic = tree.get_lineage(parents, iter(nodes))
-    output: io.StringIO = io.StringIO(newline='')
-    output.write(log)
-    if collapse:  # Collapse taxid 131567 (cellular organisms) if desired
-        for tid in taxids_dic:
-            if len(taxids_dic[tid]) > 2:  # Not collapse for unclassified
-                try:
-                    taxids_dic[tid].remove(
-                        TaxId('131567'))  # TaxId cellular organisms
-                except ValueError:
-                    pass
-    lineage_dic = {tax_id: [names[tid] for tid in taxids_dic[tax_id]]
-                   for tax_id in taxids_dic}
-    output.write(f'  \033[90mSaving lineage file {lineage_file} with '
-                 f'{len(nodes)} nodes...\033[0m')
-    with open(lineage_file, 'w', newline='') as tsv_handle:
-        tsvwriter = csv.writer(tsv_handle, dialect='krona')
-        tsvwriter.writerow(["#taxID", "Lineage"])
-        for tid in nodes:
-            counts: str = str(nodes[tid])  # nodes[tid] is a int
-            row: List[Union[TaxId, str]] = [counts, ]
-            row.extend(lineage_dic[tid])
-            tsvwriter.writerow(row)
-    output.write('\033[92m OK! \033[0m\n')
-    return output.getvalue()
+        For details, please consult:
+        https://github.com/marbl/Krona/wiki/Krona-2.0-XML-Specification
+        """
+        subnode = self.sub(parent, 'node',
+                           {'name': name,
+                            'href': f'https://www.google.es/search?q={name}'})
+        count_node = self.sub(subnode, COUNT)
+        counts: Dict[Sample, str] = {sample: values[COUNT][sample]
+                                     for sample in self.samples}
+        for sample in self.samples:
+            self.sub(count_node, 'val', None, counts[sample])
+        if values.get(UNASSIGNED):
+            unassigned_node = self.sub(subnode, UNASSIGNED)
+            unassigned: Dict[Sample, str] = {sample: values[UNASSIGNED][sample]
+                                            for sample in self.samples}
+            for sample in self.samples:
+                self.sub(unassigned_node, 'val', None, unassigned[sample])
+        if values.get(TID):
+            tid_node = self.sub(subnode, TID)
+            self.sub(tid_node, 'val',
+                     {'href': values[TID]},
+                     values[TID])
+        if values.get(RANK):
+            rank_node = self.sub(subnode, RANK)
+            self.sub(rank_node, 'val', None, values[RANK])
+        if values.get(SCORE):
+            score_node = self.sub(subnode, SCORE)
+            scores: Dict[Sample, str] = {sample: values[SCORE][sample]
+                                         for sample in self.samples}
+            for sample in self.samples:
+                self.sub(score_node, 'val', None, scores[sample])
+        return subnode
+
+    @staticmethod
+    def to_pretty_string(element: Elm):
+        """Return a pretty-printed XML string for the Element."""
+        raw_string = ETree.tostring(element, 'utf-8')
+        re_parsed = minidom.parseString(raw_string)
+        pretty = re_parsed.toprettyxml(indent='  ')
+        return pretty.split('\n', 1)[-1]  # Remove the XML 1.0 tag
+
+    def __init__(self,
+                 samples: List[Sample],
+                 ) -> None:
+        """
+        Args:
+            samples: List of samples in the set
+        """
+        # Type declaration
+        self.krona: Elm
+        self.krona_tree: ETree.ElementTree
+        self.attributes: Elm
+        self.samples: List[Sample]
+        self.datasets: Elm
+
+        # Set root of KronaTree
+        self.krona = ETree.Element('krona',
+                                   attrib={'collapse': 'false', 'key': 'true'})
+
+        # Set attributes
+        self.attributes = ETree.SubElement(self.krona, 'attributes',
+                                           {'magnitude': 'count'})
+        self.sub(self.attributes, 'attribute',
+                 {'display': 'Count', 'dataAll': 'members'},
+                 'count')
+        self.sub(self.attributes, 'attribute',
+                 {'display': 'Unassigned', 'dataNode': 'members'},
+                 'unassigned')
+        self.sub(self.attributes, 'attribute',
+                 {'display': 'TaxID', 'mono': 'true',
+                  'hrefBase':
+                      'https://www.ncbi.nlm.nih.gov/Taxonomy/'
+                      'Browser/wwwtax.cgi?mode=Info&id='},
+                 'tid')
+        self.sub(self.attributes, 'attribute',
+                 {'display': 'Rank', 'mono': 'true'},
+                 'rank')
+        self.sub(self.attributes, 'attribute',
+                 {'display': 'Avg. confidence'},
+                 'score')
+
+        # Set datasets
+        self.samples = samples
+        self.datasets = ETree.SubElement(self.krona, 'datasets')
+        for sample in self.samples:
+            self.sub(self.datasets, 'dataset', {}, sample)
+
+        # Set color
+        self.color = self.sub(self.krona, 'color',
+                              {'attribute': 'score',
+                               'hueStart': '0',
+                               'hueEnd': '120',
+                               'valueStart': '0.0',
+                               'valueEnd': '1.0',
+                               'default': 'false'},
+                              ' ')  # Krona: Avoid empty-element tag
+
+        super(KronaTree, self).__init__(self.krona)
+
+    def __repr__(self):
+        return self.to_pretty_string(self.krona)
+
+    def tofile(self,
+               filename: Filename):
+        """Write KronaTree in 'pretty' XML."""
+        with open(filename, 'w') as xml_file:
+            xml_file.write(self.to_pretty_string(self.krona))
 
 
-def write_krona(samples: List[Sample],
-                outputs: Dict[Rank, Filename],
-                htmlfile: Filename = Filename('Output' + HTML_SUFFIX),
-                ):
-    """Generate the Krona html file calling ktImportText."""
-    subprc = ["ktImportText"]
-    subprc.extend(samples)
-    try:
-        subprc.extend([outputs[level][i]
-                       for level in Rank.selected_ranks
-                       for i in range(len(outputs[level]))])
-    except KeyError:
-        pass
+def krona_from_xml(xmlfile: Filename,
+                   htmlfile: Filename = Filename('Output' + HTML_SUFFIX),
+                   ):
+    """Generate the Krona html file calling ktImportXML."""
+    subprc = ["ktImportXML"]
+    subprc.append(xmlfile)
     subprc.extend(["-o", htmlfile])
     try:
         subprocess.run(subprc, check=True)
     except subprocess.CalledProcessError:
-        print('\n\033[91mERROR!\033[0m ktImportText: ' +
+        print('\n\033[91mERROR!\033[0m ktImportXML: ' +
               'returned a non-zero exit status (Krona plot built failed)')

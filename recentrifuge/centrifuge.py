@@ -8,10 +8,8 @@ import io
 import sys
 from typing import Tuple, Counter, Set, Dict
 
-from recentrifuge.config import Filename, TaxId, Names, Parents
-from recentrifuge.config import ROOT, LINEAGEXT
-from recentrifuge.core import Rank, Taxonomy, TaxTree, Ranks, TaxLevels
-from recentrifuge.krona import write_lineage
+from recentrifuge.config import ROOT, Filename, TaxId
+from recentrifuge.core import Rank, Taxonomy, TaxTree, Ranks, TaxLevels, Sample
 
 
 def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
@@ -47,21 +45,22 @@ def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
 
 def process_report(*args,
                    **kwargs
-                   ) -> Tuple[Filename, TaxTree, TaxLevels, Counter[TaxId]]:
+                   ) -> Tuple[Sample, TaxTree, TaxLevels,
+                              Counter[TaxId], Counter[TaxId]]:
     """
     Process Centrifuge/Kraken report files (to be usually called in parallel!).
     """
     # Recover input and parameters
     filerep: Filename = args[0]
     taxonomy: Taxonomy = kwargs['taxonomy']
-    parents: Parents = taxonomy.parents
-    names: Names = taxonomy.names
     mintaxa: int = kwargs['mintaxa']
     collapse: bool = taxonomy.collapse
     including: Set[TaxId] = taxonomy.including
     excluding: Set[TaxId] = taxonomy.excluding
     verb: bool = kwargs['verb']
     output: io.StringIO = io.StringIO(newline='')
+
+    sample: Sample = Sample(filerep)
 
     # Read Centrifuge/Kraken report file to get abundances
     log, abundances, _ = read_report(filerep)
@@ -76,25 +75,29 @@ def process_report(*args,
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
     tree.prune(mintaxa, None, collapse, verb)
+    tree.accumulate()
     output.write('\033[92m OK! \033[0m\n')
 
     # Get the taxa with their abundances and taxonomical levels
     output.write('  \033[90mFiltering taxa...\033[0m')
     new_abund: Counter[TaxId] = col.Counter()
+    new_accs: Counter[TaxId] = col.Counter()
     ranks: Ranks = Ranks({})
-    tree.get_taxa(new_abund, ranks,
+    tree.get_taxa(new_abund, new_accs, ranks,
                   mindepth=0, maxdepth=0,
                   include=including,  # ('2759',),  # ('135613',),
                   exclude=excluding)  # ('9606',))  # ('255526',))
     new_abund = +new_abund  # remove zero and negative counts
+    if including or excluding:  # Recalculate accumulated counts
+        new_tree = TaxTree()
+        new_tree.grow(taxonomy, new_abund, ROOT, [])  # Grow tree with new abund
+        new_tree.accumulate()
+        new_abund = col.Counter()  # Reset abundances
+        new_accs = col.Counter()  # Reset accumulated
+        new_tree.get_taxa(new_abund, new_accs)  # Get new accumulated counts
     taxlevels: TaxLevels = Rank.ranks_to_taxlevels(ranks)
     output.write('\033[92m OK! \033[0m\n')
-
-    # Write the lineage file
-    filename = Filename(filerep + LINEAGEXT)
-    log = write_lineage(parents, names, tree, filename, new_abund, collapse)
-    output.write(log)
     print(output.getvalue())
     sys.stdout.flush()
     # Return
-    return filename, tree, taxlevels, new_abund
+    return sample, tree, taxlevels, new_abund, new_accs

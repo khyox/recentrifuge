@@ -10,15 +10,16 @@ import platform
 import sys
 from typing import Counter, List, Dict, Set
 
+from recentrifuge.centrifuge import process_report
 from recentrifuge.config import Filename, Sample, TaxId
 from recentrifuge.config import NODESFILE, NAMESFILE, HTML_SUFFIX, DEFMINTAXA
-from recentrifuge.centrifuge import process_report
-from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, Rank, process_rank
-from recentrifuge.krona import write_krona
+from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
+from recentrifuge.core import process_rank
+from recentrifuge.krona import KronaTree, krona_from_xml
 
-__version__ = '0.7.0'
+__version__ = '0.8.0'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Jun 2017'
+__date__ = 'Jul 2017'
 
 
 def main():
@@ -138,9 +139,12 @@ def main():
     # Declare variables that will hold results for the samples analyzed
     trees: Dict[Sample, TaxTree] = {}
     abundances: Dict[Sample, Counter[TaxId]] = {}
+    accs: Dict[Sample, Counter[TaxId]] = {}
     taxids: Dict[Sample, TaxLevels] = {}
     samples: List[Sample] = []
+    #
     # Processing of report files in parallel
+    #
     print('\033[90mPlease, wait, processing files in parallel...\033[0m\n')
     kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa, 'verb': verb}
     # Enable parallelization with 'spawn' under known platforms
@@ -153,21 +157,20 @@ def main():
                 args=[filerep],
                 kwds=kwargs
             ) for filerep in reports]
-            for sample, (filename, trees[sample], taxids[sample],
-                         abundances[sample]) in zip(reports,
-                                                    [r.get() for r in
-                                                     async_results]):
-                samples.append(filename)
+            for report, (sample, trees[sample],
+                         taxids[sample], abundances[sample],
+                         accs[sample]) in zip(reports, [r.get() for r in
+                                                        async_results]):
+                samples.append(sample)
     else:  # sequential processing of each sample
-        for sample in reports:
-            (filename,
-             trees[sample],
-             taxids[sample],
-             abundances[sample]) = process_report(sample, **kwargs)
-            samples.append(filename)
-
+        for report in reports:
+            (sample, trees[sample],
+             taxids[sample], abundances[sample],
+             accs[sample]) = process_report(report, **kwargs)
+            samples.append(sample)
+    #
     # Cross analysis of samples in parallel by taxlevel
-    outputs: Dict[Rank, Filename] = {}  # dict: rank to output files (w/o ext)
+    #
     # Avoid if just a single report file of explicitly stated by flag
     if len(reports) > 1 and not avoidcross:
         print('\033[90mPlease, wait. ' +
@@ -184,16 +187,34 @@ def main():
                     args=[level],
                     kwds=kwargs
                 ) for level in Rank.selected_ranks]
-                for level, (outputs[level]) in zip(
+                for level, (filenames, abunds, accumulators) in zip(
                         Rank.selected_ranks,
                         [r.get() for r in async_results]):
-                    pass
+                    samples.extend(filenames)
+                    abundances.update(abunds)
+                    accs.update(accumulators)
         else:  # sequential processing of each selected rank
             for level in Rank.selected_ranks:
-                outputs[level] = process_rank(level, **kwargs)
-
-    # Generate Krona plot with all the results
-    write_krona(samples, outputs, htmlfile)
+                (filenames, abunds, accumulators) = process_rank(level,
+                                                                 **kwargs)
+                samples.extend(filenames)
+                abundances.update(abunds)
+                accs.update(accumulators)
+    #
+    # Generate Krona plot with all the results via Krona 2.0 XML spec
+    #
+    print('\033[90mBuilding the taxonomy multiple tree...\033[0m', end='')
+    krona: KronaTree = KronaTree(samples)
+    polytree: MultiTree = MultiTree(samples=samples)
+    polytree.grow(taxonomy=ncbi, abundances=abundances, accs=accs)
+    print('\033[92m OK! \033[0m')
+    print('\033[90mGenerating Krona XML file...\033[0m', end='')
+    polytree.toxml(taxonomy=ncbi, krona=krona)
+    xmlfile: Filename = Filename(htmlfile + '.xml')
+    krona.tofile(xmlfile)
+    print('\033[92m OK! \033[0m')
+    print('\033[90mGenerating final Krona plot...\033[0m')
+    krona_from_xml(xmlfile, htmlfile)
 
 
 if __name__ == '__main__':
