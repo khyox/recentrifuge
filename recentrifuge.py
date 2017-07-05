@@ -17,7 +17,7 @@ from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree, krona_from_xml
 
-__version__ = '0.8.1'
+__version__ = '0.8.2'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jul 2017'
 

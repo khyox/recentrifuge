@@ -5,7 +5,7 @@ Classes and functions directly related with Krona.
 # pylint: disable=not-an-iterable
 import csv
 import subprocess
-from typing import List, Dict, NewType, Any
+from typing import List, Dict, NewType, Any, Optional
 import xml.etree.ElementTree as ETree
 from xml.dom import minidom
 
@@ -65,13 +65,20 @@ class KronaTree(ETree.ElementTree):
         counts: Dict[Sample, str] = {sample: values[COUNT][sample]
                                      for sample in self.samples}
         for sample in self.samples:
-            self.sub(count_node, 'val', None, counts[sample])
-        if values.get(UNASSIGNED):
+            counts_value: Optional[str] = counts[sample]
+            if int(counts_value) == 0:  # Save space (warning! empty tags)
+                counts_value = None  # Empty instead of 0 inside <val></val>
+            self.sub(count_node, 'val', None, counts_value)
+        if values.get(UNASSIGNED) and any(values[UNASSIGNED].values()):
+            # Avoid including and save space if all the unassigned values are 0
             unassigned_node = self.sub(subnode, UNASSIGNED)
             unassigned: Dict[Sample, str] = {sample: values[UNASSIGNED][sample]
                                             for sample in self.samples}
             for sample in self.samples:
-                self.sub(unassigned_node, 'val', None, unassigned[sample])
+                unassigned_value: Optional[str] = unassigned[sample]
+                if int(unassigned_value) == 0:  # Save space (empty tags!)
+                    unassigned_value = None  # Empty and not 0 after <val>
+                self.sub(unassigned_node, 'val', None, unassigned_value)
         if values.get(TID):
             tid_node = self.sub(subnode, TID)
             self.sub(tid_node, 'val',
@@ -158,10 +165,34 @@ class KronaTree(ETree.ElementTree):
         return self.to_pretty_string(self.krona)
 
     def tofile(self,
-               filename: Filename):
-        """Write KronaTree in 'pretty' XML."""
-        with open(filename, 'w') as xml_file:
-            xml_file.write(self.to_pretty_string(self.krona))
+               filename: Filename,
+               pretty: bool = False,
+               ) -> None:
+        """
+        Write KronaTree in 'plain' or 'pretty' XML.
+
+        Args:
+            filename: the name of the XML output file.
+            pretty: this parameter controls the layout of the XML code
+                so that it is human readable for True (use for debug
+                only because it uses a lot more of space and also has
+                empty tags which are currently not supported by Krona)
+                and machine readable for False (default, saves space).
+
+        Returns: None
+
+        """
+        if pretty:
+            with open(filename, 'w') as xml_file:
+                xml_file.write(self.to_pretty_string(self.krona))
+        else:
+            with open(filename, 'wb') as xml_file:
+                self.write(xml_file,
+                           encoding='UTF-8',
+                           xml_declaration=False,
+                           method='xml',
+                           short_empty_elements=False,
+                           )
 
 
 def krona_from_xml(xmlfile: Filename,
