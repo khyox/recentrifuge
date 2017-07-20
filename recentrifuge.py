@@ -8,16 +8,16 @@ import multiprocessing as mp
 import os
 import platform
 import sys
-from typing import Counter, List, Dict, Set
+from typing import Counter, List, Dict, Set, Callable, Optional, Tuple
 
-from recentrifuge.centrifuge import process_report
-from recentrifuge.config import Filename, Sample, TaxId
+from recentrifuge.centrifuge import process_report, process_output
+from recentrifuge.config import Filename, Sample, TaxId, Score
 from recentrifuge.config import NODESFILE, NAMESFILE, HTML_SUFFIX, DEFMINTAXA
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree, krona_from_xml
 
-__version__ = '0.8.2'
+__version__ = '0.9.1'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jul 2017'
 
@@ -34,13 +34,20 @@ def main():
         action='version',
         version=f'%(prog)s release {__version__} ({__date__})'
     )
-    parser.add_argument(
-        '-f', '--filerep',
+    filein = parser.add_mutually_exclusive_group(required=True)
+    filein.add_argument(
+        '-f', '--file',
         action='append',
         metavar='FILE',
-        required=True,
-        help=('Centrifuge/Kraken report files ' +
+        help=('Centrifuge output files ' +
               '(multiple -f is available to include several samples in plot')
+    )
+    filein.add_argument(
+        '-r', '--report',
+        action='append',
+        metavar='FILE',
+        help=('Centrifuge/Kraken report files ' +
+              '(multiple -r is available to include several samples in plot')
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -113,7 +120,8 @@ def main():
 
     # Parse arguments
     args = parser.parse_args()
-    reports = args.filerep
+    outputs = args.file
+    files = args.report
     verb = args.verbose
     nodesfile = os.path.join(args.nodespath, NODESFILE)
     namesfile = os.path.join(args.nodespath, NAMESFILE)
@@ -126,7 +134,10 @@ def main():
     control = args.control
     htmlfile: Filename = args.outhtml
     if not htmlfile:
-        htmlfile = reports[0].split('_mhl')[0] + HTML_SUFFIX
+        if files:
+            htmlfile = files[0].split('_mhl')[0] + HTML_SUFFIX
+        else:
+            htmlfile = outputs[0].split('_mhl')[0] + HTML_SUFFIX
 
     # Program header and chdir
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
@@ -141,42 +152,53 @@ def main():
     abundances: Dict[Sample, Counter[TaxId]] = {}
     accs: Dict[Sample, Counter[TaxId]] = {}
     taxids: Dict[Sample, TaxLevels] = {}
+    scores: Dict[Sample, Dict[TaxId, Score]] = {}
     samples: List[Sample] = []
     #
-    # Processing of report files in parallel
+    # Processing of input files in parallel
     #
+    process: Callable[..., Tuple[Sample, TaxTree, TaxLevels,
+                                 Counter[TaxId], Counter[TaxId],
+                                 Dict[TaxId, Optional[Score]]]]
+    if files:
+        process = process_report
+        files = files
+    else:
+        process = process_output
+        files = outputs
+
     print('\033[90mPlease, wait, processing files in parallel...\033[0m\n')
     kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa, 'verb': verb}
     # Enable parallelization with 'spawn' under known platforms
     if platform.system() and not sequential:  # Only for known platforms
         mpctx = mp.get_context('spawn')  # Important for OSX&Win
         with mpctx.Pool(processes=min(os.cpu_count(),
-                                      len(reports))) as pool:
+                                      len(files))) as pool:
             async_results = [pool.apply_async(
-                process_report,
-                args=[filerep],
+                process,
+                args=[file],
                 kwds=kwargs
-            ) for filerep in reports]
-            for report, (sample, trees[sample],
-                         taxids[sample], abundances[sample],
-                         accs[sample]) in zip(reports, [r.get() for r in
-                                                        async_results]):
+            ) for file in files]
+            for file, (sample, trees[sample],
+                       taxids[sample], abundances[sample],
+                       accs[sample], scores[sample]
+                       ) in zip(files, [r.get() for r in async_results]):
                 samples.append(sample)
     else:  # sequential processing of each sample
-        for report in reports:
+        for file in files:
             (sample, trees[sample],
              taxids[sample], abundances[sample],
-             accs[sample]) = process_report(report, **kwargs)
+             accs[sample], scores[sample]) = process(file, **kwargs)
             samples.append(sample)
     #
     # Cross analysis of samples in parallel by taxlevel
     #
     # Avoid if just a single report file of explicitly stated by flag
-    if len(reports) > 1 and not avoidcross:
+    if len(files) > 1 and not avoidcross:
         print('\033[90mPlease, wait. ' +
               'Performing cross analysis in parallel...\033[0m\n')
         kwargs.update({'trees': trees, 'taxids': taxids,
-                       'abundances': abundances, 'reports': reports,
+                       'abundances': abundances, 'files': files,
                        'control': control})
         if platform.system() and not sequential:  # Only for known platforms
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
@@ -187,27 +209,41 @@ def main():
                     args=[level],
                     kwds=kwargs
                 ) for level in Rank.selected_ranks]
-                for level, (filenames, abunds, accumulators) in zip(
+                for level, (filenames, abunds, accumulators, score) in zip(
                         Rank.selected_ranks,
                         [r.get() for r in async_results]):
                     samples.extend(filenames)
                     abundances.update(abunds)
                     accs.update(accumulators)
+                    scores.update(score)
         else:  # sequential processing of each selected rank
             for level in Rank.selected_ranks:
-                (filenames, abunds, accumulators) = process_rank(level,
-                                                                 **kwargs)
+                (filenames, abunds,
+                 accumulators, score) = process_rank(level, **kwargs)
                 samples.extend(filenames)
                 abundances.update(abunds)
                 accs.update(accumulators)
+                scores.update(score)
     #
     # Generate Krona plot with all the results via Krona 2.0 XML spec
     #
     print('\033[90mBuilding the taxonomy multiple tree...\033[0m', end='')
     sys.stdout.flush()
-    krona: KronaTree = KronaTree(samples)
+    krona: KronaTree = KronaTree(samples,
+                                 min_score=Score(
+                                     min([min(scores[sample].values())
+                                          for sample in samples
+                                          if len(scores[sample])])),
+                                 max_score=Score(
+                                     max([max(scores[sample].values())
+                                          for sample in samples
+                                          if len(scores[sample])])),
+                                 )
     polytree: MultiTree = MultiTree(samples=samples)
-    polytree.grow(taxonomy=ncbi, abundances=abundances, accs=accs)
+    polytree.grow(taxonomy=ncbi,
+                  abundances=abundances,
+                  accs=accs,
+                  scores=scores)
     print('\033[92m OK! \033[0m')
     print('\033[90mGenerating Krona XML file...\033[0m', end='')
     sys.stdout.flush()

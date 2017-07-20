@@ -105,10 +105,14 @@ class KronaTree(ETree.ElementTree):
 
     def __init__(self,
                  samples: List[Sample],
+                 min_score: float = 0.0,
+                 max_score: float = 1.0,
                  ) -> None:
         """
         Args:
             samples: List of samples in the set
+            min_score: minimum expected score
+            max_score: maximum expected score
         """
         # Type declaration
         self.krona: Elm
@@ -153,10 +157,10 @@ class KronaTree(ETree.ElementTree):
         self.color = self.sub(self.krona, 'color',
                               {'attribute': 'score',
                                'hueStart': '0',
-                               'hueEnd': '120',
-                               'valueStart': '0.0',
-                               'valueEnd': '1.0',
-                               'default': 'false'},
+                               'hueEnd': '300',
+                               'valueStart': f'{min_score:.1f}',
+                               'valueEnd': f'{max_score:.1f}',
+                               'default': 'true'},
                               ' ')  # Krona: Avoid empty-element tag
 
         super(KronaTree, self).__init__(self.krona)
@@ -183,11 +187,11 @@ class KronaTree(ETree.ElementTree):
 
         """
         if pretty:
-            with open(filename, 'w') as xml_file:
-                xml_file.write(self.to_pretty_string(self.krona))
+            with open(filename, 'w') as txt_xml_file:
+                txt_xml_file.write(self.to_pretty_string(self.krona))
         else:
-            with open(filename, 'wb') as xml_file:
-                self.write(xml_file,
+            with open(filename, 'wb') as bin_xml_file:
+                self.write(bin_xml_file,
                            encoding='UTF-8',
                            xml_declaration=False,
                            method='xml',
