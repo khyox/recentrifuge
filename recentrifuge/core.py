@@ -685,8 +685,8 @@ class MultiTree(dict):
 
     def grow(self,
              taxonomy: Taxonomy,
-             abundances: Dict[Sample, Counter[TaxId]],
-             accs: Dict[Sample, Counter[TaxId]],
+             abundances: Dict[Sample, Counter[TaxId]] = None,
+             accs: Dict[Sample, Counter[TaxId]] = None,
              scores: Dict[Sample, Dict[TaxId, Score]] = None,
              taxid: TaxId = ROOT,
              _path: List[TaxId] = None) -> None:
@@ -704,9 +704,16 @@ class MultiTree(dict):
         Returns: None
 
         """
+        # Create dummy variables in case they are None
         if not _path:
             _path = []
-        if not scores:  # then create dummy dict of samples with empty dict
+        if not abundances:
+            abundances = {sample: col.Counter({ROOT: 1})
+                          for sample in self.samples}
+        if not accs:
+            accs = {sample: col.Counter({ROOT: 1})
+                          for sample in self.samples}
+        if not scores:
             scores = {sample: {} for sample in self.samples}
         if taxid not in _path:  # Avoid loops for repeated taxid (like root)
             multi_count: Dict[Sample, int] = {
@@ -742,7 +749,7 @@ class MultiTree(dict):
               node: Elm = None,
               ) -> None:
         """
-        Recursively get the taxa between min and max depth levels.
+        Recursive method to Generate xml.
 
         Args:
             taxonomy: Taxonomy object.

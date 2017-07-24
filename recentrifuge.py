@@ -17,9 +17,32 @@ from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree, krona_from_xml
 
-__version__ = '0.9.1'
+__version__ = '0.10.1'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jul 2017'
+
+
+def _debug_dummy_plot(taxonomy: Taxonomy,
+                      htmlfile: Filename):
+    """
+
+    Generate dummy Krona plot via Krona 2.0 XML spec and finish
+
+    """
+    print(f'\033[90mGenerating dummy Krona plot {htmlfile}...\033[0m', end='')
+    sys.stdout.flush()
+    samples: List[Sample] = [Sample('SINGLE'), ]
+    krona: KronaTree = KronaTree(samples,
+                                 min_score=Score(35),
+                                 max_score=Score(127),
+                                 )
+    polytree: MultiTree = MultiTree(samples=samples)
+    polytree.grow(taxonomy=taxonomy)
+    polytree.toxml(taxonomy=taxonomy, krona=krona)
+    krona.tohtml(htmlfile, pretty=True)
+    print('\033[92m OK! \033[0m')
+    # End execution
+    quit()
 
 
 def main():
@@ -147,6 +170,8 @@ def main():
     ncbi: Taxonomy = Taxonomy(nodesfile, namesfile,
                               collapse, excluding, including)
 
+    #  _debug_dummy_plot(ncbi, htmlfile)
+
     # Declare variables that will hold results for the samples analyzed
     trees: Dict[Sample, TaxTree] = {}
     abundances: Dict[Sample, Counter[TaxId]] = {}
@@ -245,16 +270,13 @@ def main():
                   accs=accs,
                   scores=scores)
     print('\033[92m OK! \033[0m')
-    print('\033[90mGenerating Krona XML file...\033[0m', end='')
+    print('\033[90mGenerating final Krona plot...\033[0m', end='')
     sys.stdout.flush()
     polytree.toxml(taxonomy=ncbi, krona=krona)
-    xmlfile: Filename = Filename(htmlfile + '.xml')
-    krona.tofile(xmlfile)
+    krona.tohtml(htmlfile, pretty=False)
     print('\033[92m OK! \033[0m')
-    print('\033[90mGenerating final Krona plot...\033[0m')
-    sys.stdout.flush()
-    krona_from_xml(xmlfile, htmlfile)
 
 
 if __name__ == '__main__':
     main()
+

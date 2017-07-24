@@ -4,9 +4,11 @@ Classes and functions directly related with Krona.
 """
 # pylint: disable=not-an-iterable
 import csv
+import html
+import os
 import subprocess
-from typing import List, Dict, NewType, Any, Optional
 import xml.etree.ElementTree as ETree
+from typing import List, Dict, NewType, Any, Optional
 from xml.dom import minidom
 
 from recentrifuge.config import HTML_SUFFIX, Filename, Sample
@@ -98,9 +100,14 @@ class KronaTree(ETree.ElementTree):
     @staticmethod
     def to_pretty_string(element: Elm):
         """Return a pretty-printed XML string for the Element."""
-        raw_string = ETree.tostring(element, 'utf-8')
+        raw_string = ETree.tostring(element,
+                                    encoding='unicode',
+                                    method='xml',
+                                    short_empty_elements=False,
+                                    )
         re_parsed = minidom.parseString(raw_string)
         pretty = re_parsed.toprettyxml(indent='  ')
+        pretty = html.unescape(pretty)
         return pretty.split('\n', 1)[-1]  # Remove the XML 1.0 tag
 
     def __init__(self,
@@ -186,17 +193,92 @@ class KronaTree(ETree.ElementTree):
         Returns: None
 
         """
-        if pretty:
-            with open(filename, 'w') as txt_xml_file:
-                txt_xml_file.write(self.to_pretty_string(self.krona))
-        else:
-            with open(filename, 'wb') as bin_xml_file:
-                self.write(bin_xml_file,
-                           encoding='UTF-8',
-                           xml_declaration=False,
-                           method='xml',
-                           short_empty_elements=False,
-                           )
+        with open(filename, 'w') as xml_file:
+            if pretty:
+                    xml_file.write(self.to_pretty_string(self.krona))
+            else:
+                    self.write(xml_file,
+                               encoding='unicode',
+                               xml_declaration=False,
+                               method='xml',
+                               short_empty_elements=False,
+                               )
+
+    def tohtml(self,
+               filename: Filename,
+               pretty: bool = False,
+               ) -> None:
+        """
+        Write Krona HTML.
+
+        Args:
+            filename: the name of the HTML output file.
+            pretty: this parameter controls the layout of the XML code
+                so that it is human readable for True (use for debug
+                only because it uses a lot more of space and also has
+                empty tags which are currently not supported by Krona)
+                and machine readable for False (default, saves space).
+
+        Returns: None
+
+        """
+        # Read aux files
+        path = os.path.dirname(os.path.realpath(__file__))
+        with open(path + '/img/hidden.uri', 'r') as file:
+            hiddenImage = file.read()
+        with open(path + '/img/loading.uri', 'r') as file:
+            loadingImage = file.read()
+        with open(path + '/img/favicon.uri', 'r') as file:
+            favicon = file.read()
+        with open(path + '/img/logo-med.uri', 'r') as file:
+            logo = file.read()
+        with open(path + '/krona-2.0.js', 'r') as file:
+            script = file.read()
+
+        # Set root of HTML doc
+        html_root = ETree.Element('html', attrib={'xmlns':
+                                             'http://www.w3.org/1999/xhtml',
+                                             'xml:lang': 'en',
+                                             'lang': 'en'})
+        # Prepare HTML file
+        head = self.sub(html_root, 'head')
+        self.sub(head, 'meta', {'charset': 'utf-8'})
+        self.sub(head, 'link', {'rel': 'shortcut icon',
+                                'href': favicon})
+        self.sub(head, 'link', {'rel': 'stylesheet',
+                                'href': 'https://fonts.googleapis.com/css?family=Ubuntu'})
+        self.sub(head, 'script', {'id': 'notfound'},
+                 'window.onload=function(){document.body.innerHTML=""}')
+        self.sub(head, 'script',
+                 {'language': 'javascript', 'type': 'text/javascript'},
+                 script)  # Include javascript
+        body = self.sub(html_root, 'body')
+        self.sub(body, 'img', {'id': 'hiddenImage',
+                               'src': hiddenImage,
+                               'style': 'display:none'})
+        self.sub(body, 'img', {'id': 'loadingImage',
+                               'src': loadingImage,
+                               'style': 'display:none'})
+        self.sub(body, 'img', {'id': 'logo',
+                               'src': logo,
+                               'style': 'display:none'})
+        self.sub(body, 'noscript', None,
+                 'Javascript must be enabled to view this page.')
+
+        div = self.sub(body, 'div', {'style': 'display:none'})
+        div.append(self.krona)  # Include specific XML from samples
+        # Write the HTML file
+        with open(filename, 'w') as html_file:
+            html_file.write('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">\n')
+            if pretty:
+                html_file.write(self.to_pretty_string(html_root))
+            else:
+                html_file.write(ETree.tostring(html_root,
+                                               encoding='unicode',
+                                               method='html',
+                                               short_empty_elements=False,
+                                               )
+                                )
 
 
 def krona_from_xml(xmlfile: Filename,
