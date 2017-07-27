@@ -5,8 +5,8 @@ Functions directly related with Centrifuge (or Kraken).
 
 import collections as col
 import io
-import sys
 from statistics import mean
+import sys
 from typing import Tuple, Counter, Set, Dict, List
 
 from Bio import SeqIO

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Post-process Centrifuge/Kraken report files for Krona.
+Post-process Centrifuge/Kraken output.
 """
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse

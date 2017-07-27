@@ -63,14 +63,27 @@ def cfg_out_iterator(handle, alphabet=single_letter_alphabet):
             assert not read_id, repr(read_id)
             # Should we use SeqRecord default for no ID?
             first_word = ""
+        # From Centrifuge score get the "single hit equivalent length"
+        try:
+            adapted_score = float(score) ** 0.5 + 15
+        except ValueError:
+            print(f'Error parsing score ({score}) for taxid {tax_id}'
+                  f' in {handle}...')
+            raise
+        try:
+            adapted_2nd_score = float(second_score) ** 0.5 + 15
+        except ValueError:
+            print(f'Error parsing score ({second_score}) for taxid {tax_id}'
+                  f' in {handle}...')
+            raise
         yield SeqRecord(UnknownSeq(0, alphabet),
                         id=first_word,
                         name=first_word,
                         description=read_id,
                         dbxrefs=[seq_id],
                         annotations={'taxID': tax_id,
-                                     'score': int(score),
-                                     '2ndBestScore': int(second_score),
+                                     'score': adapted_score,
+                                     '2ndBestScore': adapted_2nd_score,
                                      'hitLength': hit_length,
                                      'queryLength': query_length,
                                      'numMatches': int(num_matches),

@@ -158,6 +158,9 @@ class Rank(Enum):
     def __repr__(self):
         return '<%s.%s>' % (self.__class__.__name__, self.name)
 
+    def __str__(self):
+        return f'{self.name}'
+
     def __lt__(self, other):
         if self.__class__ is other.__class__:
             if self.value > 0 and other.value > 0:
@@ -321,7 +324,7 @@ class TaxTree(dict):
 
     def grow(self,
              taxonomy: Taxonomy,
-             abundances: Counter[TaxId],
+             abundances: Counter[TaxId] = None,
              scores: Union[Dict[TaxId, Score], 'SharedCounter'] = None,
              taxid: TaxId = ROOT,
              _path: List[TaxId] = None,
@@ -341,6 +344,8 @@ class TaxTree(dict):
         """
         if not _path:
             _path = []
+        if not abundances:
+            abundances = col.Counter({ROOT: 1})
         if not scores:
             scores = {}
         if taxid not in _path:  # Avoid loops for repeated taxid (like root)
