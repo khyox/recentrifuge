@@ -56,3 +56,6 @@ Thumbs.db
 *.logfile
 **/.idea
 .mypy_cache/
+taxdump/
+aux/
+mypy_wrapper.sh
