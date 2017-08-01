@@ -12,14 +12,15 @@ from typing import Counter, List, Dict, Set, Callable, Optional, Tuple
 
 from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.config import Filename, Sample, TaxId, Score
-from recentrifuge.config import NODESFILE, NAMESFILE, HTML_SUFFIX, DEFMINTAXA
+from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
+from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree, krona_from_xml
 
-__version__ = '0.10.1'
+__version__ = '0.10.2'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Jul 2017'
+__date__ = 'Ago 2017'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -82,7 +83,7 @@ def main():
         '-n', '--nodespath',
         action='store',
         metavar='PATH',
-        default='./',
+        default=TAXDUMP_PATH,
         help=('path for the nodes information files (nodes.dmp and names.dmp' +
               ' from NCBI')
     )
@@ -146,8 +147,8 @@ def main():
     outputs = args.file
     files = args.report
     verb = args.verbose
-    nodesfile = os.path.join(args.nodespath, NODESFILE)
-    namesfile = os.path.join(args.nodespath, NAMESFILE)
+    nodesfile = os.path.join(args.nodespath, NODES_FILE)
+    namesfile = os.path.join(args.nodespath, NAMES_FILE)
     mintaxa = int(args.mintaxa)
     collapse = not args.nokollapse
     excluding: Set[TaxId] = set(args.exclude)
@@ -162,7 +163,7 @@ def main():
         else:
             htmlfile = outputs[0].split('_mhl')[0] + HTML_SUFFIX
 
-    # Program header and chdir
+    # Program header
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
     sys.stdout.flush()
 

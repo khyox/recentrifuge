@@ -17,8 +17,10 @@ Score = NewType('Score', float)
 
 # Predefined internal constants
 PATH = '.'
-NODESFILE = 'nodes.dmp'
-NAMESFILE = 'names.dmp'
+TAXDUMP_PATH = './taxdump'
+NODES_FILE = 'nodes.dmp'
+NAMES_FILE = 'names.dmp'
+ZIPFILE = 'taxdmp.zip'
 HTML_SUFFIX = '.rcf.html'
 DEFMINTAXA = 10  # minimum taxa to avoid collapsing one level to the parent one
 UNCLASSIFIED = TaxId('0')

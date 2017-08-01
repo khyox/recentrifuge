@@ -12,12 +12,12 @@ from typing import List, Set
 from Bio import SeqIO, SeqRecord
 
 from recentrifuge.config import Filename, TaxId
-from recentrifuge.config import NODESFILE, NAMESFILE
+from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, Rank, Ranks
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Jul 2017'
+__date__ = 'Ago 2017'
 
 
 def main():
@@ -42,7 +42,7 @@ def main():
         '-n', '--nodespath',
         action='store',
         metavar='PATH',
-        default='./',
+        default=TAXDUMP_PATH,
         help=('path for the nodes information files (nodes.dmp and names.dmp' +
               ' from NCBI')
     )
@@ -85,14 +85,14 @@ def main():
     # Parse arguments
     args = parser.parse_args()
     output_file = args.file
-    nodesfile: Filename = Filename(os.path.join(args.nodespath, NODESFILE))
-    namesfile: Filename = Filename(os.path.join(args.nodespath, NAMESFILE))
+    nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
+    namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
     excluding: Set[TaxId] = set(args.exclude)
     including: Set[TaxId] = set(args.include)
     fastq_1: Filename = args.mate1
     fastq_2: Filename = args.mate2
 
-    # Program header and chdir
+    # Program header
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
     sys.stdout.flush()
 

@@ -144,8 +144,7 @@ def read_output(output_file: str) -> Tuple[str, Counter[TaxId],
                 except KeyError:
                     all_scores[tid] = [score, ]
     except FileNotFoundError:
-        raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
-                        output_file + '"')
+        raise Exception(f'\n\033[91mERROR!\033[0m Cannot read "{output_file}"')
     abundances: Counter[TaxId] = Counter({tid: len(all_scores[tid])
                                           for tid in all_scores})
     scores: Dict[TaxId, Score] = {tid: Score(mean(all_scores[tid]))
