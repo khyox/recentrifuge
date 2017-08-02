@@ -21,6 +21,7 @@ TAXDUMP_PATH = './taxdump'
 NODES_FILE = 'nodes.dmp'
 NAMES_FILE = 'names.dmp'
 ZIPFILE = 'taxdmp.zip'
+JSLIB = 'krona.js'
 HTML_SUFFIX = '.rcf.html'
 DEFMINTAXA = 10  # minimum taxa to avoid collapsing one level to the parent one
 UNCLASSIFIED = TaxId('0')

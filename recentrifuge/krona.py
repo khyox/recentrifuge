@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ETree
 from typing import List, Dict, NewType, Any, Optional
 from xml.dom import minidom
 
-from recentrifuge.config import HTML_SUFFIX, Filename, Sample
+from recentrifuge.config import JSLIB, HTML_SUFFIX, Filename, Sample
 
 # from recentrifuge.config import HTML_SUFFIX
 
@@ -232,7 +232,7 @@ class KronaTree(ETree.ElementTree):
             favicon = file.read()
         with open(path + '/img/logo-med.uri', 'r') as file:
             logo = file.read()
-        with open(path + '/krona-2.0.js', 'r') as file:
+        with open(f'{path}/{JSLIB}', 'r') as file:
             script = file.read()
 
         # Set root of HTML doc
