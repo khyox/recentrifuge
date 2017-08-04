@@ -5,13 +5,14 @@ Functions directly related with Centrifuge (or Kraken).
 
 import collections as col
 import io
-from statistics import mean
+from math import log10
 import sys
+from statistics import mean
 from typing import Tuple, Counter, Set, Dict, List
 
 from Bio import SeqIO
 
-from recentrifuge.config import Filename, TaxId, Score, UNCLASSIFIED
+from recentrifuge.config import Filename, TaxId, Score, UNCLASSIFIED, Scoring
 from recentrifuge.core import Rank, Taxonomy, TaxTree, Ranks, TaxLevels, Sample
 
 
@@ -111,13 +112,16 @@ def process_report(*args,
     return sample, tree, taxlevels, new_abund, new_accs, None
 
 
-def read_output(output_file: str) -> Tuple[str, Counter[TaxId],
-                                           Dict[TaxId, Score]]:
+def read_output(output_file: str,
+                scoring: Scoring = Scoring.SHEL,
+                ) -> Tuple[str, Counter[TaxId],
+                           Dict[TaxId, Score]]:
     """
     Read Centrifuge output file
 
     Args:
         output_file: output file name
+        scoring: type of scoring to be applied (see Scoring class)
 
     Returns:
         log string, abundances counter, scores dict
@@ -125,44 +129,72 @@ def read_output(output_file: str) -> Tuple[str, Counter[TaxId],
     """
     output: io.StringIO = io.StringIO(newline='')
     all_scores: Dict[TaxId, List[Score]] = {}
+    all_length: Dict[TaxId, List[Score]] = {}
     output.write(f'\033[90mLoading output file {output_file}...\033[0m')
     try:
         with open(output_file, 'r') as file:
             file.readline()  # discard header
             for output_line in file:
-                _, _, _tid, _score, *_ = output_line.split('\t')
+                _, _, _tid, _score, _, _, _length, *_ = output_line.split('\t')
                 tid = TaxId(_tid)
-                # From Centrifuge score get the "single hit equivalent length"
                 try:
-                    score = Score(float(_score)**0.5 + 15)
+                    # From Centrifuge score get "single hit equivalent length"
+                    shel = Score(float(_score) ** 0.5 + 15)
+                    length = Score(float(_length))
                 except ValueError:
-                    print(f'Error parsing score ({_score}) for taxid {_tid}'
-                          f' in file {output_file}...')
+                    print(f'Error parsing score ({_score}) or query length '
+                          f'({_length}) for taxid {_tid} '
+                          f'in file {output_file}...')
                     raise
                 try:
-                    all_scores[tid].append(score)
+                    all_scores[tid].append(shel)
                 except KeyError:
-                    all_scores[tid] = [score, ]
+                    all_scores[tid] = [shel, ]
+                try:
+                    all_length[tid].append(length)
+                except KeyError:
+                    all_length[tid] = [length, ]
     except FileNotFoundError:
         raise Exception(f'\n\033[91mERROR!\033[0m Cannot read "{output_file}"')
     abundances: Counter[TaxId] = Counter({tid: len(all_scores[tid])
                                           for tid in all_scores})
-    scores: Dict[TaxId, Score] = {tid: Score(mean(all_scores[tid]))
-                                  for tid in all_scores}
     output.write('\033[92m OK! \033[0m\n')
     # Basic output statistics
     num_seqs: int = sum([len(scores) for scores in all_scores.values()])
     num_uncl: int = len(all_scores.pop(UNCLASSIFIED, []))
     output.write(f'  \033[90mSeqs read: \033[0m{num_seqs:_d} \033[90m\t'
                  f'(\033[0m{num_uncl/num_seqs:.1%}\033[90m unclassified)\n')
-    max_score = max([max(scores) for scores in all_scores.values()])
-    min_score = min([min(scores) for scores in all_scores.values()])
-    mean_score = mean([mean(scores) for scores in all_scores.values()])
-    output.write(f'\033[90m  Scores: min =\033[0m {int(min_score)},'
-                 f'\033[90m max =\033[0m {int(max_score)},'
-                 f'\033[90m avr =\033[0m {int(mean_score)}\n')
-
-    return output.getvalue(), abundances, scores
+    max_score = max([max(s) for s in all_scores.values()])
+    min_score = min([min(s) for s in all_scores.values()])
+    mean_score = mean([mean(s) for s in all_scores.values()])
+    output.write(f'\033[90m  Scores: min =\033[0m {min_score:.1f},'
+                 f'\033[90m max =\033[0m {max_score:.1f},'
+                 f'\033[90m avr =\033[0m {mean_score:.1f}\n')
+    max_length = max([max(l) for l in all_length.values()])
+    min_length = min([min(l) for l in all_length.values()])
+    mean_length = mean([mean(l) for l in all_length.values()])
+    output.write(f'\033[90m  Length: min =\033[0m {int(min_length)},'
+                 f'\033[90m max =\033[0m {int(max_length)},'
+                 f'\033[90m avr =\033[0m {mean_length:.1f}\n')
+    # Select score output
+    out_scores: Dict[TaxId, Score]
+    if scoring is Scoring.SHEL:
+        out_scores = {tid: Score(mean(all_scores[tid])) for tid in all_scores}
+    elif scoring is Scoring.LENGTH:
+        out_scores = {tid: Score(mean(all_length[tid])) for tid in all_length}
+    elif scoring is Scoring.LOGLENGTH:
+        out_scores = {tid: Score(log10(mean(all_length[tid])))
+                      for tid in all_length}
+    elif scoring is Scoring.NORMA:
+        scores: Dict[TaxId, Score] = {tid: Score(mean(all_scores[tid]))
+                                      for tid in all_scores}
+        lengths: Dict[TaxId, Score] = {tid: Score(mean(all_length[tid]))
+                                       for tid in all_length}
+        out_scores = {tid: scores[tid]/lengths[tid]*100 for tid in scores}
+    else:
+        raise Exception(f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
+    # Return
+    return output.getvalue(), abundances, out_scores
 
 
 def process_output(*args,
@@ -181,6 +213,7 @@ def process_output(*args,
     including: Set[TaxId] = taxonomy.including
     excluding: Set[TaxId] = taxonomy.excluding
     verb: bool = kwargs['verb']
+    scoring: Scoring = kwargs['scoring']
     output: io.StringIO = io.StringIO(newline='')
 
     sample: Sample = Sample(fileout)
@@ -189,7 +222,7 @@ def process_output(*args,
     log: str
     abundances: Counter[TaxId]
     scores: Dict[TaxId, Score]
-    log, abundances, scores = read_output(fileout)
+    log, abundances, scores = read_output(fileout, scoring)
     output.write(log)
 
     # Build taxonomy tree

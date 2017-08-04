@@ -11,20 +11,22 @@ import sys
 from typing import Counter, List, Dict, Set, Callable, Optional, Tuple
 
 from recentrifuge.centrifuge import process_report, process_output
-from recentrifuge.config import Filename, Sample, TaxId, Score
+from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring
 from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree, krona_from_xml
 
-__version__ = '0.10.2'
+__version__ = '0.11.0'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Ago 2017'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
-                      htmlfile: Filename):
+                      htmlfile: Filename,
+                      scoring: Scoring = Scoring.SHEL,
+                      ):
     """
 
     Generate dummy Krona plot via Krona 2.0 XML spec and finish
@@ -35,7 +37,8 @@ def _debug_dummy_plot(taxonomy: Taxonomy,
     samples: List[Sample] = [Sample('SINGLE'), ]
     krona: KronaTree = KronaTree(samples,
                                  min_score=Score(35),
-                                 max_score=Score(127),
+                                 max_score=Score(100),
+                                 scoring=scoring,
                                  )
     polytree: MultiTree = MultiTree(samples=samples)
     polytree.grow(taxonomy=taxonomy)
@@ -51,7 +54,8 @@ def main():
     # Argument Parser Configuration
     parser = argparse.ArgumentParser(
         description='Post-process Centrifuge/Kraken output',
-        epilog=f'%(prog)s  - {__author__} - {__date__}'
+        epilog=f'%(prog)s  - {__author__} - {__date__}',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
         '-V', '--version',
@@ -63,15 +67,15 @@ def main():
         '-f', '--file',
         action='append',
         metavar='FILE',
-        help=('Centrifuge output files ' +
-              '(multiple -f is available to include several samples in plot')
+        help=('Centrifuge output files ' 
+              '(multiple -f is available to include several samples in plot)')
     )
     filein.add_argument(
         '-r', '--report',
         action='append',
         metavar='FILE',
-        help=('Centrifuge/Kraken report files ' +
-              '(multiple -r is available to include several samples in plot')
+        help=('Centrifuge/Kraken report files ' 
+              '(multiple -r is available to include several samples in plot)')
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -84,28 +88,28 @@ def main():
         action='store',
         metavar='PATH',
         default=TAXDUMP_PATH,
-        help=('path for the nodes information files (nodes.dmp and names.dmp' +
-              ' from NCBI')
+        help=('path for the nodes information files (nodes.dmp and names.dmp'
+              ' from NCBI)')
     )
     parser.add_argument(
         '-m', '--mintaxa',
         action='store',
         metavar='INT',
         default=DEFMINTAXA,
-        help=('minimum taxa to avoid collapsing one level to the parent one ' +
-              ('(%i per default)' % DEFMINTAXA))
+        help=('minimum taxa to avoid collapsing one level to the parent one')
     )
     parser.add_argument(
         '-k', '--nokollapse',
         action='store_true',
-        help='Show the "cellular organisms" taxon (collapsed by default)'
+        help='show the "cellular organisms" taxon'
     )
     parser.add_argument(
         '-o', '--outhtml',
         action='store',
         metavar='FILE',
         default=None,
-        help='HTML Krona file (default: name inferred from report files)'
+        help='HTML output file (if not given the filename will be '
+             'inferred from input files)'
     )
     parser.add_argument(
         '-i', '--include',
@@ -113,8 +117,8 @@ def main():
         metavar='TAXID',
         type=TaxId,
         default=[],
-        help=('NCBI taxid code to include a taxon and all underneath ' +
-              '(multiple -i is available to include several taxid). ' +
+        help=('NCBI taxid code to include a taxon and all underneath '
+              '(multiple -i is available to include several taxid). ' 
               'By default all the taxa is considered for inclusion.')
     )
     parser.add_argument(
@@ -123,23 +127,32 @@ def main():
         metavar='TAXID',
         type=TaxId,
         default=[],
-        help=('NCBI taxid code to exclude a taxon and all underneath ' +
+        help=('NCBI taxid code to exclude a taxon and all underneath ' 
               '(multiple -x is available to exclude several taxid)')
     )
     parser.add_argument(
-        '-s', '--sequential',
+        '-s', '--scoring',
+        action='store',
+        metavar='SCORING',
+        choices=[str(scoring) for scoring in Scoring],
+        default=str(Scoring(0)),
+        help=(f'type of scoring to be applied, and can be one of '
+              f'{[str(scoring) for scoring in Scoring]}')
+    )
+    parser.add_argument(
+        '--sequential',
         action='store_true',
-        help='Deactivate parallel processing.'
+        help='deactivate parallel processing'
     )
     parser.add_argument(
         '-a', '--avoidcross',
         action='store_true',
-        help='Avoid cross analysis.'
+        help='avoid cross analysis'
     )
     parser.add_argument(
         '-c', '--control',
         action='store_true',
-        help='Take the first sample as negative control.'
+        help='take the first sample as negative control'
     )
 
     # Parse arguments
@@ -153,6 +166,7 @@ def main():
     collapse = not args.nokollapse
     excluding: Set[TaxId] = set(args.exclude)
     including: Set[TaxId] = set(args.include)
+    scoring: Scoring = Scoring[args.scoring]
     sequential = args.sequential
     avoidcross = args.avoidcross
     control = args.control
@@ -171,7 +185,7 @@ def main():
     ncbi: Taxonomy = Taxonomy(nodesfile, namesfile,
                               collapse, excluding, including)
 
-    #  _debug_dummy_plot(ncbi, htmlfile)
+    #  _debug_dummy_plot(ncbi, htmlfile, scoring)
 
     # Declare variables that will hold results for the samples analyzed
     trees: Dict[Sample, TaxTree] = {}
@@ -194,7 +208,8 @@ def main():
         files = outputs
 
     print('\033[90mPlease, wait, processing files in parallel...\033[0m\n')
-    kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa, 'verb': verb}
+    kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa,
+              'verb': verb, 'scoring': scoring}
     # Enable parallelization with 'spawn' under known platforms
     if platform.system() and not sequential:  # Only for known platforms
         mpctx = mp.get_context('spawn')  # Important for OSX&Win
@@ -264,6 +279,7 @@ def main():
                                      max([max(scores[sample].values())
                                           for sample in samples
                                           if len(scores[sample])])),
+                                 scoring=scoring,
                                  )
     polytree: MultiTree = MultiTree(samples=samples)
     polytree.grow(taxonomy=ncbi,

@@ -572,19 +572,19 @@ class TaxTree(dict):
             if self.counts < 1:
                 # If not unassigned (no reads directly assigned to the level),
                 #  calculate score from leafs, trying different approaches.
-                total_counts: Score = sum([self[tid].counts for tid in self])
-                if total_counts > 0:  # Leafs (at least 1) have counts
-                    self.score = sum([self[tid].score * self[tid].counts
+                # total_counts: Score = sum([self[tid].counts for tid in self])
+                #if total_counts > 0:  # Leafs (at least 1) have counts
+                #    self.score = sum([self[tid].score * self[tid].counts
+                #                      / total_counts for tid in self])
+                #else:  # No leaf with unassigned counts
+                total_counts = sum([self[tid].acc for tid in self])
+                if total_counts > 0:  # Leafs (at least 1) have accum.
+                    self.score = sum([self[tid].score * self[tid].acc
                                       / total_counts for tid in self])
-                else:  # No leaf with unassigned counts
-                    total_counts = sum([self[tid].acc for tid in self])
-                    if total_counts > 0:  # Leafs (at least 1) have accum.
-                        self.score = sum([self[tid].score * self[tid].acc
-                                          / total_counts for tid in self])
-                    else:  # No leaf with unassigned counts nor accumulated
-                        # Just get the averaged score by number of leafs
-                        self.score = sum([self[tid].score
-                                          for tid in list(self)])/len(self)
+                else:  # No leaf with unassigned counts nor accumulated
+                    # Just get the averaged score by number of leafs
+                    self.score = sum([self[tid].score
+                                      for tid in list(self)])/len(self)
 
     def prune(self,
               mintaxa: int = 1,

@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ETree
 from typing import List, Dict, NewType, Any, Optional
 from xml.dom import minidom
 
-from recentrifuge.config import JSLIB, HTML_SUFFIX, Filename, Sample
+from recentrifuge.config import JSLIB, HTML_SUFFIX, Filename, Sample, Scoring
 
 # from recentrifuge.config import HTML_SUFFIX
 
@@ -114,6 +114,7 @@ class KronaTree(ETree.ElementTree):
                  samples: List[Sample],
                  min_score: float = 0.0,
                  max_score: float = 1.0,
+                 scoring: Scoring = Scoring.SHEL,
                  ) -> None:
         """
         Args:
@@ -150,8 +151,20 @@ class KronaTree(ETree.ElementTree):
         self.sub(self.attributes, 'attribute',
                  {'display': 'Rank', 'mono': 'true'},
                  'rank')
+        display: str
+        if scoring is Scoring.SHEL:
+            display = 'Avg. confidence'
+        elif scoring is Scoring.LENGTH:
+            display = 'Avg. read length'
+        elif scoring is Scoring.LOGLENGTH:
+            display = 'read length (log10)'
+        elif scoring is Scoring.NORMA:
+            display = 'confidence/length (%)'
+        else:
+            raise Exception(
+                f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
         self.sub(self.attributes, 'attribute',
-                 {'display': 'Avg. confidence'},
+                 {'display': display},
                  'score')
 
         # Set datasets
@@ -230,7 +243,7 @@ class KronaTree(ETree.ElementTree):
             loadingImage = file.read()
         with open(path + '/img/favicon.uri', 'r') as file:
             favicon = file.read()
-        with open(path + '/img/logo-med.uri', 'r') as file:
+        with open(path + '/img/logo-med-darwin.uri', 'r') as file:
             logo = file.read()
         with open(f'{path}/{JSLIB}', 'r') as file:
             script = file.read()

@@ -2,6 +2,7 @@
 This module provides constants and other package-wide stuff.
 
 """
+from enum import Enum
 from typing import Dict, NewType
 
 # Type annotations
@@ -28,3 +29,14 @@ UNCLASSIFIED = TaxId('0')
 ROOT = TaxId('1')
 CELLULAR_ORGANISMS = TaxId('131567')
 NO_SCORE = Score(0)  # score given to taxa with no score
+
+
+class Scoring(Enum):
+    """Enumeration with scoring options."""
+    SHEL = 0  # Single Hit Equivalent Length (default)
+    LENGTH = 1  # The length of a read or the combined length of mate pairs
+    LOGLENGTH = 2  # Log10 of the length
+    NORMA = 3  # It is the nomalized score SHEL / LENGTH
+
+    def __str__(self):
+        return f'{self.name}'
