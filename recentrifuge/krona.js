@@ -291,7 +291,7 @@ var currentDataset = 0;
 var lastDataset = 0;
 var datasets = 1;
 var datasetNames;
-var datasetSelectSize = 30;
+var datasetSelectSize = 20;
 var datasetAlpha = new Tween(0, 0);
 var datasetWidths = new Array();
 var datasetChanged;

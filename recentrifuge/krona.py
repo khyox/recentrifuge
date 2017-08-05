@@ -243,7 +243,7 @@ class KronaTree(ETree.ElementTree):
             loadingImage = file.read()
         with open(path + '/img/favicon.uri', 'r') as file:
             favicon = file.read()
-        with open(path + '/img/logo-med-darwin.uri', 'r') as file:
+        with open(path + '/img/logo-med.uri', 'r') as file:
             logo = file.read()
         with open(f'{path}/{JSLIB}', 'r') as file:
             script = file.read()
