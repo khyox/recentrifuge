@@ -131,7 +131,7 @@ class KronaTree(ETree.ElementTree):
 
         # Set root of KronaTree
         self.krona = ETree.Element('krona',
-                                   attrib={'collapse': 'false', 'key': 'true'})
+                                   attrib={'collapse': 'true', 'key': 'true'})
 
         # Set attributes
         self.attributes = ETree.SubElement(self.krona, 'attributes',
