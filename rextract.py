@@ -15,9 +15,11 @@ from recentrifuge.config import Filename, TaxId
 from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, Rank, Ranks
 
-__version__ = '0.0.2'
+__version__ = '0.1.0'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Ago 2017'
+__date__ = 'Oct 2017'
+
+MAX_LENGTH_TAXID_LIST = 32
 
 
 def main():
@@ -36,6 +38,7 @@ def main():
         '-f', '--file',
         action='store',
         metavar='FILE',
+        required=True,
         help='Centrifuge output file.'
     )
     parser.add_argument(
@@ -65,7 +68,15 @@ def main():
         help=('NCBI taxid code to exclude a taxon and all underneath ' +
               '(multiple -x is available to exclude several taxid)')
     )
-    parser.add_argument(
+    filein = parser.add_mutually_exclusive_group(required=True)
+    filein.add_argument(
+        '-q', '--fastq',
+        action='store',
+        metavar='FILE',
+        default=None,
+        help='Single FASTQ file (no paired-ends)'
+    )
+    filein.add_argument(
         '-1', '--mate1',
         action='store',
         metavar='FILE',
@@ -89,8 +100,12 @@ def main():
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
     excluding: Set[TaxId] = set(args.exclude)
     including: Set[TaxId] = set(args.include)
-    fastq_1: Filename = args.mate1
+    fastq_1: Filename
     fastq_2: Filename = args.mate2
+    if not fastq_2:
+        fastq_1 = args.fastq
+    else:
+        fastq_1 = args.mate1
 
     # Program header
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
@@ -150,40 +165,73 @@ def main():
           f'(\033[0m{len(records)/num_seqs:.4%}\033[90m of sample)')
 
     # FASTQ sequence dealing
-    print(f'\033[90mLoading FASTQ files {fastq_1} and {fastq_2}...\n'
-          f'Mseqs: \033[0m', end='')
-    sys.stdout.flush()
     records_ids: List[SeqRecord] = [record.id for record in records]
     seqs1: List[SeqRecord] = []
-    seqs2: List[SeqRecord] = []
-    try:
-        with open(fastq_1, 'rU') as file1, open(fastq_2, 'rU') as file2:
-            for i, (rec1, rec2) in enumerate(zip(SeqIO.parse(file1, 'fastq'),
-                                                 SeqIO.parse(file2, 'fastq'))):
-                if not i % 1000000:
-                    print(f'{i//1000000:_d}', end='')
-                    sys.stdout.flush()
-                elif not i % 100000:
-                    print('.', end='')
-                    sys.stdout.flush()
-                try:
-                    records_ids.remove(rec1.id)
-                except ValueError:
-                    pass
-                else:
-                    seqs1.append(rec1)
-                    seqs2.append(rec2)
-    except FileNotFoundError:
-        raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
-                        output_file + '"')
+    if fastq_2:
+        seqs2: List[SeqRecord] = []
+        print(f'\033[90mLoading FASTQ files {fastq_1} and {fastq_2}...\n'
+              f'Mseqs: \033[0m', end='')
+        sys.stdout.flush()
+        try:
+            with open(fastq_1, 'rU') as file1, open(fastq_2, 'rU') as file2:
+                for i, (rec1, rec2) in enumerate(zip(SeqIO.parse(file1,
+                                                                 'fastq'),
+                                                     SeqIO.parse(file2,
+                                                                 'fastq'))):
+                    if not i % 1000000:
+                        print(f'{i//1000000:_d}', end='')
+                        sys.stdout.flush()
+                    elif not i % 100000:
+                        print('.', end='')
+                        sys.stdout.flush()
+                    try:
+                        records_ids.remove(rec1.id)
+                    except ValueError:
+                        pass
+                    else:
+                        seqs1.append(rec1)
+                        seqs2.append(rec2)
+        except FileNotFoundError:
+            raise Exception('\n\033[91mERROR!\033[0m Cannot read FASTQ files')
+    else:
+        print(f'\033[90mLoading FASTQ files {fastq_1}...\n'
+              f'Mseqs: \033[0m', end='')
+        sys.stdout.flush()
+        try:
+            with open(fastq_1, 'rU') as file1:
+                for i, rec1 in enumerate(SeqIO.parse(file1, 'fastq')):
+                    if not i % 1000000:
+                        print(f'{i//1000000:_d}', end='')
+                        sys.stdout.flush()
+                    elif not i % 100000:
+                        print('.', end='')
+                        sys.stdout.flush()
+                    try:
+                        records_ids.remove(rec1.id)
+                    except ValueError:
+                        pass
+                    else:
+                        seqs1.append(rec1)
+        except FileNotFoundError:
+            raise Exception('\n\033[91mERROR!\033[0m Cannot read FASTQ file')
     print('\033[92m OK! \033[0m')
-    filename1 = f'{fastq_1}.{".".join(taxids)}.fastq'
-    filename2 = f'{fastq_2}.{".".join(taxids)}.fastq'
+    taxids = ".".join(taxids)
+    filename1: Filename
+    if len(taxids) > MAX_LENGTH_TAXID_LIST:
+        filename1 = f'{fastq_1}.under{".".join(including)}.fastq'
+    else:
+        filename1 = f'{fastq_1}.{".".join(taxids)}.fastq'
     SeqIO.write(seqs1, filename1, 'fastq')
     print(f'\033[90mWrote \033[0m{len(seqs1)}\033[90m reads in {filename1}')
-    SeqIO.write(seqs2, filename2, 'fastq')
-    print(f'\033[90mWrote \033[0m{len(seqs2)}\033[90m reads in {filename2}')
-
+    if fastq_2:
+        filename2: Filename
+        if len(taxids) > MAX_LENGTH_TAXID_LIST:
+            filename2 = f'{fastq_2}.under{".".join(including)}.fastq'
+        else:
+            filename2 = f'{fastq_2}.{".".join(taxids)}.fastq'
+        SeqIO.write(seqs2, filename2, 'fastq')
+        print(f'\033[90mWrote \033[0m{len(seqs2)}\033[90m reads'
+              f' in {filename2}')
 
 if __name__ == '__main__':
     main()
