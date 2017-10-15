@@ -15,7 +15,7 @@ from recentrifuge.config import Filename, TaxId
 from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, Rank, Ranks
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Oct 2017'
 
@@ -167,8 +167,8 @@ def main():
     # FASTQ sequence dealing
     records_ids: List[SeqRecord] = [record.id for record in records]
     seqs1: List[SeqRecord] = []
+    seqs2: List[SeqRecord] = []
     if fastq_2:
-        seqs2: List[SeqRecord] = []
         print(f'\033[90mLoading FASTQ files {fastq_1} and {fastq_2}...\n'
               f'Mseqs: \033[0m', end='')
         sys.stdout.flush()
@@ -216,22 +216,35 @@ def main():
             raise Exception('\n\033[91mERROR!\033[0m Cannot read FASTQ file')
     print('\033[92m OK! \033[0m')
     taxids = ".".join(taxids)
-    filename1: Filename
-    if len(taxids) > MAX_LENGTH_TAXID_LIST:
-        filename1 = f'{fastq_1}.under{".".join(including)}.fastq'
-    else:
-        filename1 = f'{fastq_1}.{".".join(taxids)}.fastq'
+
+    def format_filename(fastq: Filename) -> str:
+        """Auxiliary function to properly format the output filenames.
+
+        Args:
+            fastq: Complete filename of the fastq input file
+
+        Returns: Filename of the rextracted fastq output file
+        """
+        fastq_filename, _ = os.path.splitext(fastq)
+        output_list: List[str] = [fastq_filename, '_rxtr']
+        if including:
+            output_list.append('_incl')
+            output_list.extend('_'.join(including))
+        if excluding:
+            output_list.append('_excl')
+            output_list.extend('_'.join(excluding))
+        output_list.append('.fastq')
+        return ''.join(output_list)
+
+    filename1: Filename = format_filename(fastq_1)
     SeqIO.write(seqs1, filename1, 'fastq')
     print(f'\033[90mWrote \033[0m{len(seqs1)}\033[90m reads in {filename1}')
     if fastq_2:
-        filename2: Filename
-        if len(taxids) > MAX_LENGTH_TAXID_LIST:
-            filename2 = f'{fastq_2}.under{".".join(including)}.fastq'
-        else:
-            filename2 = f'{fastq_2}.{".".join(taxids)}.fastq'
+        filename2: Filename = format_filename(fastq_2)
         SeqIO.write(seqs2, filename2, 'fastq')
         print(f'\033[90mWrote \033[0m{len(seqs2)}\033[90m reads'
               f' in {filename2}')
+
 
 if __name__ == '__main__':
     main()
