@@ -10,17 +10,25 @@ import platform
 import sys
 from typing import Counter, List, Dict, Set, Callable, Optional, Tuple
 
+# optional package pandas (to generate Excel output)
+_use_pandas = True
+try:
+    import pandas as pd
+except ImportError:
+    _use_pandas = False
+
 from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring
 from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
-from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA
+from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, ROOT
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree, krona_from_xml
+from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
 
-__version__ = '0.11.0'
+__version__ = '0.12.0'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Ago 2017'
+__date__ = 'Nov 2017'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -292,8 +300,25 @@ def main():
     polytree.toxml(taxonomy=ncbi, krona=krona)
     krona.tohtml(htmlfile, pretty=False)
     print('\033[92m OK! \033[0m')
+    if _use_pandas:
+        print('\033[90mGenerating Excel summary file...\033[0m', end='')
+        sys.stdout.flush()
+        list_rows: List = []
+        polytree.to_items(taxonomy=ncbi, items=list_rows)
+        # Generate the pandas DataFrame from items and export to Excel
+        iterables1 = [samples, [COUNT, UNASSIGNED, SCORE]]
+        cols1 = pd.MultiIndex.from_product(iterables1,
+                                           names=['Samples', 'Stats'])
+        iterables2 = [['Details'], ['Rank', 'Name']]
+        cols2 = pd.MultiIndex.from_product(iterables2)
+        columns = cols1.append(cols2)
+        df: pd.DataFrame = pd.DataFrame.from_items(list_rows,
+                                                   orient='index',
+                                                   columns=columns)
+        df.index.names = ['TaxId']
+        df.to_excel(htmlfile + '.xlsx', sheet_name='Recentrifuge')
+        print('\033[92m OK! \033[0m')
 
 
 if __name__ == '__main__':
     main()
-

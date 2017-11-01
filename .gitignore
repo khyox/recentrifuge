@@ -53,6 +53,7 @@ Thumbs.db
 *.png
 *.eps
 *.ps
+*.uml
 *.logfile
 **/.idea
 .mypy_cache/

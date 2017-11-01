@@ -754,7 +754,7 @@ class MultiTree(dict):
               node: Elm = None,
               ) -> None:
         """
-        Recursive method to Generate xml.
+        Recursive method to generate XML.
 
         Args:
             taxonomy: Taxonomy object.
@@ -785,6 +785,34 @@ class MultiTree(dict):
                 self[tid].toxml(taxonomy=taxonomy,
                                 krona=krona,
                                 node=new_node)
+
+    def to_items(self,
+                 taxonomy: Taxonomy,
+                 items: List,
+                 ) -> None:
+        """
+        Recursive method to populate a list (used to feed a DataFrame).
+
+        Args:
+            taxonomy: Taxonomy object.
+            items: Input/Output list to be populated.
+
+        Returns: None
+
+        """
+        for tid in self:
+            num_samples = len(self.samples)
+            list_row: List = []
+            for i in range(num_samples):
+                list_row.extend([self[tid].accs[i],
+                               self[tid].counts[i],
+                               self[tid].score[i]])
+            list_row.extend([taxonomy.get_rank(tid).name.lower(),
+                           taxonomy.get_name(tid)])
+            items.append((tid, list_row))
+            if self[tid]:
+                self[tid].to_items(taxonomy=taxonomy,
+                                   items=items)
 
 
 class SharedCounter(col.Counter):
