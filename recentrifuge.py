@@ -26,7 +26,7 @@ from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree, krona_from_xml
 from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
 
-__version__ = '0.12.0'
+__version__ = '0.12.1'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Nov 2017'
 
@@ -316,7 +316,8 @@ def main():
                                                    orient='index',
                                                    columns=columns)
         df.index.names = ['TaxId']
-        df.to_excel(htmlfile + '.xlsx', sheet_name='Recentrifuge')
+        df.to_excel(htmlfile.split('.html')[0] + '.xlsx',
+                    sheet_name='Recentrifuge')
         print('\033[92m OK! \033[0m')
 
 
