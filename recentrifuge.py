@@ -20,13 +20,13 @@ except ImportError:
 from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
 from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
-from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, ROOT
+from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, STR_CONTROL
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
-from recentrifuge.krona import KronaTree, krona_from_xml
-from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
+from recentrifuge.krona import KronaTree
+from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 
-__version__ = '0.12.2'
+__version__ = '0.12.3'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Nov 2017'
 
@@ -75,14 +75,14 @@ def main():
         '-f', '--file',
         action='append',
         metavar='FILE',
-        help=('Centrifuge output files ' 
+        help=('Centrifuge output files '
               '(multiple -f is available to include several samples in plot)')
     )
     filein.add_argument(
         '-r', '--report',
         action='append',
         metavar='FILE',
-        help=('Centrifuge/Kraken report files ' 
+        help=('Centrifuge/Kraken report files '
               '(multiple -r is available to include several samples in plot)')
     )
     parser.add_argument(
@@ -126,7 +126,7 @@ def main():
         type=TaxId,
         default=[],
         help=('NCBI taxid code to include a taxon and all underneath '
-              '(multiple -i is available to include several taxid). ' 
+              '(multiple -i is available to include several taxid). '
               'By default all the taxa is considered for inclusion.')
     )
     parser.add_argument(
@@ -135,7 +135,7 @@ def main():
         metavar='TAXID',
         type=TaxId,
         default=[],
-        help=('NCBI taxid code to exclude a taxon and all underneath ' 
+        help=('NCBI taxid code to exclude a taxon and all underneath '
               '(multiple -x is available to exclude several taxid)')
     )
     parser.add_argument(
@@ -212,6 +212,7 @@ def main():
     taxids: Dict[Sample, TaxLevels] = {}
     scores: Dict[Sample, Dict[TaxId, Score]] = {}
     samples: List[Sample] = []
+    raw_samples: List[Sample] = []
     #
     # Processing of input files in parallel
     #
@@ -249,6 +250,7 @@ def main():
              taxids[sample], abundances[sample],
              accs[sample], scores[sample]) = process(file, **kwargs)
             samples.append(sample)
+    raw_samples.extend(samples)  # Store raw sample names
     #
     # Cross analysis of samples in parallel by taxlevel
     #
@@ -331,7 +333,32 @@ def main():
             df.index.names = ['TaxId']
             df.to_excel(xlsxwriter, sheet_name=str(excel))
         elif excel is excel.CMPLXCRUNCHER:
-            pass  # TODO
+            target_ranks: List = [Rank.NO_RANK]
+            if control:
+                target_ranks = [Rank.SPECIES, Rank.GENUS, Rank.FAMILY]
+            for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
+                sheet_name: str
+                indexes: List[int]
+                columns: List[str]
+                if control:
+                    indexes = [i for i in range(len(raw_samples), len(samples))
+                               if (samples[i].startswith(STR_CONTROL)
+                                   and rank.name.lower() in samples[i])]
+                    sheet_name = f'{STR_CONTROL}_{rank.name.lower()}'
+                    columns = [samples[i].split('_')[2] for i in indexes]
+                else:  # No rank dependency
+                    indexes = list(range(len(raw_samples)))
+                    sheet_name = f'raw_samples_{rank.name.lower()}'
+                    columns = [samples[i].split('_')[0] for i in indexes]
+                list_rows: List = []
+                polytree.to_cmplxcruncher(taxonomy=ncbi,
+                                          sample_indexes=indexes,
+                                          items=list_rows)
+                df: pd.DataFrame = pd.DataFrame.from_items(list_rows,
+                                                           orient='index',
+                                                           columns=columns)
+                df.index.names = ['TaxId']
+                df.to_excel(xlsxwriter, sheet_name=sheet_name)
         else:
             raise Exception(
                 f'\n\033[91mERROR!\033[0m Unknown Excel option "{excel}"')

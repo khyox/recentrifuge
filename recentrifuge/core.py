@@ -810,6 +810,31 @@ class MultiTree(dict):
                 self[tid].to_items(taxonomy=taxonomy,
                                    items=items)
 
+    def to_cmplxcruncher(self,
+                         taxonomy: Taxonomy,
+                         sample_indexes: List[int],
+                         items: List,
+                         ) -> None:
+        """
+        Recursive method to help populate a table in cmplxcruncher format.
+
+        Args:
+            taxonomy: Taxonomy object.
+            sample_indexes: List of indexes of the samples of interest
+            items: Input/Output list to be populated.
+
+        Returns: None
+
+        """
+        for tid in self:
+            list_row: List = []
+            for i in sample_indexes:
+                    list_row.append(self[tid].counts[i])
+            items.append((tid, list_row))
+            if self[tid]:
+                self[tid].to_cmplxcruncher(taxonomy=taxonomy,
+                                           sample_indexes=sample_indexes,
+                                           items=items)
 
 class SharedCounter(col.Counter):
     """Extends collection.Counter with useful ops. for shared taxa."""
