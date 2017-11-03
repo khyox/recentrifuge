@@ -784,7 +784,8 @@ class MultiTree(dict):
 
     def to_items(self,
                  taxonomy: Taxonomy,
-                 items: List,
+                 items: List[Tuple[TaxId, List]],
+                 sample_indexes: List[int] = None
                  ) -> None:
         """
         Recursive method to populate a list (used to feed a DataFrame).
@@ -792,49 +793,28 @@ class MultiTree(dict):
         Args:
             taxonomy: Taxonomy object.
             items: Input/Output list to be populated.
-
-        Returns: None
-
-        """
-        for tid in self:
-            num_samples = len(self.samples)
-            list_row: List = []
-            for i in range(num_samples):
-                list_row.extend([self[tid].accs[i],
-                               self[tid].counts[i],
-                               self[tid].score[i]])
-            list_row.extend([taxonomy.get_rank(tid).name.lower(),
-                           taxonomy.get_name(tid)])
-            items.append((tid, list_row))
-            if self[tid]:
-                self[tid].to_items(taxonomy=taxonomy,
-                                   items=items)
-
-    def to_cmplxcruncher(self,
-                         taxonomy: Taxonomy,
-                         sample_indexes: List[int],
-                         items: List,
-                         ) -> None:
-        """
-        Recursive method to help populate a table in cmplxcruncher format.
-
-        Args:
-            taxonomy: Taxonomy object.
-            sample_indexes: List of indexes of the samples of interest
-            items: Input/Output list to be populated.
+            sample_indexes: Indexes of the samples of interest (for cC)
 
         Returns: None
 
         """
         for tid in self:
             list_row: List = []
-            for i in sample_indexes:
+            if sample_indexes:
+                for i in sample_indexes:
                     list_row.append(self[tid].counts[i])
+            else:
+                for i in range(len(self.samples)):
+                    list_row.extend([self[tid].accs[i],
+                                     self[tid].counts[i],
+                                     self[tid].score[i]])
+                list_row.extend([taxonomy.get_rank(tid).name.lower(),
+                                 taxonomy.get_name(tid)])
             items.append((tid, list_row))
             if self[tid]:
-                self[tid].to_cmplxcruncher(taxonomy=taxonomy,
-                                           sample_indexes=sample_indexes,
-                                           items=items)
+                self[tid].to_items(taxonomy=taxonomy, items=items,
+                                   sample_indexes=sample_indexes)
+
 
 class SharedCounter(col.Counter):
     """Extends collection.Counter with useful ops. for shared taxa."""

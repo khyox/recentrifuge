@@ -26,7 +26,7 @@ from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 
-__version__ = '0.12.3'
+__version__ = '0.12.4'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Nov 2017'
 
@@ -335,10 +335,11 @@ def main():
         elif excel is excel.CMPLXCRUNCHER:
             target_ranks: List = [Rank.NO_RANK]
             if control:
-                target_ranks = [Rank.SPECIES, Rank.GENUS, Rank.FAMILY]
+                target_ranks = [Rank.SPECIES, Rank.GENUS,  # Ranks of interest
+                                Rank.FAMILY, Rank.ORDER]   # for cmplxcruncher
             for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
-                sheet_name: str
                 indexes: List[int]
+                sheet_name: str
                 columns: List[str]
                 if control:
                     indexes = [i for i in range(len(raw_samples), len(samples))
@@ -351,9 +352,8 @@ def main():
                     sheet_name = f'raw_samples_{rank.name.lower()}'
                     columns = [samples[i].split('_')[0] for i in indexes]
                 list_rows: List = []
-                polytree.to_cmplxcruncher(taxonomy=ncbi,
-                                          sample_indexes=indexes,
-                                          items=list_rows)
+                polytree.to_items(taxonomy=ncbi, items=list_rows,
+                                  sample_indexes=indexes)
                 df: pd.DataFrame = pd.DataFrame.from_items(list_rows,
                                                            orient='index',
                                                            columns=columns)
