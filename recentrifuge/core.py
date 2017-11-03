@@ -16,6 +16,8 @@ from typing import NewType
 from recentrifuge.config import Filename, Sample, TaxId, Children, Names
 from recentrifuge.config import Parents, Score
 from recentrifuge.config import ROOT, HTML_SUFFIX, CELLULAR_ORGANISMS, NO_SCORE
+from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
+from recentrifuge.config import STR_SHARED_CONTROL
 from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
 from recentrifuge.krona import KronaTree, Elm
 
@@ -555,7 +557,7 @@ class TaxTree(dict):
                                     include, exclude,
                                     in_branch)
 
-    def accumulate(self) -> None:
+    def acc_and_score(self) -> None:
         """
         Recursively populate accumulated counts and score.
 
@@ -565,26 +567,20 @@ class TaxTree(dict):
 
         """
         self.acc = self.counts  # Initialize accumulated with unassigned counts
-        if self:  # If this node has subtrees
-            for tid in list(self):
-                self[tid].accumulate()  # Accumulate for each branch/leaf
-                self.acc += self[tid].acc  # Acc lower tax acc in this node
-            if self.counts < 1:
-                # If not unassigned (no reads directly assigned to the level),
-                #  calculate score from leafs, trying different approaches.
-                # total_counts: Score = sum([self[tid].counts for tid in self])
-                #if total_counts > 0:  # Leafs (at least 1) have counts
-                #    self.score = sum([self[tid].score * self[tid].counts
-                #                      / total_counts for tid in self])
-                #else:  # No leaf with unassigned counts
-                total_counts = sum([self[tid].acc for tid in self])
-                if total_counts > 0:  # Leafs (at least 1) have accum.
-                    self.score = sum([self[tid].score * self[tid].acc
-                                      / total_counts for tid in self])
-                else:  # No leaf with unassigned counts nor accumulated
-                    # Just get the averaged score by number of leafs
-                    self.score = sum([self[tid].score
-                                      for tid in list(self)])/len(self)
+        for tid in list(self):  # Loop if this node has subtrees
+            self[tid].acc_and_score()  # Accumulate for each branch/leaf
+            self.acc += self[tid].acc  # Acc lower tax acc in this node
+        if not self.counts:
+            # If not unassigned (no reads directly assigned to the level),
+            #  calculate score from leafs, trying different approaches.
+            if self.acc:  # Leafs (at least 1) have accum.
+                self.score = sum([self[tid].score * self[tid].acc
+                                  / self.acc for tid in self])
+            else:  # No leaf with unassigned counts nor accumulated
+                # Just get the averaged score by number of leafs
+                # self.score = sum([self[tid].score
+                #                   for tid in list(self)])/len(self)
+                pass
 
     def prune(self,
               mintaxa: int = 1,
@@ -606,7 +602,7 @@ class TaxTree(dict):
         Returns: True if this node is a leaf
 
         """
-        for tid in list(self):
+        for tid in list(self):  # Loop if this node has subtrees
             if (self[tid]  # If the subtree has branches,
                 and self[tid].prune(  # then prune that subtree
                     mintaxa, minlevel, collapse, verb)):
@@ -937,7 +933,7 @@ def process_rank(*args,
                      '  \033[90mFiltering shared taxa...\033[0m')
         leveled_tree = copy.deepcopy(trees[file])
         leveled_tree.prune(mintaxa, rank)  # Prune the copy to the desired rank
-        leveled_tree.accumulate()
+        leveled_tree.acc_and_score()
         # Get abundance for the exclusive analysis
         exclusive_abundance: Counter[TaxId] = col.Counter()
         exclusive_score: Dict[TaxId, Score] = {}
@@ -953,7 +949,7 @@ def process_rank(*args,
         tree.grow(taxonomy=taxonomy,
                   abundances=exclusive_abundance,
                   scores=exclusive_score)
-        tree.accumulate()  # Calculate accumulated values and scores
+        tree.acc_and_score()  # Calculate accumulated values and scores
         exclusive_acc: Counter[TaxId] = col.Counter()
         exclusive_score = {}
         tree.get_taxa(accs=exclusive_acc,
@@ -961,7 +957,7 @@ def process_rank(*args,
                       include=including,
                       exclude=excluding)
         output.write('\033[92m OK! \033[0m\n')
-        sample = Sample(f'EXCLUSIVE_{rank.name.lower()}_{file}')
+        sample = Sample(f'{STR_EXCLUSIVE}_{rank.name.lower()}_{file}')
         samples.append(sample)
         abundances[sample] = exclusive_abundance
         accumulators[sample] = exclusive_acc
@@ -1009,7 +1005,7 @@ def process_rank(*args,
                   abundances=shared_abundance,
                   scores=shared_score)
         #tree.prune(mintaxa, rank)
-        tree.accumulate()  # Calculate the accumulated values
+        tree.acc_and_score()  # Calculate the accumulated values
         new_abund: Counter[TaxId] = col.Counter()
         new_accs: Counter[TaxId] = col.Counter()
         new_score: Dict[TaxId, Score] = {}
@@ -1018,7 +1014,7 @@ def process_rank(*args,
                       include=including,
                       exclude=excluding)
         output.write('\033[92m OK! \033[0m\n')
-        sample = Sample(f'SHARED_{rank.name.lower()}')
+        sample = Sample(f'{STR_SHARED}_{rank.name.lower()}')
         samples.append(sample)
         abundances[Sample(sample)] = new_abund
         accumulators[Sample(sample)] = new_accs
@@ -1037,7 +1033,7 @@ def process_rank(*args,
                          '  \033[90mFiltering taxa from control...\033[0m')
             leveled_tree = copy.deepcopy(trees[file])
             leveled_tree.prune(mintaxa, rank)
-            leveled_tree.accumulate()  # Calculate the accumulated values
+            leveled_tree.acc_and_score()  # Calculate the accumulated values
             control_abundance: Counter[TaxId] = col.Counter()
             control_score: Dict[TaxId, Score] = {}
             leveled_tree.get_taxa(abundance=control_abundance,
@@ -1051,7 +1047,7 @@ def process_rank(*args,
             tree.grow(taxonomy=taxonomy,
                       abundances=control_abundance,
                       scores=control_score)
-            tree.accumulate()  # Calculate the accumulated values and scores
+            tree.acc_and_score()  # Calculate the accumulated values and scores
             control_acc: Counter[TaxId] = col.Counter()
             control_score = {}
             tree.get_taxa(accs=control_acc,
@@ -1060,7 +1056,7 @@ def process_rank(*args,
                           exclude=excluding)
             output.write('\033[92m OK! \033[0m\n')
             control_abundance = +control_abundance  # remove counts <= 0
-            sample = Sample(f'CONTROL_{rank.name.lower()}_{file}')
+            sample = Sample(f'{STR_CONTROL}_{rank.name.lower()}_{file}')
             samples.append(sample)
             abundances[sample] = control_abundance
             accumulators[sample] = control_acc
@@ -1083,7 +1079,7 @@ def process_rank(*args,
                       abundances=shared_ctrl_abundance,
                       scores=shared_ctrl_score)
             #tree.prune(mintaxa, rank)
-            tree.accumulate()
+            tree.acc_and_score()
             new_shared_ctrl_abundance: Counter[TaxId] = col.Counter()
             new_shared_ctrl_score: Dict[TaxId, Score] = {}
             tree.get_taxa(abundance=new_shared_ctrl_abundance,
@@ -1097,7 +1093,7 @@ def process_rank(*args,
             tree.grow(taxonomy=taxonomy,
                       abundances=new_shared_ctrl_abundance,
                       scores=new_shared_ctrl_score)
-            tree.accumulate()  # Calculate the accumulated and score values
+            tree.acc_and_score()  # Calculate the accumulated and score values
             new_shared_ctrl_acc: Counter[TaxId] = col.Counter()
             new_shared_ctrl_score = {}
             tree.get_taxa(accs=new_shared_ctrl_acc,
@@ -1105,7 +1101,7 @@ def process_rank(*args,
                           include=including,
                           exclude=excluding)
             output.write('\033[92m OK! \033[0m\n')
-            sample = Sample(f'SHARED_CONTROL_{rank.name.lower()}')
+            sample = Sample(f'{STR_SHARED_CONTROL}_{rank.name.lower()}')
             samples.append(sample)
             abundances[sample] = new_shared_ctrl_abundance
             accumulators[sample] = new_shared_ctrl_acc

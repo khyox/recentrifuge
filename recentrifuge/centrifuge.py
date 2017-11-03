@@ -82,7 +82,7 @@ def process_report(*args,
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
     tree.prune(mintaxa, None, collapse, verb)
-    tree.accumulate()
+    tree.acc_and_score()
     output.write('\033[92m OK! \033[0m\n')
 
     # Get the taxa with their abundances and taxonomical levels
@@ -100,7 +100,7 @@ def process_report(*args,
     if including or excluding:  # Recalculate accumulated counts
         new_tree = TaxTree()
         new_tree.grow(taxonomy, new_abund)  # Grow tree with new abund
-        new_tree.accumulate()
+        new_tree.acc_and_score()
         new_abund = col.Counter()  # Reset abundances
         new_accs = col.Counter()  # Reset accumulated
         new_tree.get_taxa(new_abund, new_accs)  # Get new accumulated counts
@@ -236,7 +236,7 @@ def process_output(*args,
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
     tree.prune(mintaxa=mintaxa, verb=verb)
-    tree.accumulate()
+    tree.acc_and_score()
     output.write('\033[92m OK! \033[0m\n')
 
     # Get the taxa with their abundances, scores and taxonomical levels
@@ -255,7 +255,8 @@ def process_output(*args,
         new_tree.grow(taxonomy=taxonomy,
                       abundances=new_abund,
                       scores=new_scores)  # Grow tree with new abund
-        new_tree.accumulate()
+        new_tree.prune(mintaxa=mintaxa, verb=verb)
+        new_tree.acc_and_score()
         new_abund = col.Counter()  # Reset abundances
         new_accs = col.Counter()  # Reset accumulated
         new_scores = {}  # Reset score

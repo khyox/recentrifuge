@@ -18,7 +18,7 @@ except ImportError:
     _use_pandas = False
 
 from recentrifuge.centrifuge import process_report, process_output
-from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring
+from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
 from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, ROOT
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
@@ -26,7 +26,7 @@ from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree, krona_from_xml
 from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
 
-__version__ = '0.12.1'
+__version__ = '0.12.2'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Nov 2017'
 
@@ -162,6 +162,15 @@ def main():
         action='store_true',
         help='take the first sample as negative control'
     )
+    parser.add_argument(
+        '-e', '--excel',
+        action='store',
+        metavar='OUTPUT_TYPE',
+        choices=[str(excel) for excel in Excel],
+        default=str(Excel(0)),
+        help=(f'type of scoring to be applied, and can be one of '
+              f'{[str(excel) for excel in Excel]}')
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -178,6 +187,7 @@ def main():
     sequential = args.sequential
     avoidcross = args.avoidcross
     control = args.control
+    excel: Excel = Excel[args.excel]
     htmlfile: Filename = args.outhtml
     if not htmlfile:
         if files:
@@ -301,23 +311,31 @@ def main():
     krona.tohtml(htmlfile, pretty=False)
     print('\033[92m OK! \033[0m')
     if _use_pandas:
-        print('\033[90mGenerating Excel summary file...\033[0m', end='')
+        print(f'\033[90mGenerating Excel {str(excel).lower()}'
+              f' summary file...\033[0m', end='')
         sys.stdout.flush()
-        list_rows: List = []
-        polytree.to_items(taxonomy=ncbi, items=list_rows)
-        # Generate the pandas DataFrame from items and export to Excel
-        iterables1 = [samples, [COUNT, UNASSIGNED, SCORE]]
-        cols1 = pd.MultiIndex.from_product(iterables1,
-                                           names=['Samples', 'Stats'])
-        iterables2 = [['Details'], ['Rank', 'Name']]
-        cols2 = pd.MultiIndex.from_product(iterables2)
-        columns = cols1.append(cols2)
-        df: pd.DataFrame = pd.DataFrame.from_items(list_rows,
-                                                   orient='index',
-                                                   columns=columns)
-        df.index.names = ['TaxId']
-        df.to_excel(htmlfile.split('.html')[0] + '.xlsx',
-                    sheet_name='Recentrifuge')
+        xlsxwriter = pd.ExcelWriter(htmlfile.split('.html')[0] + '.xlsx')
+        if excel is excel.FULL:
+            list_rows: List = []
+            polytree.to_items(taxonomy=ncbi, items=list_rows)
+            # Generate the pandas DataFrame from items and export to Excel
+            iterable_1 = [samples, [COUNT, UNASSIGNED, SCORE]]
+            cols1 = pd.MultiIndex.from_product(iterable_1,
+                                               names=['Samples', 'Stats'])
+            iterable_2 = [['Details'], ['Rank', 'Name']]
+            cols2 = pd.MultiIndex.from_product(iterable_2)
+            columns = cols1.append(cols2)
+            df: pd.DataFrame = pd.DataFrame.from_items(list_rows,
+                                                       orient='index',
+                                                       columns=columns)
+            df.index.names = ['TaxId']
+            df.to_excel(xlsxwriter, sheet_name=str(excel))
+        elif excel is excel.CMPLXCRUNCHER:
+            pass  # TODO
+        else:
+            raise Exception(
+                f'\n\033[91mERROR!\033[0m Unknown Excel option "{excel}"')
+        xlsxwriter.save()
         print('\033[92m OK! \033[0m')
 
 
