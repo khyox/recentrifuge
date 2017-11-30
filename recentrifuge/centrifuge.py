@@ -14,6 +14,7 @@ from Bio import SeqIO
 
 from recentrifuge.config import Filename, TaxId, Score, UNCLASSIFIED, Scoring
 from recentrifuge.core import Rank, Taxonomy, TaxTree, Ranks, TaxLevels, Sample
+from recentrifuge.LMAT import read_lmat_output
 
 
 def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
@@ -112,7 +113,7 @@ def process_report(*args,
     return sample, tree, taxlevels, new_abund, new_accs, None
 
 
-def read_output(output_file: str,
+def read_output(output_file: Filename,
                 scoring: Scoring = Scoring.SHEL,
                 ) -> Tuple[str, Counter[TaxId],
                            Dict[TaxId, Score]]:
@@ -190,7 +191,8 @@ def read_output(output_file: str,
                                       for tid in all_scores}
         lengths: Dict[TaxId, Score] = {tid: Score(mean(all_length[tid]))
                                        for tid in all_length}
-        out_scores = {tid: scores[tid]/lengths[tid]*100 for tid in scores}
+        out_scores = {tid: Score(scores[tid]/lengths[tid]*100)
+                      for tid in scores}
     else:
         raise Exception(f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
     # Return
@@ -203,26 +205,30 @@ def process_output(*args,
                               Counter[TaxId], Counter[TaxId],
                               Dict[TaxId, Score]]:
     """
-    Process Centrifuge output files (to be usually called in parallel!).
+    Process Centrifuge/LMAT output files (to be usually called in parallel!).
     """
     # Recover input and parameters
     fileout: Filename = args[0]
     taxonomy: Taxonomy = kwargs['taxonomy']
     mintaxa: int = kwargs['mintaxa']
-    collapse: bool = taxonomy.collapse
     including: Set[TaxId] = taxonomy.including
     excluding: Set[TaxId] = taxonomy.excluding
     verb: bool = kwargs['verb']
     scoring: Scoring = kwargs['scoring']
+    lmat: bool = kwargs['lmat']
     output: io.StringIO = io.StringIO(newline='')
 
     sample: Sample = Sample(fileout)
 
-    # Read Centrifuge/Kraken report file to get abundances
+    # Read Centrifuge/LMAT output files to get abundances
+    if lmat:
+        read_method = read_lmat_output
+    else:
+        read_method = read_output
     log: str
     abundances: Counter[TaxId]
     scores: Dict[TaxId, Score]
-    log, abundances, scores = read_output(fileout, scoring)
+    log, abundances, scores = read_method(fileout, scoring)
     output.write(log)
 
     # Build taxonomy tree
@@ -232,10 +238,21 @@ def process_output(*args,
               abundances=abundances,
               scores=scores)  # Grow tax tree from root node
     output.write('\033[92m OK! \033[0m\n')
+    
+    # TODO: Check plasmids again!
+    # n_abund: Counter[TaxId] = col.Counter()
+    # n_accs: Counter[TaxId] = col.Counter()
+    # n_scores: Dict[TaxId, Score] = {}
+    # n_ranks: Ranks = Ranks({})
+    # tree.get_taxa(n_abund, n_accs, n_scores, n_ranks,
+    #               mindepth=0, maxdepth=0)
+    # for taxid in abundances:
+    #     if not n_abund[taxid]:
+    #         print(f'Missing {taxid}: {taxonomy.get_name(taxid)}')
 
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
-    tree.prune(mintaxa=mintaxa, verb=verb)
+    tree.prune(min_taxa=mintaxa, verb=verb)
     tree.acc_and_score()
     output.write('\033[92m OK! \033[0m\n')
 
@@ -255,7 +272,7 @@ def process_output(*args,
         new_tree.grow(taxonomy=taxonomy,
                       abundances=new_abund,
                       scores=new_scores)  # Grow tree with new abund
-        new_tree.prune(mintaxa=mintaxa, verb=verb)
+        new_tree.prune(min_taxa=mintaxa, verb=verb)
         new_tree.acc_and_score()
         new_abund = col.Counter()  # Reset abundances
         new_accs = col.Counter()  # Reset accumulated

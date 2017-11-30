@@ -7,6 +7,7 @@ import collections as col
 import copy
 import csv
 import io
+import re
 import subprocess
 import sys
 from enum import Enum
@@ -42,7 +43,7 @@ class classproperty(object):  # pylint: disable=invalid-name
 
 
 class UnsupportedTaxLevelError(Exception):
-    """Raised if a unsupported tx level is found."""
+    """Raised if a unsupported tax level is found."""
 
 
 class Rank(Enum):
@@ -196,8 +197,9 @@ class Taxonomy:
     """Taxonomy related data and methods."""
 
     def __init__(self,
-                 nodes_file: str,
-                 names_file: str,
+                 nodes_file: Filename,
+                 names_file: Filename,
+                 plasmid_file: Filename,
                  collapse: bool = True,
                  excluding: Set[TaxId] = None,
                  including: Set[TaxId] = None,
@@ -213,6 +215,8 @@ class Taxonomy:
         # Initialization methods
         self.read_nodes(nodes_file)
         self.read_names(names_file)
+        if plasmid_file:
+            self.read_plasmids(plasmid_file)
         self.build_children()
 
         # Show explicitly included and excluded taxa
@@ -232,7 +236,7 @@ class Taxonomy:
                 print(f'\t\t{taxid}\t{self.names[taxid]}')
         self.excluding: Set[TaxId] = excluding
 
-    def read_nodes(self, nodes_file: str) -> None:
+    def read_nodes(self, nodes_file: Filename) -> None:
         """Build dicts of parent and rank for a given taxid (key)"""
         print('\033[90mLoading NCBI nodes...\033[0m', end='')
         sys.stdout.flush()
@@ -260,7 +264,7 @@ class Taxonomy:
         else:
             print('\033[92m OK! \033[0m')
 
-    def read_names(self, names_file: str) -> None:
+    def read_names(self, names_file: Filename) -> None:
         """Build dict with name for a given taxid (key)."""
         print('\033[90mLoading NCBI names...\033[0m', end='')
         sys.stdout.flush()
@@ -270,11 +274,36 @@ class Taxonomy:
                     if 'scientific name' in line:
                         tid, scientific_name, *_ = line.split('\t|\t')
                         self.names[TaxId(tid)] = scientific_name
-        except:
+        except OSError:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
                             names_file + '"')
         else:
             print('\033[92m OK! \033[0m')
+
+    def read_plasmids(self, plasmid_file: Filename) -> None:
+        """Read and include plasmid data"""
+        print('\033[90mLoading plasmids...\033[0m', end='')
+        sys.stdout.flush()
+        pattern1 = re.compile('gi\|\d*\|\s*((?:\w*[\s|,|\.])*(?:\w*))')
+        pattern2 = re.compile('\|\s*((?:\w*[\s,.]+))')
+        pattern3 = re.compile('\"((?:\w*\s*)*)\"')
+        try:
+            with open(plasmid_file, 'r') as file:
+                for line in file:
+                    _tid, _parent, *_, last = line.split('\t')
+                    tid = TaxId(_tid)
+                    parent = TaxId(_parent)
+                    self.parents[tid] = parent
+                    name: str
+                    try:
+                        name = pattern1.search(last).group(1)
+                        name = name.rstrip(', complete sequence')
+                    except AttributeError:
+                        name = 'Plasmid ' + tid
+                    self.names[tid] = name
+        except OSError:
+            print('\033[93mWARNING\033[0m: Cannot read "' +
+                        plasmid_file + '". Plasmid taxids not loaded!')
 
     def build_children(self) -> None:
         """Build dict of children for a given parent taxid (key)."""
@@ -487,7 +516,7 @@ class TaxTree(dict):
                         abundance[tid] = self[tid].counts
                     if accs is not None:
                         accs[tid] = self[tid].acc
-                    if scores is not None and self[tid].score > 0:
+                    if scores is not None:
                         scores[tid] = self[tid].score
                     if ranks is not None:
                         ranks[tid] = self[tid].taxlevel
@@ -583,8 +612,8 @@ class TaxTree(dict):
                 pass
 
     def prune(self,
-              mintaxa: int = 1,
-              minlevel: Rank = None,
+              min_taxa: int = 1,
+              min_rank: Rank = None,
               collapse: bool = True,
               verb: bool = False,
               ) -> bool:
@@ -592,9 +621,9 @@ class TaxTree(dict):
         Recursively prune/collapse low abundant taxa of the TaxTree.
 
         Args:
-            mintaxa: minimum taxa to avoid pruning/collapsing
+            min_taxa: minimum taxa to avoid pruning/collapsing
                 one level to the parent one.
-            minlevel: if any, minimum Rank allowed in the TaxTree.
+            min_rank: if any, minimum Rank allowed in the TaxTree.
             collapse: selects if a lower level should be accumulated in
                 the higher one before pruning a node (do so by default).
             verb: increase output verbosity (just for debug)
@@ -605,15 +634,15 @@ class TaxTree(dict):
         for tid in list(self):  # Loop if this node has subtrees
             if (self[tid]  # If the subtree has branches,
                 and self[tid].prune(  # then prune that subtree
-                    mintaxa, minlevel, collapse, verb)):
+                    min_taxa, min_rank, collapse, verb)):
                 # The pruned subtree keeps having branches (still not a leaf!)
                 if verb:
                     print(f'NOT pruning branch {tid} with {self[tid].counts}')
             else:  # self[tid] is a leaf (after pruning its branches or not)
-                if (self[tid].counts < mintaxa  # Not enough counts, or check
-                    or (minlevel  # if minlevel is set, then check if level
-                        and (self[tid].taxlevel < minlevel  # is lower or
-                             or self.taxlevel <= minlevel))):  # other test
+                if (self[tid].counts < min_taxa  # Not enough counts, or check
+                    or (min_rank  # if min_rank is set, then check if level
+                        and (self[tid].taxlevel < min_rank  # is lower or
+                             or self.taxlevel <= min_rank))):  # other test
                     if collapse:
                         collapsed_counts: int = self.counts + self[tid].counts
                         if collapsed_counts:  # Average the collapsed score
@@ -1026,7 +1055,7 @@ def process_rank(*args,
         scores[sample] = new_score
 
     if control:
-        # Control sample substraction
+        # Control sample subtraction
         output.write(f'  \033[90m{files[0]} is selected as control '
                      f'sample for subtractions.\033[0m\n')
         # Get taxids at this rank that are present in the ctrl sample

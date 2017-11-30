@@ -3,7 +3,7 @@
 You are expected to use this module via the Bio.SeqIO functions."""
 
 from Bio.Alphabet import single_letter_alphabet
-from Bio.Seq import UnknownSeq, MutableSeq
+from Bio.Seq import UnknownSeq
 from Bio.SeqRecord import SeqRecord
 
 __docformat__ = "restructuredtext en"

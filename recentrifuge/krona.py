@@ -75,7 +75,7 @@ class KronaTree(ETree.ElementTree):
             # Avoid including and save space if all the unassigned values are 0
             unassigned_node = self.sub(subnode, UNASSIGNED)
             unassigned: Dict[Sample, str] = {sample: values[UNASSIGNED][sample]
-                                            for sample in self.samples}
+                                             for sample in self.samples}
             for sample in self.samples:
                 unassigned_value: Optional[str] = unassigned[sample]
                 if int(unassigned_value) == 0:  # Save space (empty tags!)
@@ -160,6 +160,8 @@ class KronaTree(ETree.ElementTree):
             display = 'read length (log10)'
         elif scoring is Scoring.NORMA:
             display = 'confidence/length (%)'
+        elif scoring is Scoring.LMAT:
+            display = 'LMAT score'
         else:
             raise Exception(
                 f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
@@ -208,14 +210,14 @@ class KronaTree(ETree.ElementTree):
         """
         with open(filename, 'w') as xml_file:
             if pretty:
-                    xml_file.write(self.to_pretty_string(self.krona))
+                xml_file.write(self.to_pretty_string(self.krona))
             else:
-                    self.write(xml_file,
-                               encoding='unicode',
-                               xml_declaration=False,
-                               method='xml',
-                               short_empty_elements=False,
-                               )
+                self.write(xml_file,
+                           encoding='unicode',
+                           xml_declaration=False,
+                           method='xml',
+                           short_empty_elements=False,
+                           )
 
     def tohtml(self,
                filename: Filename,
@@ -250,9 +252,9 @@ class KronaTree(ETree.ElementTree):
 
         # Set root of HTML doc
         html_root = ETree.Element('html', attrib={'xmlns':
-                                             'http://www.w3.org/1999/xhtml',
-                                             'xml:lang': 'en',
-                                             'lang': 'en'})
+                                                      'http://www.w3.org/1999/xhtml',
+                                                  'xml:lang': 'en',
+                                                  'lang': 'en'})
         # Prepare HTML file
         head = self.sub(html_root, 'head')
         self.sub(head, 'meta', {'charset': 'utf-8'})
@@ -282,7 +284,8 @@ class KronaTree(ETree.ElementTree):
         div.append(self.krona)  # Include specific XML from samples
         # Write the HTML file
         with open(filename, 'w') as html_file:
-            html_file.write('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">\n')
+            html_file.write(
+                '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">\n')
             if pretty:
                 html_file.write(self.to_pretty_string(html_root))
             else:

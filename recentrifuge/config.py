@@ -21,6 +21,7 @@ PATH = '.'
 TAXDUMP_PATH = './taxdump'
 NODES_FILE = 'nodes.dmp'
 NAMES_FILE = 'names.dmp'
+PLASMID_FILE = 'plasmid.names.txt'
 ZIPFILE = 'taxdmp.zip'
 JSLIB = 'krona.js'
 HTML_SUFFIX = '.rcf.html'
@@ -41,6 +42,7 @@ class Scoring(Enum):
     LENGTH = 1  # The length of a read or the combined length of mate pairs
     LOGLENGTH = 2  # Log10 of the length
     NORMA = 3  # It is the normalized score SHEL / LENGTH
+    LMAT = 4  # Default for LMAT, not available for Centrifuge
 
     def __str__(self):
         return f'{self.name}'

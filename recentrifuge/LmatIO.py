@@ -60,20 +60,21 @@ def LmatOutIterator(handle, alphabet=single_letter_alphabet):
             first_word = ""
         avg, std, kms = stats.split()
         statsdict = {'averg':float(avg), 'stdev':float(std), 'kmers':int(kms)}
-        finalcallid = finalcall.split()[0]
+        final_taxid, final_score, final_match = finalcall.split()
         candids = candidates.split()
         candidict = {}
         for i in range(0, len(candids), 2):
             candidict[candids[i]] = float(candids[i+1])
         yield SeqRecord(Seq(sequence, alphabet),
                         id=first_word, name=first_word, description=title,
-                        annotations={'stats':stats,
-                                     'candidates':candidates,
-                                     'finalcall':finalcall,
-                                     'statsdict':statsdict,
-                                     'finalcallid':finalcallid,
-                                     'candidict':candidict,
-                                     'tags':set()
+                        annotations={'stats': stats,
+                                     'candidates': candidates,
+                                     'final_taxid': final_taxid,
+                                     'final_score': float(final_score),
+                                     'final_match': final_match,
+                                     'statsdict': statsdict,
+                                     'candidict': candidict,
+                                     'tags': set()
                                      })
 
 

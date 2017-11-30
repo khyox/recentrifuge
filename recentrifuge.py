@@ -19,14 +19,15 @@ except ImportError:
 
 from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
-from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
+from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, STR_CONTROL
+from recentrifuge.config import TAXDUMP_PATH
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 
-__version__ = '0.12.4'
+__version__ = '0.13.0'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Nov 2017'
 
@@ -84,6 +85,13 @@ def main():
         metavar='FILE',
         help=('Centrifuge/Kraken report files '
               '(multiple -r is available to include several samples in plot)')
+    )
+    filein.add_argument(
+        '-l', '--lmat',
+        action='append',
+        metavar='FILE',
+        help=('LMAT output dir or file prefix '
+              '(multiple -l is available to include several samples in plot)')
     )
     parser.add_argument(
         '-v', '--verbose',
@@ -175,10 +183,16 @@ def main():
     # Parse arguments
     args = parser.parse_args()
     outputs = args.file
-    files = args.report
+    reports = args.report
+    lmats = args.lmat
     verb = args.verbose
-    nodesfile = os.path.join(args.nodespath, NODES_FILE)
-    namesfile = os.path.join(args.nodespath, NAMES_FILE)
+    nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
+    namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
+    plasmidfile: Filename
+    if lmats:
+        plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))
+    else:
+        plasmidfile = Filename()
     mintaxa = int(args.mintaxa)
     collapse = not args.nokollapse
     excluding: Set[TaxId] = set(args.exclude)
@@ -190,8 +204,15 @@ def main():
     excel: Excel = Excel[args.excel]
     htmlfile: Filename = args.outhtml
     if not htmlfile:
-        if files:
-            htmlfile = files[0].split('_mhl')[0] + HTML_SUFFIX
+        if lmats:  # Select case for dir name or filename prefix
+            if os.path.isdir(lmats[0]):  # Dir name
+                dirname = os.path.dirname(os.path.normpath(lmats[0]))
+                basename = os.path.basename(dirname)
+            else:  # Explicit path and file name prefix is provided
+                dirname, basename = os.path.split(lmats[0])
+            htmlfile = os.path.join(dirname, basename + HTML_SUFFIX)
+        elif reports:
+            htmlfile = reports[0].split('_mhl')[0] + HTML_SUFFIX
         else:
             htmlfile = outputs[0].split('_mhl')[0] + HTML_SUFFIX
 
@@ -200,7 +221,7 @@ def main():
     sys.stdout.flush()
 
     # Load NCBI nodes, names and build children
-    ncbi: Taxonomy = Taxonomy(nodesfile, namesfile,
+    ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,
                               collapse, excluding, including)
 
     #  _debug_dummy_plot(ncbi, htmlfile, scoring)
@@ -219,33 +240,38 @@ def main():
     process: Callable[..., Tuple[Sample, TaxTree, TaxLevels,
                                  Counter[TaxId], Counter[TaxId],
                                  Dict[TaxId, Optional[Score]]]]
-    if files:
+    # Select method and arguments depending on type of files to analyze
+    if lmats:
+        process = process_output
+        reports = lmats
+        scoring = Scoring.LMAT
+    elif reports:
         process = process_report
-        files = files
+        reports = reports
     else:
         process = process_output
-        files = outputs
+        reports = outputs
 
     print('\033[90mPlease, wait, processing files in parallel...\033[0m\n')
     kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa,
-              'verb': verb, 'scoring': scoring}
+              'verb': verb, 'scoring': scoring, 'lmat': bool(lmats)}
     # Enable parallelization with 'spawn' under known platforms
     if platform.system() and not sequential:  # Only for known platforms
         mpctx = mp.get_context('spawn')  # Important for OSX&Win
         with mpctx.Pool(processes=min(os.cpu_count(),
-                                      len(files))) as pool:
+                                      len(reports))) as pool:
             async_results = [pool.apply_async(
                 process,
                 args=[file],
                 kwds=kwargs
-            ) for file in files]
+            ) for file in reports]
             for file, (sample, trees[sample],
                        taxids[sample], abundances[sample],
                        accs[sample], scores[sample]
-                       ) in zip(files, [r.get() for r in async_results]):
+                       ) in zip(reports, [r.get() for r in async_results]):
                 samples.append(sample)
     else:  # sequential processing of each sample
-        for file in files:
+        for file in reports:
             (sample, trees[sample],
              taxids[sample], abundances[sample],
              accs[sample], scores[sample]) = process(file, **kwargs)
@@ -255,11 +281,11 @@ def main():
     # Cross analysis of samples in parallel by taxlevel
     #
     # Avoid if just a single report file of explicitly stated by flag
-    if len(files) > 1 and not avoidcross:
+    if len(reports) > 1 and not avoidcross:
         print('\033[90mPlease, wait. ' +
               'Performing cross analysis in parallel...\033[0m\n')
         kwargs.update({'trees': trees, 'taxids': taxids,
-                       'abundances': abundances, 'files': files,
+                       'abundances': abundances, 'files': reports,
                        'control': control})
         if platform.system() and not sequential:  # Only for known platforms
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
@@ -317,8 +343,9 @@ def main():
               f' summary file...\033[0m', end='')
         sys.stdout.flush()
         xlsxwriter = pd.ExcelWriter(htmlfile.split('.html')[0] + '.xlsx')
+        list_rows: List = []
+        df: pd.DataFrame
         if excel is excel.FULL:
-            list_rows: List = []
             polytree.to_items(taxonomy=ncbi, items=list_rows)
             # Generate the pandas DataFrame from items and export to Excel
             iterable_1 = [samples, [COUNT, UNASSIGNED, SCORE]]
@@ -326,10 +353,10 @@ def main():
                                                names=['Samples', 'Stats'])
             iterable_2 = [['Details'], ['Rank', 'Name']]
             cols2 = pd.MultiIndex.from_product(iterable_2)
-            columns = cols1.append(cols2)
-            df: pd.DataFrame = pd.DataFrame.from_items(list_rows,
-                                                       orient='index',
-                                                       columns=columns)
+            cols = cols1.append(cols2)
+            df = pd.DataFrame.from_items(list_rows,
+                                         orient='index',
+                                         columns=cols)
             df.index.names = ['TaxId']
             df.to_excel(xlsxwriter, sheet_name=str(excel))
         elif excel is excel.CMPLXCRUNCHER:
@@ -351,12 +378,12 @@ def main():
                     indexes = list(range(len(raw_samples)))
                     sheet_name = f'raw_samples_{rank.name.lower()}'
                     columns = [samples[i].split('_')[0] for i in indexes]
-                list_rows: List = []
+                list_rows = []
                 polytree.to_items(taxonomy=ncbi, items=list_rows,
                                   sample_indexes=indexes)
-                df: pd.DataFrame = pd.DataFrame.from_items(list_rows,
-                                                           orient='index',
-                                                           columns=columns)
+                df = pd.DataFrame.from_items(list_rows,
+                                             orient='index',
+                                             columns=columns)
                 df.index.names = ['TaxId']
                 df.to_excel(xlsxwriter, sheet_name=sheet_name)
         else:
