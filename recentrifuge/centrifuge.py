@@ -62,7 +62,7 @@ def process_report(*args,
     collapse: bool = taxonomy.collapse
     including: Set[TaxId] = taxonomy.including
     excluding: Set[TaxId] = taxonomy.excluding
-    verb: bool = kwargs['verb']
+    debug: bool = kwargs['debug']
     output: io.StringIO = io.StringIO(newline='')
 
     sample: Sample = Sample(filerep)
@@ -82,7 +82,7 @@ def process_report(*args,
 
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
-    tree.prune(mintaxa, None, collapse, verb)
+    tree.prune(mintaxa, None, collapse, debug)
     tree.acc_and_score()
     output.write('\033[92m OK! \033[0m\n')
 
@@ -213,7 +213,7 @@ def process_output(*args,
     mintaxa: int = kwargs['mintaxa']
     including: Set[TaxId] = taxonomy.including
     excluding: Set[TaxId] = taxonomy.excluding
-    verb: bool = kwargs['verb']
+    debug: bool = kwargs['debug']
     scoring: Scoring = kwargs['scoring']
     lmat: bool = kwargs['lmat']
     output: io.StringIO = io.StringIO(newline='')
@@ -238,21 +238,31 @@ def process_output(*args,
               abundances=abundances,
               scores=scores)  # Grow tax tree from root node
     output.write('\033[92m OK! \033[0m\n')
-    
-    # TODO: Check plasmids again!
-    # n_abund: Counter[TaxId] = col.Counter()
-    # n_accs: Counter[TaxId] = col.Counter()
-    # n_scores: Dict[TaxId, Score] = {}
-    # n_ranks: Ranks = Ranks({})
-    # tree.get_taxa(n_abund, n_accs, n_scores, n_ranks,
-    #               mindepth=0, maxdepth=0)
-    # for taxid in abundances:
-    #     if not n_abund[taxid]:
-    #         print(f'Missing {taxid}: {taxonomy.get_name(taxid)}')
+
+    if debug:  # Check the lost of taxids (plasmids typically)
+        output.write('  \033[90mChecking taxid loss...\033[0m')
+        n_abund: Counter[TaxId] = col.Counter()
+        n_accs: Counter[TaxId] = col.Counter()
+        n_scores: Dict[TaxId, Score] = {}
+        n_ranks: Ranks = Ranks({})
+        tree.get_taxa(n_abund, n_accs, n_scores, n_ranks,
+                      mindepth=0, maxdepth=0)
+        lost: int = 0
+        for taxid in abundances:
+            if not n_abund[taxid]:
+                lost += 1
+                output.writelines(
+                    f'\033[93mWarning!\033[0m Lost '
+                    f'taxid={taxid}: {taxonomy.get_name(taxid)}\n')
+        if lost:
+            output.write(f'\033[93mWARNING!\033[0m Lost {lost} taxids'
+                         f' ({lost/len(abundances):.2%} of total)\n')
+        else:
+            output.write('\033[92m OK! \033[0m\n')
 
     # Prune the tree
     output.write('  \033[90mPruning taxonomy tree...\033[0m')
-    tree.prune(min_taxa=mintaxa, verb=verb)
+    tree.prune(min_taxa=mintaxa, debug=debug)
     tree.acc_and_score()
     output.write('\033[92m OK! \033[0m\n')
 
@@ -272,7 +282,7 @@ def process_output(*args,
         new_tree.grow(taxonomy=taxonomy,
                       abundances=new_abund,
                       scores=new_scores)  # Grow tree with new abund
-        new_tree.prune(min_taxa=mintaxa, verb=verb)
+        new_tree.prune(min_taxa=mintaxa, debug=debug)
         new_tree.acc_and_score()
         new_abund = col.Counter()  # Reset abundances
         new_accs = col.Counter()  # Reset accumulated

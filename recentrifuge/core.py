@@ -203,6 +203,7 @@ class Taxonomy:
                  collapse: bool = True,
                  excluding: Set[TaxId] = None,
                  including: Set[TaxId] = None,
+                 debug: bool = False,
                  ) -> None:
 
         # Type data declaration and initialization
@@ -211,6 +212,7 @@ class Taxonomy:
         self.names: Names = Names({})
         self.children: Children = Children({})
         self.collapse: bool = collapse
+        self.debug: bool = debug
 
         # Initialization methods
         self.read_nodes(nodes_file)
@@ -281,29 +283,72 @@ class Taxonomy:
             print('\033[92m OK! \033[0m')
 
     def read_plasmids(self, plasmid_file: Filename) -> None:
-        """Read and include plasmid data"""
-        print('\033[90mLoading plasmids...\033[0m', end='')
+        """Read, check and include plasmid data"""
+        print('\033[90mLoading LMAT plasmids...\033[0m', end='')
         sys.stdout.flush()
-        pattern1 = re.compile('gi\|\d*\|\s*((?:\w*[\s|,|\.])*(?:\w*))')
-        pattern2 = re.compile('\|\s*((?:\w*[\s,.]+))')
-        pattern3 = re.compile('\"((?:\w*\s*)*)\"')
+        pattern1 = re.compile(
+            r"""((?:"([\w\-\.\(\)/+=':,%\*\s]*)"$)|(?:^([\w\-\.\(\)/+=':\*\s]*(?:, (?:strain|isolate|plasmid) [\w\-/\.]*)*(?:, fragment \w*)?(?:, contig \w)?)(?:, a cloning vector)?(?=(?=(?:, (?:complete|partial) (?:plasmid |genomic )*(?:sequence|genome|cds|replicon))(?:\[sequence_id)*)|(?:, complete sequence)*, whole genome shotgun sequence|\[sequence_id)))"""
+        )
+        pattern2 = re.compile(
+            r"""(^(?:[A-Za-z0-9/=\-\.{},]*(?: |.)){1,8})"""
+        )
+        match = Counter()
         try:
             with open(plasmid_file, 'r') as file:
                 for line in file:
-                    _tid, _parent, *_, last = line.split('\t')
+                    _tid, _parent, *_, last = line.rstrip('\n').split('\t')
+                    last = last.split(r'|')[-1]
                     tid = TaxId(_tid)
                     parent = TaxId(_parent)
-                    self.parents[tid] = parent
+                    # Plasmids sanity checks
+                    if tid in self.parents:  # if plasmid tid already in NCBI
+                        match['ERR1'] += 1
+                        if self.debug:
+                            print(f'\033[93mPlasmid taxid ERROR!\033[0m'
+                                  f' Taxid={tid} already a NCBI taxid. '
+                                  f'Declared parent is {parent} but '
+                                  f'NCBI parent is {self.parents[tid]}.')
+                            print('\tPlasmid details: ', last)
+                        continue
+                    elif tid == parent:  # if plasmid and parent tids are equal
+                        match['ERR2'] += 1
+                        if self.debug:
+                            print(f'\033[93mPlasmid parent taxid ERROR!\033[0m'
+                                  f' Taxid={tid} and parent={parent}.')
+                            print('\t\t   Plasmid details: ', last)
+                        continue
+                    else:  # No problem, go ahead and add the plasmid!
+                        self.parents[tid] = parent
+                    # Plasmid name extraction by regular expressions
                     name: str
                     try:
                         name = pattern1.search(last).group(1)
-                        name = name.rstrip(', complete sequence')
+                        name = 'Plasmid ' + name.strip(r'"').strip(',')
                     except AttributeError:
-                        name = 'Plasmid ' + tid
+                        try:
+                            name = pattern2.search(last).group(1).strip()
+                            name = 'Plasmid ' + name
+                        except AttributeError:
+                            name = 'Plasmid ' + tid
+                            match['FAIL'] += 1
+                        else:
+                            match['PAT2'] += 1
+                    else:
+                        match['PAT1'] += 1
                     self.names[tid] = name
         except OSError:
             print('\033[93mWARNING\033[0m: Cannot read "' +
                         plasmid_file + '". Plasmid taxids not loaded!')
+        else:  # Statistics about plasmids
+            print('\033[92m OK! \033[0m\n',
+                  '\033[90mPlasmid sanity check:\033[0m',
+                  f'\033[93m rejected\033[0m (taxid error) = {match["ERR1"]}',
+                  f'\033[93m rejected\033[0m (parent error) = {match["ERR2"]}')
+            print('\033[90m Plasmid pattern matching:\033[0m',
+                  f'\033[90m 1st type =\033[0m {match["PAT1"]} ',
+                  f'\033[90m 2nd type =\033[0m {match["PAT2"]} ',
+                  f'\033[90m other =\033[0m {match["FAIL"]}')
+
 
     def build_children(self) -> None:
         """Build dict of children for a given parent taxid (key)."""
@@ -615,8 +660,7 @@ class TaxTree(dict):
               min_taxa: int = 1,
               min_rank: Rank = None,
               collapse: bool = True,
-              verb: bool = False,
-              ) -> bool:
+              debug: bool = False) -> bool:
         """
         Recursively prune/collapse low abundant taxa of the TaxTree.
 
@@ -626,18 +670,18 @@ class TaxTree(dict):
             min_rank: if any, minimum Rank allowed in the TaxTree.
             collapse: selects if a lower level should be accumulated in
                 the higher one before pruning a node (do so by default).
-            verb: increase output verbosity (just for debug)
+            debug: increase output verbosity (just for debug)
 
         Returns: True if this node is a leaf
 
         """
         for tid in list(self):  # Loop if this node has subtrees
             if (self[tid]  # If the subtree has branches,
-                and self[tid].prune(  # then prune that subtree
-                    min_taxa, min_rank, collapse, verb)):
+                    and self[tid].prune(min_taxa, min_rank, collapse, debug)):
                 # The pruned subtree keeps having branches (still not a leaf!)
-                if verb:
-                    print(f'NOT pruning branch {tid} with {self[tid].counts}')
+                if debug:
+                    print(f'[NOT pruning branch {tid}, '
+                          f'counts={self[tid].counts}]', end='')
             else:  # self[tid] is a leaf (after pruning its branches or not)
                 if (self[tid].counts < min_taxa  # Not enough counts, or check
                     or (min_rank  # if min_rank is set, then check if level
@@ -651,11 +695,13 @@ class TaxTree(dict):
                                           / collapsed_counts)
                             # Accumulate abundance in higher tax
                             self.counts = collapsed_counts
-                    if verb and self[tid].counts:
-                        print(f'Pruning branch {tid} with {self[tid].counts}')
+                    if debug and self[tid].counts:
+                        print(f'[Pruning branch {tid}, '
+                              f'counts={self[tid].counts}]', end='')
                     self.pop(tid)  # Prune leaf
-                elif verb:
-                    print(f'NOT pruning leaf {tid} with {self[tid].counts}')
+                elif debug:
+                    print(f'[NOT pruning leaf {tid}, '
+                          f'counts={self[tid].counts}]', end='')
         return bool(self)  # True if this node has branches (is not a leaf)
 
 

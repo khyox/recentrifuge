@@ -27,7 +27,7 @@ from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 
-__version__ = '0.13.0'
+__version__ = '0.13.1'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Nov 2017'
 
@@ -94,10 +94,9 @@ def main():
               '(multiple -l is available to include several samples in plot)')
     )
     parser.add_argument(
-        '-v', '--verbose',
-        action='count',
-        default=0,
-        help='increase output verbosity'
+        '-g', '--debug',
+        action='store_true',
+        help='increase output verbosity and perform additional checks'
     )
     parser.add_argument(
         '-n', '--nodespath',
@@ -185,7 +184,7 @@ def main():
     outputs = args.file
     reports = args.report
     lmats = args.lmat
-    verb = args.verbose
+    debug = args.debug
     nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
     plasmidfile: Filename
@@ -220,9 +219,12 @@ def main():
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
     sys.stdout.flush()
 
+    # Check debugging mode
+    if debug:
+        print('\033[90mINFO: Debugging mode activated\033[0m\n')
     # Load NCBI nodes, names and build children
     ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,
-                              collapse, excluding, including)
+                              collapse, excluding, including, debug)
 
     #  _debug_dummy_plot(ncbi, htmlfile, scoring)
 
@@ -254,7 +256,7 @@ def main():
 
     print('\033[90mPlease, wait, processing files in parallel...\033[0m\n')
     kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa,
-              'verb': verb, 'scoring': scoring, 'lmat': bool(lmats)}
+              'debug': debug, 'scoring': scoring, 'lmat': bool(lmats)}
     # Enable parallelization with 'spawn' under known platforms
     if platform.system() and not sequential:  # Only for known platforms
         mpctx = mp.get_context('spawn')  # Important for OSX&Win
