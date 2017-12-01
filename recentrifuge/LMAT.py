@@ -45,7 +45,7 @@ class Match(Enum):
             match = cls[matching]
         except KeyError:
             raise UnsupportedMatchingError(
-                f'Unknown DB matching {matching}')
+                f'Unknown LMAT DB matching {matching}')
         return match
 
     def __new__(cls, init=None):
@@ -85,17 +85,23 @@ def read_lmat_output(output_file: Filename,
     all_scores: Dict[TaxId, List[Score]] = {}
     matchings: Counter[Match] = Counter()
     output_files: List[Filename] = []
-    # Get dirname and basename in case instead the output files are explicitly
-    #  given, directory name is provided (the files will have such prefix too)
-    if os.path.isdir(output_file):
+    # Select files to process depending on if the output files are explicitly
+    #  given or directory name is provided (all the output files there)
+    if os.path.isdir(output_file):  # Just the directory name is provided
         dirname = os.path.normpath(output_file)
-        basename = os.path.basename(dirname)
-    else:  # Explicit path and file name prefix is provided
+        for file in os.listdir(dirname):  # Add all LMAT output files in dir
+            if ('_output' in file and file.endswith('.out') and
+                    'canVfin' not in file and 'pyLCA' not in file):
+                output_files.append(Filename(file))
+    else:  # Explicit path and file name prefix is given
         dirname, basename = os.path.split(output_file)
-    for file in os.listdir(dirname):
-        if (file.startswith(basename) and file.endswith('.out') and
-                not 'canVfin' in file and not 'pyLCA' in file):
-            output_files.append(Filename(file))
+        for file in os.listdir(dirname):  # Add selected output files in dir
+            if (file.startswith(basename) and file.endswith('.out') and
+                    'canVfin' not in file and 'pyLCA' not in file):
+                output_files.append(Filename(file))
+    if not output_files:
+        raise Exception(
+            f'\n\033[91mERROR!\033[0m Cannot read from "{output_file}"')
     # Read LMAT output files
     for output_name in output_files:
         path: Filename = Filename(os.path.join(dirname, output_name))
@@ -125,6 +131,9 @@ def read_lmat_output(output_file: Filename,
     # Basic output statistics
     class_seqs: int = sum([len(scores) for scores in all_scores.values()])
     read_seqs: int = sum(matchings.values())
+    if not read_seqs:
+        raise Exception(
+            f'\n\033[91mERROR!\033[0m Cannot read seqs from"{output_file}"')
     output.write(f'  \033[90mSeqs: read = \033[0m{read_seqs:_d} \033[90m'
                  f'  \033[90mclassified&filtered = \033[0m{class_seqs:_d}'
                  f' ({class_seqs/read_seqs:.2%})\033[90m\n')

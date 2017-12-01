@@ -27,7 +27,7 @@ try:
 except ImportError:
     _use_pandas = False
 
-__version__ = '0.13.3'
+__version__ = '0.13.4'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Dec 2017'
 
@@ -90,8 +90,11 @@ def main():
         '-l', '--lmat',
         action='append',
         metavar='FILE',
-        help=('LMAT output dir or file prefix '
-              '(multiple -l is available to include several samples in plot)')
+        default=None,
+        help=('LMAT output dir or file prefix. If just "." is entered, '
+              'every subdirectory under the current directory will be '
+              'taken as a sample and scanned looking for LMAT output files. '
+              'Multiple -l is available to include several samples in plot.')
     )
     parser.add_argument(
         '-g', '--debug',
@@ -131,7 +134,6 @@ def main():
         '-o', '--outhtml',
         action='store',
         metavar='FILE',
-        default=None,
         help='HTML output file (if not given the filename will be '
              'inferred from input files)'
     )
@@ -196,9 +198,6 @@ def main():
     debug = args.debug
     nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
-    plasmidfile: Filename = None
-    if lmats:
-        plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))
     mintaxa = int(args.mintaxa)
     minscore: Score = Score(args.minscore)
     collapse = not args.nokollapse
@@ -209,19 +208,6 @@ def main():
     avoidcross = args.avoidcross
     control = args.control
     excel: Excel = Excel[args.excel]
-    htmlfile: Filename = args.outhtml
-    if not htmlfile:
-        if lmats:  # Select case for dir name or filename prefix
-            if os.path.isdir(lmats[0]):  # Dir name
-                dirname = os.path.dirname(os.path.normpath(lmats[0]))
-                basename = os.path.basename(dirname)
-            else:  # Explicit path and file name prefix is provided
-                dirname, basename = os.path.split(lmats[0])
-            htmlfile = os.path.join(dirname, basename + HTML_SUFFIX)
-        elif reports:
-            htmlfile = reports[0].split('_mhl')[0] + HTML_SUFFIX
-        else:
-            htmlfile = outputs[0].split('_mhl')[0] + HTML_SUFFIX
 
     # Program header
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
@@ -230,6 +216,38 @@ def main():
     # Check debugging mode
     if debug:
         print('\033[90mINFO: Debugging mode activated\033[0m\n')
+
+    # LMAT processing specific stuff
+    plasmidfile: Filename = None
+    if lmats:
+        plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))
+        if lmats == ['.']:
+            lmats = []
+            with os.scandir() as dir_entry:
+                for entry in dir_entry:
+                    if not entry.name.startswith('.') and entry.is_dir():
+                        lmats.append(entry.name)
+            lmats.sort()
+        print('\033[90mLMAT subdirs to analyze:\033[0m', lmats)
+
+    # HTML filename selection
+    htmlfile: Filename = args.outhtml
+    if not htmlfile:
+        if lmats:  # Select case for dir name or filename prefix
+            if os.path.isdir(lmats[0]):  # Dir name
+                dirname = os.path.dirname(os.path.normpath(lmats[0]))
+                if not dirname or dirname is '.':
+                    basename = 'output'
+                else:
+                    basename = os.path.basename(dirname)
+            else:  # Explicit path and file name prefix is provided
+                dirname, basename = os.path.split(lmats[0])
+            htmlfile = os.path.join(dirname, basename + HTML_SUFFIX)
+        elif reports:
+            htmlfile = reports[0].split('_mhl')[0] + HTML_SUFFIX
+        else:
+            htmlfile = outputs[0].split('_mhl')[0] + HTML_SUFFIX
+
     # Load NCBI nodes, names and build children
     ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,
                               collapse, excluding, including, debug)
@@ -343,16 +361,17 @@ def main():
                   accs=accs,
                   scores=scores)
     print('\033[92m OK! \033[0m')
-    print('\033[90mGenerating final Krona plot...\033[0m', end='')
+    print(f'\033[90mGenerating final plot ({htmlfile})...\033[0m', end='')
     sys.stdout.flush()
     polytree.toxml(taxonomy=ncbi, krona=krona)
     krona.tohtml(htmlfile, pretty=False)
     print('\033[92m OK! \033[0m')
     if _use_pandas:
+        xlsx_name: Filename = Filename(htmlfile.split('.html')[0] + '.xlsx')
         print(f'\033[90mGenerating Excel {str(excel).lower()}'
-              f' summary file...\033[0m', end='')
+              f' summary ({xlsx_name})...\033[0m', end='')
         sys.stdout.flush()
-        xlsxwriter = pd.ExcelWriter(htmlfile.split('.html')[0] + '.xlsx')
+        xlsxwriter = pd.ExcelWriter(xlsx_name)
         list_rows: List = []
         df: pd.DataFrame
         if excel is excel.FULL:
