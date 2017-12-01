@@ -66,6 +66,7 @@ class Match(Enum):
 
 def read_lmat_output(output_file: Filename,
                      scoring: Scoring = Scoring.LMAT,
+                     minscore: Score = None,
                      ) -> Tuple[str, Counter[TaxId],
                                 Dict[TaxId, Score]]:
     """
@@ -74,6 +75,7 @@ def read_lmat_output(output_file: Filename,
     Args:
         output_file: output file name (prefix)
         scoring: type of scoring to be applied (see Scoring class)
+        minscore: minimum confidence level for the classification
 
     Returns:
         log string, abundances counter, scores dict
@@ -105,6 +107,9 @@ def read_lmat_output(output_file: Filename,
                     score: Score = seq.annotations['final_score']
                     match: Match = Match.lmat(seq.annotations['final_match'])
                     matchings[match] += 1
+                    if minscore is not None:
+                        if score < minscore:  # Ignore read if low score
+                            continue
                     if (match is not Match.NODBHITS
                             and match is not Match.NOMATCH):
                         try:
@@ -121,7 +126,8 @@ def read_lmat_output(output_file: Filename,
     class_seqs: int = sum([len(scores) for scores in all_scores.values()])
     read_seqs: int = sum(matchings.values())
     output.write(f'  \033[90mSeqs: read = \033[0m{read_seqs:_d} \033[90m'
-                 f'  \033[90mclassified = \033[0m{class_seqs:_d} \033[90m\n')
+                 f'  \033[90mclassified&filtered = \033[0m{class_seqs:_d}'
+                 f' ({class_seqs/read_seqs:.2%})\033[90m\n')
     multi_rel: float = matchings[Match.MULTI] / read_seqs
     direct_rel: float = matchings[Match.DIRECT] / read_seqs
     nodbhits_rel: float = matchings[Match.NODBHITS] / read_seqs

@@ -124,15 +124,15 @@ class LmatOutWriter(SequentialSequenceWriter):
         if self.record2title:
             title = self.clean(self.record2title(record))
         else:
-            id = self.clean(record.id)
+            rec_id = self.clean(record.id)
             description = self.clean(record.description)
-            if description and description.split(None, 1)[0] == id:
-                # The description includes the id at the start
+            if description and description.split(None, 1)[0] == rec_id:
+                # The description includes the rec_id at the start
                 title = description
             elif description:
-                title = '%s %s' % (id, description)
+                title = '%s %s' % (rec_id, description)
             else:
-                title = id
+                title = rec_id
 
         assert '\n' not in title
         assert '\r' not in title

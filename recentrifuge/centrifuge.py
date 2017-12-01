@@ -115,6 +115,7 @@ def process_report(*args,
 
 def read_output(output_file: Filename,
                 scoring: Scoring = Scoring.SHEL,
+                minscore: Score = None,
                 ) -> Tuple[str, Counter[TaxId],
                            Dict[TaxId, Score]]:
     """
@@ -123,6 +124,7 @@ def read_output(output_file: Filename,
     Args:
         output_file: output file name
         scoring: type of scoring to be applied (see Scoring class)
+        minscore: minimum confidence level for the classification
 
     Returns:
         log string, abundances counter, scores dict
@@ -131,6 +133,7 @@ def read_output(output_file: Filename,
     output: io.StringIO = io.StringIO(newline='')
     all_scores: Dict[TaxId, List[Score]] = {}
     all_length: Dict[TaxId, List[Score]] = {}
+    num_read = 0
     output.write(f'\033[90mLoading output file {output_file}...\033[0m')
     try:
         with open(output_file, 'r') as file:
@@ -138,6 +141,7 @@ def read_output(output_file: Filename,
             for output_line in file:
                 _, _, _tid, _score, _, _, _length, *_ = output_line.split('\t')
                 tid = TaxId(_tid)
+                num_read += 1
                 try:
                     # From Centrifuge score get "single hit equivalent length"
                     shel = Score(float(_score) ** 0.5 + 15)
@@ -147,6 +151,9 @@ def read_output(output_file: Filename,
                           f'({_length}) for taxid {_tid} '
                           f'in file {output_file}...')
                     raise
+                if minscore is not None:
+                    if shel < minscore:  # Ignore read if low confidence
+                        continue
                 try:
                     all_scores[tid].append(shel)
                 except KeyError:
@@ -163,7 +170,9 @@ def read_output(output_file: Filename,
     # Basic output statistics
     num_seqs: int = sum([len(scores) for scores in all_scores.values()])
     num_uncl: int = len(all_scores.pop(UNCLASSIFIED, []))
-    output.write(f'  \033[90mSeqs read: \033[0m{num_seqs:_d} \033[90m\t'
+    output.write(f'  \033[90mSeqs read: \033[0m{num_read:_d} \033[90m\t'
+                 f'(\033[0m{1-(num_seqs/num_read):.1%}\033[90m filtered)\n')
+    output.write(f'  \033[90mSeqs passed: \033[0m{num_seqs:_d} \033[90m\t'
                  f'(\033[0m{num_uncl/num_seqs:.1%}\033[90m unclassified)\n')
     max_score = max([max(s) for s in all_scores.values()])
     min_score = min([min(s) for s in all_scores.values()])
@@ -211,6 +220,7 @@ def process_output(*args,
     fileout: Filename = args[0]
     taxonomy: Taxonomy = kwargs['taxonomy']
     mintaxa: int = kwargs['mintaxa']
+    minscore: Score = kwargs['minscore']
     including: Set[TaxId] = taxonomy.including
     excluding: Set[TaxId] = taxonomy.excluding
     debug: bool = kwargs['debug']
@@ -228,7 +238,7 @@ def process_output(*args,
     log: str
     abundances: Counter[TaxId]
     scores: Dict[TaxId, Score]
-    log, abundances, scores = read_method(fileout, scoring)
+    log, abundances, scores = read_method(fileout, scoring, minscore)
     output.write(log)
 
     # Build taxonomy tree

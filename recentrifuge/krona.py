@@ -153,15 +153,15 @@ class KronaTree(ETree.ElementTree):
                  'rank')
         display: str
         if scoring is Scoring.SHEL:
-            display = 'Avg. confidence'
+            display = 'Confidence (avg)'
         elif scoring is Scoring.LENGTH:
-            display = 'Avg. read length'
+            display = 'Read length (avg)'
         elif scoring is Scoring.LOGLENGTH:
-            display = 'read length (log10)'
+            display = 'Read length (avg, log10)'
         elif scoring is Scoring.NORMA:
-            display = 'confidence/length (%)'
+            display = 'Confidence/Length (%)'
         elif scoring is Scoring.LMAT:
-            display = 'LMAT score'
+            display = 'LMAT score (avg)'
         else:
             raise Exception(
                 f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')

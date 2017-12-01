@@ -10,13 +10,6 @@ import platform
 import sys
 from typing import Counter, List, Dict, Set, Callable, Optional, Tuple
 
-# optional package pandas (to generate Excel output)
-_use_pandas = True
-try:
-    import pandas as pd
-except ImportError:
-    _use_pandas = False
-
 from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
@@ -27,9 +20,16 @@ from recentrifuge.core import process_rank
 from recentrifuge.krona import KronaTree
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 
-__version__ = '0.13.1'
+# optional package pandas (to generate Excel output)
+_use_pandas = True
+try:
+    import pandas as pd
+except ImportError:
+    _use_pandas = False
+
+__version__ = '0.13.2'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Nov 2017'
+__date__ = 'Dec 2017'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -111,7 +111,16 @@ def main():
         action='store',
         metavar='INT',
         default=DEFMINTAXA,
-        help=('minimum taxa to avoid collapsing one level to the parent one')
+        help='minimum taxa to avoid collapsing one level to the parent one'
+    )
+    parser.add_argument(
+        '-y', '--minscore',
+        action='store',
+        metavar='NUMBER',
+        type=float,
+        default=None,
+        help=('minimum score/confidence of the classification of a read'
+              'to pass the quality filter. All pass by default.')
     )
     parser.add_argument(
         '-k', '--nokollapse',
@@ -187,12 +196,11 @@ def main():
     debug = args.debug
     nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
-    plasmidfile: Filename
+    plasmidfile: Filename = None
     if lmats:
         plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))
-    else:
-        plasmidfile = Filename()
     mintaxa = int(args.mintaxa)
+    minscore: Score = Score(args.minscore)
     collapse = not args.nokollapse
     excluding: Set[TaxId] = set(args.exclude)
     including: Set[TaxId] = set(args.include)
@@ -255,7 +263,7 @@ def main():
         reports = outputs
 
     print('\033[90mPlease, wait, processing files in parallel...\033[0m\n')
-    kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa,
+    kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa, 'minscore': minscore,
               'debug': debug, 'scoring': scoring, 'lmat': bool(lmats)}
     # Enable parallelization with 'spawn' under known platforms
     if platform.system() and not sequential:  # Only for known platforms
