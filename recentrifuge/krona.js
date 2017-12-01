@@ -83,6 +83,10 @@
 // The KRONA(TM) mark has been substituted in the generated charts by the
 // Recentrifuge logo in compliance with the above-stated conditions.
 //
+// FOR MORE INFORMATION VISIT
+//
+// https://github.com/khyox/recentrifuge/wiki/
+//
 //----------------------------------------------------------------------------
 }
 
@@ -3259,14 +3263,14 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
         logoImage = logoElement.src;
     }
     else {
-        logoImage = 'http://marbl.github.io/Krona/img/logo-med.png';
+        logoImage = 'http://khyox.github.io/recentrifuge/img/logo-med.png';
     }
 
 //	document.getElementById('options').style.fontSize = '9pt';
     position = addOptionElement
     (
         position,
-        '<a style="margin:2px" target="_blank" href="https://github.com/marbl/Krona/wiki"><img style="vertical-align:middle;width:108px;height:30px;" src="' + logoImage + '"/></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+        '<a style="margin:2px" target="_blank" href="https://github.com/khyox/recentrifuge/wiki"><img style="vertical-align:middle;width:108px;height:30px;" src="' + logoImage + '"/></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
 <input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
 &nbsp;Search: <input type="text" id="search"/>\
 <input id="searchClear" type="button" value="x" onclick="clearSearch()"/> \
@@ -3383,7 +3387,7 @@ quality format that can be printed and saved (see Help for browser compatibility
     (
         position + 5,
         '<input type="button" id="help" value="?"\
-onclick="window.open(\'https://github.com/marbl/Krona/wiki/Browsing%20Krona%20charts\', \'help\')"/>',
+onclick="window.open(\'https://github.com/khyox/recentrifuge/wiki\', \'help\')"/>',
         'Help'
     );
 }
