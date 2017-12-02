@@ -27,7 +27,7 @@ try:
 except ImportError:
     _use_pandas = False
 
-__version__ = '0.13.4'
+__version__ = '0.13.5'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Dec 2017'
 
@@ -280,6 +280,13 @@ def main():
         process = process_output
         reports = outputs
 
+    # Info about the control sample
+    if control:
+        print(f'\033[90mControl sample for subtractions: '
+              f'\033[94m{reports[0]}\033[0m\n')
+
+    # # # The big stuff (done in parallel)
+    # # 1) Read samples
     print('\033[90mPlease, wait, processing files in parallel...\033[0m\n')
     kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa, 'minscore': minscore,
               'debug': debug, 'scoring': scoring, 'lmat': bool(lmats)}
@@ -305,9 +312,8 @@ def main():
              accs[sample], scores[sample]) = process(file, **kwargs)
             samples.append(sample)
     raw_samples.extend(samples)  # Store raw sample names
-    #
-    # Cross analysis of samples in parallel by taxlevel
-    #
+
+    # # 2) Cross analysis of samples in parallel by taxlevel
     # Avoid if just a single report file of explicitly stated by flag
     if len(reports) > 1 and not avoidcross:
         print('\033[90mPlease, wait. ' +
@@ -339,9 +345,9 @@ def main():
                 abundances.update(abunds)
                 accs.update(accumulators)
                 scores.update(score)
-    #
-    # Generate Krona plot with all the results via Krona 2.0 XML spec
-    #
+
+    # # # Final result generation is done in sequential mode
+    # # 1) Generate Krona plot with all the results via Krona 2.0 XML spec
     print('\033[90mBuilding the taxonomy multiple tree...\033[0m', end='')
     sys.stdout.flush()
     krona: KronaTree = KronaTree(samples,
@@ -366,6 +372,8 @@ def main():
     polytree.toxml(taxonomy=ncbi, krona=krona)
     krona.tohtml(htmlfile, pretty=False)
     print('\033[92m OK! \033[0m')
+
+    # # 2) Generate Excel with results via pandas DataFrame
     if _use_pandas:
         xlsx_name: Filename = Filename(htmlfile.split('.html')[0] + '.xlsx')
         print(f'\033[90mGenerating Excel {str(excel).lower()}'

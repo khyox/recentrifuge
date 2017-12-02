@@ -968,6 +968,10 @@ class SharedCounter(col.Counter):
             return self
         return NotImplemented
 
+    def __pos__(self):
+        """+d just remove non-positive counts."""
+        return SharedCounter(Counter.__pos__(self))
+
 
 def process_rank(*args,
                  **kwargs
@@ -1001,16 +1005,18 @@ def process_rank(*args,
     shared_ctrl_score: SharedCounter = SharedCounter()
     output: io.StringIO = io.StringIO(newline='')
 
-    # Cross analysis iterating by report: exclusive and part of shared&ctrl
+    output.write(f'\033[90mAnalysis for taxonomic rank "'
+                 f'\033[95m{rank.name.lower()}\033[90m":\033[0m\n')
+    # Cross analysis iterating by output: exclusive and part of shared&ctrl
     for i, file in zip(range(len(files)), files):
         exclude: Set[TaxId] = set()
         # Get taxids at this rank that are present in the other samples
         for sample in (_file for _file in files if _file != file):
             exclude.update(taxids[sample][rank])
         exclude.update(excluding)  # Add explicit excluding taxa if any
-        output.write(f'  \033[90mExcluding {len(exclude)} taxa from '
-                     f'{file} at rank "{rank.name.lower()}"\n'
-                     '  \033[90mFiltering shared taxa...\033[0m')
+        output.write(f'  \033[90mExclusive: From \033[0m{file}\033[90m '
+                     f'excluding {len(exclude)} taxa. '
+                     f'Generating sample...\033[0m')
         leveled_tree = copy.deepcopy(trees[file])
         leveled_tree.prune(mintaxa, rank)  # Prune the copy to the desired rank
         leveled_tree.acc_and_score()
@@ -1024,24 +1030,28 @@ def process_rank(*args,
                               exclude=exclude,  # Extended exclusion set
                               just_level=rank,
                               )
-        # Generate a new tree to be able to recalculate accs (and scores)
-        tree = TaxTree()
-        tree.grow(taxonomy=taxonomy,
-                  abundances=exclusive_abundance,
-                  scores=exclusive_score)
-        tree.acc_and_score()  # Calculate accumulated values and scores
-        exclusive_acc: Counter[TaxId] = col.Counter()
-        exclusive_score = {}
-        tree.get_taxa(accs=exclusive_acc,
-                      scores=exclusive_score,
-                      include=including,
-                      exclude=excluding)
-        output.write('\033[92m OK! \033[0m\n')
-        sample = Sample(f'{STR_EXCLUSIVE}_{rank.name.lower()}_{file}')
-        samples.append(sample)
-        abundances[sample] = exclusive_abundance
-        accumulators[sample] = exclusive_acc
-        scores[sample] = exclusive_score
+        exclusive_abundance = +exclusive_abundance  # remove counts <= 0
+        if exclusive_abundance:  # Avoid adding empty samples
+            # Generate a new tree to be able to recalculate accs (and scores)
+            tree = TaxTree()
+            tree.grow(taxonomy=taxonomy,
+                      abundances=exclusive_abundance,
+                      scores=exclusive_score)
+            tree.acc_and_score()  # Calculate accumulated values and scores
+            exclusive_acc: Counter[TaxId] = col.Counter()
+            exclusive_score = {}
+            tree.get_taxa(accs=exclusive_acc,
+                          scores=exclusive_score,
+                          include=including,
+                          exclude=excluding)
+            sample = Sample(f'{STR_EXCLUSIVE}_{rank.name.lower()}_{file}')
+            samples.append(sample)
+            abundances[sample] = exclusive_abundance
+            accumulators[sample] = exclusive_acc
+            scores[sample] = exclusive_score
+            output.write('\033[92m OK! \033[0m\n')
+        else:
+            output.write('\033[93m VOID \033[0m\n')
         # Get partial abundance and score for the shared analysis
         sub_shared_abundance: SharedCounter = SharedCounter()
         sub_shared_score: SharedCounter = SharedCounter()
@@ -1070,16 +1080,12 @@ def process_rank(*args,
             shared_ctrl_score &= sub_shared_score
 
     # Shared taxa final analysis
+    shared_abundance = +shared_abundance  # remove counts <= 0
     if shared_abundance:
-        output.write('  \033[90mAnalyzing shared taxa...\033[0m')
         # Normalize scaled scores by total abundance (after eliminating zeros)
         shared_score /= (+shared_abundance)
         # Get averaged abundance by number of samples
         shared_abundance //= len(files)
-        output.write('\033[92m OK! \033[0m\n')
-        output.write(f'  \033[90mIncluding {len(shared_abundance)} taxa at '
-                     f'rank "{rank.name.lower()}"\033[0m\n'
-                     '  \033[90mBuilding taxonomy tree...\033[0m')
         tree = TaxTree()
         tree.grow(taxonomy=taxonomy,
                   abundances=shared_abundance,
@@ -1093,24 +1099,28 @@ def process_rank(*args,
                       mindepth=0, maxdepth=0,
                       include=including,
                       exclude=excluding)
-        output.write('\033[92m OK! \033[0m\n')
+        new_abund = +new_abund
+        output.write(f'  \033[90mShared: Including {len(new_abund)}'
+                     f' shared taxa. Generating sample...\033[0m')
         sample = Sample(f'{STR_SHARED}_{rank.name.lower()}')
         samples.append(sample)
         abundances[Sample(sample)] = new_abund
         accumulators[Sample(sample)] = new_accs
         scores[sample] = new_score
+        output.write('\033[92m OK! \033[0m\n')
+    else:
+        output.write(f'  \033[90mShared: No shared taxa!'
+                     f'\033[93m VOID\033[90m sample.\033[0m \n')
 
+    # Control sample subtraction
     if control:
-        # Control sample subtraction
-        output.write(f'  \033[90m{files[0]} is selected as control '
-                     f'sample for subtractions.\033[0m\n')
         # Get taxids at this rank that are present in the ctrl sample
         exclude = set(taxids[files[0]][rank])
         exclude.update(excluding)  # Add explicit excluding taxa if any
         for file in files[1::]:
-            output.write(f'  \033[90mExcluding {len(exclude)} ctrl taxa '
-                         f'from {file} at rank "{rank.name.lower()}"\n'
-                         '  \033[90mFiltering taxa from control...\033[0m')
+            output.write(f'  \033[90mCtrl: From \033[0m{file}\033[90m '
+                         f'excluding {len(exclude)} ctrl taxa. '
+                         f'Generating sample...\033[0m')
             leveled_tree = copy.deepcopy(trees[file])
             leveled_tree.prune(mintaxa, rank)
             leveled_tree.acc_and_score()  # Calculate the accumulated values
@@ -1122,38 +1132,35 @@ def process_rank(*args,
                                   exclude=exclude,  # Extended exclusion set
                                   just_level=rank,
                                   )
-            # Generate a new tree to be able to calculate accs and scores
-            tree = TaxTree()
-            tree.grow(taxonomy=taxonomy,
-                      abundances=control_abundance,
-                      scores=control_score)
-            tree.acc_and_score()  # Calculate the accumulated values and scores
-            control_acc: Counter[TaxId] = col.Counter()
-            control_score = {}
-            tree.get_taxa(accs=control_acc,
-                          scores=control_score,
-                          include=including,
-                          exclude=excluding)
-            output.write('\033[92m OK! \033[0m\n')
             control_abundance = +control_abundance  # remove counts <= 0
-            sample = Sample(f'{STR_CONTROL}_{rank.name.lower()}_{file}')
-            samples.append(sample)
-            abundances[sample] = control_abundance
-            accumulators[sample] = control_acc
-            scores[sample] = control_score
-
+            if control_abundance:  # Avoid adding empty samples
+                # Generate a new tree to be able to calculate accs and scores
+                tree = TaxTree()
+                tree.grow(taxonomy=taxonomy,
+                          abundances=control_abundance,
+                          scores=control_score)
+                tree.acc_and_score()  # Calculate accumulated values and scores
+                control_acc: Counter[TaxId] = col.Counter()
+                control_score = {}
+                tree.get_taxa(accs=control_acc,
+                              scores=control_score,
+                              include=including,
+                              exclude=excluding)
+                sample = Sample(f'{STR_CONTROL}_{rank.name.lower()}_{file}')
+                samples.append(sample)
+                abundances[sample] = control_abundance
+                accumulators[sample] = control_acc
+                scores[sample] = control_score
+                output.write('\033[92m OK! \033[0m\n')
+            else:
+                output.write('\033[93m VOID \033[0m\n')
         # Shared-control taxa final analysis
+        output.write('  \033[90mShared-ctrl:\033[0m ')
         if shared_ctrl_abundance:
-            output.write('  \033[90mAnalyzing shared-control taxa...\033[0m')
             # Normalize scaled scores by total abundance
             shared_ctrl_score /= (+shared_ctrl_abundance)
             # Get averaged abundance by number of samples minus control sample
             shared_ctrl_abundance //= (len(files) - 1)
-            output.write('\033[92m OK! \033[0m\n')
-            output.write(
-                f'  \033[90mIncluding {len(shared_ctrl_abundance)} taxa at '
-                f'rank "{rank.name.lower()}"\033[0m\n'
-                '  \033[90mBuilding taxonomy tree...\033[0m')
             tree = TaxTree()
             tree.grow(taxonomy=taxonomy,
                       abundances=shared_ctrl_abundance,
@@ -1168,24 +1175,37 @@ def process_rank(*args,
                           exclude=exclude,  # Extended exclusion set
                           just_level=rank,
                           )
-            # Generate a new tree to be able to calculate accs and scores
-            tree = TaxTree()
-            tree.grow(taxonomy=taxonomy,
-                      abundances=new_shared_ctrl_abundance,
-                      scores=new_shared_ctrl_score)
-            tree.acc_and_score()  # Calculate the accumulated and score values
-            new_shared_ctrl_acc: Counter[TaxId] = col.Counter()
-            new_shared_ctrl_score = {}
-            tree.get_taxa(accs=new_shared_ctrl_acc,
-                          scores=new_shared_ctrl_score,
-                          include=including,
-                          exclude=excluding)
-            output.write('\033[92m OK! \033[0m\n')
-            sample = Sample(f'{STR_SHARED_CONTROL}_{rank.name.lower()}')
-            samples.append(sample)
-            abundances[sample] = new_shared_ctrl_abundance
-            accumulators[sample] = new_shared_ctrl_acc
-            scores[sample] = new_shared_ctrl_score
+            new_shared_ctrl_abundance = +new_shared_ctrl_abundance
+            if new_shared_ctrl_abundance:  # Avoid adding empty samples
+                output.write(
+                    f'\033[90mIncluding '
+                    f'{len(new_shared_ctrl_abundance)} shared taxa. '
+                    f'Generating sample...\033[0m')
+
+                # Generate a new tree to be able to calculate accs and scores
+                tree = TaxTree()
+                tree.grow(taxonomy=taxonomy,
+                          abundances=new_shared_ctrl_abundance,
+                          scores=new_shared_ctrl_score)
+                tree.acc_and_score()  # Calculate accumulated and score values
+                new_shared_ctrl_acc: Counter[TaxId] = col.Counter()
+                new_shared_ctrl_score = {}
+                tree.get_taxa(accs=new_shared_ctrl_acc,
+                              scores=new_shared_ctrl_score,
+                              include=including,
+                              exclude=excluding)
+                sample = Sample(f'{STR_SHARED_CONTROL}_{rank.name.lower()}')
+                samples.append(sample)
+                abundances[sample] = new_shared_ctrl_abundance
+                accumulators[sample] = new_shared_ctrl_acc
+                scores[sample] = new_shared_ctrl_score
+                output.write('\033[92m OK! \033[0m\n')
+            else:
+                output.write(f'\033[90mNo final shared-ctrl taxa!'
+                             f'\033[93m VOID\033[90m sample.\033[0m \n')
+        else:
+            output.write(f'\033[90mNo shared-ctrl taxa!'
+                         f'\033[93m VOID\033[90m sample.\033[0m \n')
 
         # Print output and return
     print(output.getvalue())
