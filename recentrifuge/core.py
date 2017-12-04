@@ -561,7 +561,7 @@ class TaxTree(dict):
                         abundance[tid] = self[tid].counts
                     if accs is not None:
                         accs[tid] = self[tid].acc
-                    if scores is not None:
+                    if scores is not None and self[tid].score != NO_SCORE:
                         scores[tid] = self[tid].score
                     if ranks is not None:
                         ranks[tid] = self[tid].taxlevel
@@ -631,19 +631,24 @@ class TaxTree(dict):
                                     include, exclude,
                                     in_branch)
 
-    def acc_and_score(self) -> None:
+    def shape(self) -> None:
         """
         Recursively populate accumulated counts and score.
 
-        Accumulate counts in higher taxonomical levels, so populate
-        self.acc of the tree. Also calculate score for levels that
-        have no reads directly assigned (unassigned = 0).
+        From bottom to top, accumulate counts in higher taxonomical
+        levels, so populate self.acc of the tree. Also calculate
+        score for levels that have no reads directly assigned
+        (unassigned = 0). It eliminates leafs with no accumulated
+        counts. With all, it shapes the tree to the most useful form.
 
         """
         self.acc = self.counts  # Initialize accumulated with unassigned counts
         for tid in list(self):  # Loop if this node has subtrees
-            self[tid].acc_and_score()  # Accumulate for each branch/leaf
-            self.acc += self[tid].acc  # Acc lower tax acc in this node
+            self[tid].shape()  # Accumulate for each branch/leaf
+            if not self[tid].acc:
+                self.pop(tid)  # Prune empty leaf
+            else:
+                self.acc += self[tid].acc  # Acc lower tax acc in this node
         if not self.counts:
             # If not unassigned (no reads directly assigned to the level),
             #  calculate score from leafs, trying different approaches.
@@ -695,6 +700,11 @@ class TaxTree(dict):
                                           / collapsed_counts)
                             # Accumulate abundance in higher tax
                             self.counts = collapsed_counts
+                    else:  # No collapse: update acc counts erasing leaf counts
+                        if self.acc > self[tid].counts:
+                            self.acc -= self[tid].counts
+                        else:
+                            self.acc = 0
                     if debug and self[tid].counts:
                         print(f'[Pruning branch {tid}, '
                               f'counts={self[tid].counts}]', end='')
@@ -848,8 +858,10 @@ class MultiTree(dict):
                                      for i in range(num_samples)},
                         TID: str(tid),
                         RANK: taxonomy.get_rank(tid).name.lower(),
-                        SCORE: {self.samples[i]: f'{self[tid].score[i]:.1f}'
-                                for i in range(num_samples)},
+                        SCORE: {self.samples[i]: (
+                            f'{self[tid].score[i]:.1f}'
+                            if self[tid].score[i] != NO_SCORE else '0')
+                            for i in range(num_samples)},
                         }
             )
             if self[tid]:
@@ -1019,7 +1031,7 @@ def process_rank(*args,
                      f'Generating sample...\033[0m')
         leveled_tree = copy.deepcopy(trees[file])
         leveled_tree.prune(mintaxa, rank)  # Prune the copy to the desired rank
-        leveled_tree.acc_and_score()
+        leveled_tree.shape()
         # Get abundance for the exclusive analysis
         exclusive_abundance: Counter[TaxId] = col.Counter()
         exclusive_score: Dict[TaxId, Score] = {}
@@ -1037,7 +1049,7 @@ def process_rank(*args,
             tree.grow(taxonomy=taxonomy,
                       abundances=exclusive_abundance,
                       scores=exclusive_score)
-            tree.acc_and_score()  # Calculate accumulated values and scores
+            tree.shape()
             exclusive_acc: Counter[TaxId] = col.Counter()
             exclusive_score = {}
             tree.get_taxa(accs=exclusive_acc,
@@ -1090,8 +1102,7 @@ def process_rank(*args,
         tree.grow(taxonomy=taxonomy,
                   abundances=shared_abundance,
                   scores=shared_score)
-        #tree.prune(mintaxa, rank)
-        tree.acc_and_score()  # Calculate the accumulated values
+        tree.shape()
         new_abund: Counter[TaxId] = col.Counter()
         new_accs: Counter[TaxId] = col.Counter()
         new_score: Dict[TaxId, Score] = {}
@@ -1123,7 +1134,7 @@ def process_rank(*args,
                          f'Generating sample...\033[0m')
             leveled_tree = copy.deepcopy(trees[file])
             leveled_tree.prune(mintaxa, rank)
-            leveled_tree.acc_and_score()  # Calculate the accumulated values
+            leveled_tree.shape()
             control_abundance: Counter[TaxId] = col.Counter()
             control_score: Dict[TaxId, Score] = {}
             leveled_tree.get_taxa(abundance=control_abundance,
@@ -1139,7 +1150,7 @@ def process_rank(*args,
                 tree.grow(taxonomy=taxonomy,
                           abundances=control_abundance,
                           scores=control_score)
-                tree.acc_and_score()  # Calculate accumulated values and scores
+                tree.shape()
                 control_acc: Counter[TaxId] = col.Counter()
                 control_score = {}
                 tree.get_taxa(accs=control_acc,
@@ -1165,8 +1176,7 @@ def process_rank(*args,
             tree.grow(taxonomy=taxonomy,
                       abundances=shared_ctrl_abundance,
                       scores=shared_ctrl_score)
-            #tree.prune(mintaxa, rank)
-            tree.acc_and_score()
+            tree.shape()
             new_shared_ctrl_abundance: Counter[TaxId] = col.Counter()
             new_shared_ctrl_score: Dict[TaxId, Score] = {}
             tree.get_taxa(abundance=new_shared_ctrl_abundance,
@@ -1187,7 +1197,7 @@ def process_rank(*args,
                 tree.grow(taxonomy=taxonomy,
                           abundances=new_shared_ctrl_abundance,
                           scores=new_shared_ctrl_score)
-                tree.acc_and_score()  # Calculate accumulated and score values
+                tree.shape()
                 new_shared_ctrl_acc: Counter[TaxId] = col.Counter()
                 new_shared_ctrl_score = {}
                 tree.get_taxa(accs=new_shared_ctrl_acc,
@@ -1207,7 +1217,7 @@ def process_rank(*args,
             output.write(f'\033[90mNo shared-ctrl taxa!'
                          f'\033[93m VOID\033[90m sample.\033[0m \n')
 
-        # Print output and return
+    # Print output and return
     print(output.getvalue())
     sys.stdout.flush()
     return samples, abundances, accumulators, scores

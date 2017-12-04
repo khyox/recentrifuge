@@ -33,7 +33,7 @@ DEFMINTAXA = 10  # minimum taxa to avoid collapsing one level to the parent one
 UNCLASSIFIED = TaxId('0')
 ROOT = TaxId('1')
 CELLULAR_ORGANISMS = TaxId('131567')
-NO_SCORE = Score(0)  # score given to taxa with no score
+NO_SCORE = Score(None)  # Score given to taxa with no score
 
 
 class Scoring(Enum):
