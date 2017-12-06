@@ -27,7 +27,7 @@ try:
 except ImportError:
     _use_pandas = False
 
-__version__ = '0.13.6'
+__version__ = '0.13.7'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Dec 2017'
 
@@ -62,7 +62,7 @@ def main():
     """Main entry point to recentrifuge."""
     # Argument Parser Configuration
     parser = argparse.ArgumentParser(
-        description='Post-process Centrifuge/Kraken output',
+        description='Post-process Centrifuge/LMAT output',
         epilog=f'%(prog)s  - {__author__} - {__date__}',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -189,6 +189,11 @@ def main():
         help=(f'type of scoring to be applied, and can be one of '
               f'{[str(excel) for excel in Excel]}')
     )
+    parser.add_argument(
+        '--dummy',  # hidden flag: just generate a dummy plot for JS debugging
+        action='store_true',
+        help=argparse.SUPPRESS
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -196,6 +201,7 @@ def main():
     reports = args.report
     lmats = args.lmat
     debug = args.debug
+    dummy = args.dummy
     nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
     mintaxa = int(args.mintaxa)
@@ -252,7 +258,8 @@ def main():
     ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,
                               collapse, excluding, including, debug)
 
-    #  _debug_dummy_plot(ncbi, htmlfile, scoring)
+    if dummy:
+        _debug_dummy_plot(ncbi, htmlfile, scoring)
 
     # Declare variables that will hold results for the samples analyzed
     trees: Dict[Sample, TaxTree] = {}

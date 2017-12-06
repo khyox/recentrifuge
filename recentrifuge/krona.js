@@ -106,6 +106,9 @@ var fontSizeText;
 var fontSizeButtonDecrease;
 var fontSizeButtonIncrease;
 var fontSizeLast;
+var bkgBright = "eeeeee";
+var bkgBrightButtonDecrease;
+var bkgBrightButtonIncrease;
 var radiusButtonDecrease;
 var radiusButtonIncrease;
 var shorten;
@@ -3329,6 +3332,13 @@ and including collapsed wedges.'
 <input type="button" id="radiusIncrease" value="+"/> Chart size'
     );
 
+    position = addOptionElement
+    (
+        position,
+        '<input type="button" id="bkgBrightDecrease" value="-"/>\
+<input type="button" id="bkgBrightIncrease" value="+"/> Bkg bright'
+    );
+
     if (hueName) {
         hueDisplayName = attributes[attributeIndex(hueName)].displayName;
 
@@ -3345,10 +3355,18 @@ and including collapsed wedges.'
         useHueCheckBox.onclick = handleResize;
         useHueCheckBox.onmousedown = suppressEvent;
     }
+
+    position = addOptionElement
+    (
+        position,
+        '<input type="checkbox" id="collapse" checked="checked" />Collapse',
+        'Collapse wedges that are redundant (entirely composed of another wedge)'
+    );
+
     /*
 	position = addOptionElement
 	(
-		position + 5,
+		position,
 		'&nbsp;<input type="checkbox" id="shorten" checked="checked" />Shorten labels</div>',
 		'Prevent labels from overlapping by shortening them'
 	);
@@ -3359,21 +3377,16 @@ and including collapsed wedges.'
 		'&nbsp;<input type="checkbox" id="compress" checked="checked" />Compress',
 		'Compress wedges if needed to show the entire depth'
 	);
-	*/
-    position = addOptionElement
-    (
-        position,
-        '<input type="checkbox" id="collapse" checked="checked" />Collapse',
-        'Collapse wedges that are redundant (entirely composed of another wedge)'
-    );
+    */
 
     position = addOptionElement
     (
         position + 5,
-        '<input type="button" id="snapshot" value="Snapshot"/>',
-        'Render the current view as SVG (Scalable Vector Graphics), a publication-\
-quality format that can be printed and saved (see Help for browser compatibility)'
-    );
+        '<input type="button" id="snapshot" value="Snapshot" title="Render the current view as SVG (Scalable Vector Graphics), a publication-\
+quality format that can be printed and saved (see Help for browser\
+    compatibility)"/> <input type="button" id="help" value="?"\
+    onclick="window.open(\'https://github.com/khyox/recentrifuge/wiki\',\
+     \'help\')" title="Help"/>');
 
     position = addOptionElement
     (
@@ -3381,14 +3394,6 @@ quality format that can be printed and saved (see Help for browser compatibility
         '<input type="button" id="linkButton" value="Link"/>\
 <input type="text" size="30" id="linkText"/>',
         'Show a link to this view that can be copied for bookmarking or sharing'
-    );
-
-    position = addOptionElement
-    (
-        position + 5,
-        '<input type="button" id="help" value="?"\
-onclick="window.open(\'https://github.com/khyox/recentrifuge/wiki\', \'help\')"/>',
-        'Help'
     );
 }
 
@@ -3504,6 +3509,24 @@ function attributeIndex(aname) {
     }
 
     return null;
+}
+
+function bkgBrightDecrease() {
+    var bkgBrightInt = parseInt(bkgBright, 16)
+    if (bkgBrightInt > parseInt('555555', 16)) {
+        bkgBright = (bkgBrightInt - 0x111111).toString(16)
+        document.body.style.backgroundColor = '#' + bkgBright
+        updateViewNeeded = true;
+    }
+}
+
+function bkgBrightIncrease() {
+    var bkgBrightInt = parseInt(bkgBright, 16)
+    if (bkgBrightInt < parseInt('ffffff', 16)) {
+        bkgBright = (bkgBrightInt + 0x111111).toString(16)
+        document.body.style.backgroundColor = '#' + bkgBright
+        updateViewNeeded = true;
+    }
 }
 
 function checkHighlight() {
@@ -4432,7 +4455,7 @@ function createCanvas() {
 function load() {
     document.body.style.overflow = "hidden";
     document.body.style.margin = 0;
-    document.body.style.backgroundColor = "#EEEEEE";
+    document.body.style.backgroundColor = '#' + bkgBright;
     createCanvas();
 
     if (context == undefined) {
@@ -5201,6 +5224,12 @@ function setCallBacks() {
     fontSizeButtonIncrease.onclick = fontSizeIncrease;
     fontSizeButtonDecrease.onmousedown = suppressEvent;
     fontSizeButtonIncrease.onmousedown = suppressEvent;
+    bkgBrightButtonDecrease = document.getElementById('bkgBrightDecrease');
+    bkgBrightButtonIncrease = document.getElementById('bkgBrightIncrease');
+    bkgBrightButtonDecrease.onclick = bkgBrightDecrease;
+    bkgBrightButtonIncrease.onclick = bkgBrightIncrease;
+    bkgBrightButtonDecrease.onmousedown = suppressEvent;
+    bkgBrightButtonIncrease.onmousedown = suppressEvent;
     radiusButtonDecrease = document.getElementById('radiusDecrease');
     radiusButtonIncrease = document.getElementById('radiusIncrease');
     radiusButtonDecrease.onclick = radiusDecrease;
@@ -5980,6 +6009,9 @@ function updateView() {
     maxAbsoluteDepthButtonDecrease.disabled = (maxAbsoluteDepth == 2);
     maxAbsoluteDepthButtonIncrease.disabled =
         (maxAbsoluteDepth == head.maxDepth);
+
+    bkgBrightButtonDecrease.disabled = (bkgBright == '555555');
+    bkgBrightButtonIncrease.disabled = (bkgBright == 'ffffff');
 
     if (collapse != collapseLast && search.value != '') {
         onSearchChange();
