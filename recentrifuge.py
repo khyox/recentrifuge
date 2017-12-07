@@ -27,7 +27,7 @@ try:
 except ImportError:
     _use_pandas = False
 
-__version__ = '0.13.7'
+__version__ = '0.13.8'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Dec 2017'
 
@@ -232,7 +232,8 @@ def main():
             with os.scandir() as dir_entry:
                 for entry in dir_entry:
                     if not entry.name.startswith('.') and entry.is_dir():
-                        lmats.append(entry.name)
+                        if entry.name != os.path.basename(TAXDUMP_PATH):
+                            lmats.append(entry.name)
             lmats.sort()
         print('\033[90mLMAT subdirs to analyze:\033[0m', lmats)
 
