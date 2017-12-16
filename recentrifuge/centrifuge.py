@@ -147,9 +147,9 @@ def read_output(output_file: Filename,
                     shel = Score(float(_score) ** 0.5 + 15)
                     length = Score(float(_length))
                 except ValueError:
-                    print(f'\n\033[91mError\033[0m  parsing score ({_score}) '
+                    print(f'\033[91mError\033[0m parsing score ({_score}) '
                           f'or query length ({_length}) for taxid {_tid} '
-                          f'in file {output_file}. Ignoring line!')
+                          f'in {output_file}. Ignoring line!')
                     continue
                 if minscore is not None:
                     if shel < minscore:  # Ignore read if low confidence
