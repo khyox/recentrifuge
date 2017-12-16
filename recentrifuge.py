@@ -27,7 +27,7 @@ try:
 except ImportError:
     _use_pandas = False
 
-__version__ = '0.13.8'
+__version__ = '0.13.9'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Dec 2017'
 
@@ -76,15 +76,16 @@ def main():
         '-f', '--file',
         action='append',
         metavar='FILE',
-        help=('Centrifuge output files '
-              '(multiple -f is available to include several samples in plot)')
+        help=('Centrifuge output files. If a single directory is entered, '
+              'every .out file inside will be taken as a different sample. '
+              'Multiple -f is available to include several samples.')
     )
     filein.add_argument(
         '-r', '--report',
         action='append',
         metavar='FILE',
         help=('Centrifuge/Kraken report files '
-              '(multiple -r is available to include several samples in plot)')
+              '(multiple -r is available to include several samples)')
     )
     filein.add_argument(
         '-l', '--lmat',
@@ -94,7 +95,7 @@ def main():
         help=('LMAT output dir or file prefix. If just "." is entered, '
               'every subdirectory under the current directory will be '
               'taken as a sample and scanned looking for LMAT output files. '
-              'Multiple -l is available to include several samples in plot.')
+              'Multiple -l is available to include several samples.')
     )
     parser.add_argument(
         '-g', '--debug',
@@ -222,6 +223,20 @@ def main():
     # Check debugging mode
     if debug:
         print('\033[90mINFO: Debugging mode activated\033[0m\n')
+
+    # Centrifuge output processing specific stuff
+    if len(outputs) == 1 and os.path.isdir(outputs[0]):
+        dir_name = outputs[0]
+        outputs = []
+        with os.scandir(dir_name) as dir_entry:
+            for f in dir_entry:
+                if not f.name.startswith('.') and f.name.endswith('.out'):
+                    if dir_name != '.':
+                        outputs.append(os.path.join(dir_name, f.name))
+                    else:  # Avoid sample names starting with just the dot
+                        outputs.append(f.name)
+        outputs.sort()
+        print('\033[90mCentrifuge outputs to analyze:\033[0m', outputs)
 
     # LMAT processing specific stuff
     plasmidfile: Filename = None
