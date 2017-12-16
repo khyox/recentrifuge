@@ -27,7 +27,7 @@ try:
 except ImportError:
     _use_pandas = False
 
-__version__ = '0.13.9'
+__version__ = '0.13.10'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Dec 2017'
 
@@ -225,7 +225,7 @@ def main():
         print('\033[90mINFO: Debugging mode activated\033[0m\n')
 
     # Centrifuge output processing specific stuff
-    if len(outputs) == 1 and os.path.isdir(outputs[0]):
+    if outputs and len(outputs) == 1 and os.path.isdir(outputs[0]):
         dir_name = outputs[0]
         outputs = []
         with os.scandir(dir_name) as dir_entry:
