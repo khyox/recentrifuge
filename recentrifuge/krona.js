@@ -91,6 +91,7 @@
 }
 
 var canvas;
+var canvasButtons = [];  // Keep trace of CanvasButton objects
 var context;
 var svg; // for snapshot mode
 var collapse = true;
@@ -144,7 +145,8 @@ var selectedNode = 0; // the root of the current view
 var focusNode = 0; // a node chosen for more info (single-click)
 var highlightedNode = 0; // mouse hover node
 var highlightingHidden = false;
-var nodes = new Array();
+var nodes = new Array();  // Array with all the nodes
+var nodesIndex;  // Index of nodes, points last using hue(score) buttons
 var currentNodeID = 0; // to iterate while loading
 
 var nodeHistory = new Array();
@@ -366,6 +368,38 @@ function handleResize() {
 }
 
 function Attribute() {
+}
+
+function CanvasButton(name, x, y, w, h, fill) {
+    // Constructor for a button in the canvas
+    this.name = name;
+    this.x = x || 0;
+    this.y = y || 0;
+    this.w = w || 1;
+    this.h = h || 1;
+    this.fill = fill || '#000000';
+
+    // Draws the button to a given context
+    this.draw = function (ctx) {
+        var oldAlpha = ctx.globalAlpha
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#' + bkgBright;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(this.x, this.y, this.w, this.h);
+        ctx.fillStyle = this.fill;
+        ctx.fillRect(this.x, this.y, this.w, this.h);
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(this.x, this.y, this.w, this.h);
+        ctx.globalAlpha = oldAlpha
+    };
+
+    // Determine if a point is inside the button's bounds
+    this.is_inside = function (mx, my) {
+        // Check the Mouse X,Y fall in the button's area
+        return (this.x <= mx) && (this.x + this.w >= mx) &&
+            (this.y <= my) && (this.y + this.h >= my);
+    }
 }
 
 function Tween(start, end) {
@@ -719,8 +753,8 @@ function Node() {
 		}
 */
         var drawChildren =
-            ( !this.hide || !this.hidePrev && progress < 1 ) &&
-            ( !this.hideAlone || !this.hideAlonePrev && progress < 1 );
+            (!this.hide || !this.hidePrev && progress < 1) &&
+            (!this.hideAlone || !this.hideAlonePrev && progress < 1);
 
 //		if ( this.alphaWedge.current() > 0 || this.alphaLabel.current() > 0 )
         {
@@ -900,7 +934,7 @@ function Node() {
                     var lastChildAngle;
                     var truncateWedge =
                         (
-                            (this.hasChildren() || this == selectedNode ) &&
+                            (this.hasChildren() || this == selectedNode) &&
                             !this.keyed &&
                             (compress || depth < maxDisplayDepth) &&
                             drawChildren
@@ -1252,8 +1286,8 @@ function Node() {
 //			context.strokeStyle = 'black';
         context.fillStyle = 'black';
 
-        var highlight = !( progress < 1 && zoomOut
-            && this == selectedNodeLast );
+        var highlight = !(progress < 1 && zoomOut
+            && this == selectedNodeLast);
 
         var angle = (angleEndCurrent + angleStartCurrent) / 2;
 
@@ -1611,7 +1645,7 @@ function Node() {
             radius = this.labelRadius.current() * gRadius;
         }
 
-        if (radial && (selected || bubble )) {
+        if (radial && (selected || bubble)) {
             var percentage = this.getPercentage();
             innerText = percentage + '%';
         }
@@ -1621,7 +1655,7 @@ function Node() {
             !radial &&
             this != selectedNode &&
             !bubble &&
-            ( !zoomOut || this != selectedNodeLast)
+            (!zoomOut || this != selectedNodeLast)
         ) {
             label = this.shortenLabel();
         }
@@ -1641,7 +1675,7 @@ function Node() {
 //			this.isSearchResult && this.shouldAddSearchResultsString() && (!selected || this == selectedNode || highlight),
             this.isSearchResult
             && (!selected || this == selectedNode || bubble),
-            (this.hideAlone || !selected || this == selectedNode )
+            (this.hideAlone || !selected || this == selectedNode)
                 ? this.searchResultChildren() : 0
         );
 
@@ -1656,7 +1690,7 @@ function Node() {
             nLabelOffsets[depth - 2] > 2 &&
             this.labelWidth.current()
             > (this.angleEnd.end - this.angleStart.end) * Math.abs(radius) &&
-            !( zoomOut && this == selectedNodeLast ) &&
+            !(zoomOut && this == selectedNodeLast) &&
             this.labelRadius.end > 0
         ) {
             // name extends beyond wedge; draw tick mark towards the central
@@ -1909,11 +1943,15 @@ function Node() {
         else {
             return this.depth;
         }
-    }
+    };
+
+    this.getHue = function () {
+        return this.hues[currentDataset];
+    };
 
     this.getMagnitude = function () {
         return this.attributes[magnitudeIndex][currentDataset];
-    }
+    };
 
     this.getMapPosition = function () {
         return {
@@ -2175,7 +2213,7 @@ function Node() {
             this.children.length == 1 &&
 //			this.magnitude > 0 &&
             this.children[0].magnitude == this.magnitude &&
-            ( head.children.length > 1 || this.children[0].children.length )
+            (head.children.length > 1 || this.children[0].children.length)
         ) {
             this.collapse = true;
         }
@@ -2725,7 +2763,7 @@ function Node() {
             if
             (
                 !this.children[i].hide &&
-                ( collapse || depth < maxDisplayDepth ) &&
+                (collapse || depth < maxDisplayDepth) &&
                 this.depth < maxAbsoluteDepth
             ) {
                 canDisplayChildLabels = true;
@@ -2791,7 +2829,7 @@ function Node() {
 
         // set lightness
         //
-        if (!( hide || this.hideAlone )) {
+        if (!(hide || this.hideAlone)) {
             if (useHue()) {
                 lightness = (lightnessBase + lightnessMax) / 2;
             }
@@ -2822,8 +2860,8 @@ function Node() {
         }
 
         while (true) {
-            if (!this.hideAlone && !hide && ( i == this.children.length
-                    || !this.children[i].hide )) {
+            if (!this.hideAlone && !hide && (i == this.children.length
+                    || !this.children[i].hide)) {
                 // reached a non-hidden child or the end; set targets for
                 // previous group of hidden children (if any) using their
                 // average hue
@@ -2984,7 +3022,7 @@ function Node() {
 
             // set radial
             //
-            if (!( hide || this.hide ))//&& ! this.keyed )
+            if (!(hide || this.hide))//&& ! this.keyed )
             {
                 if (this.hideAlone) {
                     this.radial = true;
@@ -3196,6 +3234,7 @@ function Node() {
 */
     this.sort = function () {
         this.children.sort(function (a, b) {
+            // return b.getHue() - a.getHue()
             return b.getMagnitude() - a.getMagnitude()
         });
 
@@ -3593,6 +3632,7 @@ function checkSelectedCollapse() {
 function clearSearch() {
     if (search.value != '') {
         search.value = '';
+        nodesIndex = undefined;
         onSearchChange();
     }
 }
@@ -3818,18 +3858,35 @@ function drawHistory() {
 }
 
 function drawLegend() {
-    var left = imageWidth * .01;
     var width = imageHeight * .0265;
+    var side = width * 0.9
+    var left_buttons = imageWidth * .005;
+    var left = left_buttons + side + fontSize;
     var height = imageHeight * .15;
     var top = imageHeight - fontSize * 3.5 - height;
     var textLeft = left + width + fontSize / 2;
+    var delta = (height - side) / 3;
 
+    canvasButtons = []  // Delete previous buttons
+    var buttonMost = new CanvasButton('mostScore', left_buttons,
+        top, side, side, '#c87cca');
+    var buttonLest = new CanvasButton('lestScore', left_buttons,
+        top + 3 * delta, side, side, '#d38381');
+    canvasButtons.push(buttonMost, buttonLest);
+    if (nodesIndex !== undefined) {
+        var buttonMore = new CanvasButton('moreScore', left_buttons,
+            top + delta, side, side, '#81c8d3');
+        var buttonLess = new CanvasButton('lessScore', left_buttons,
+            top + 2 * delta, side, side, '#96d281');
+        canvasButtons.push(buttonMore, buttonLess)
+    }
+    canvasButtons.forEach(function (element) {
+        element.draw(context);
+    });
     context.fillStyle = 'black';
     context.textAlign = 'start';
     context.font = fontNormal;
-//	context.fillText(valueStartText, textLeft, top + height);
-//	context.fillText(valueEndText, textLeft, top);
-    context.fillText(hueDisplayName, left, imageHeight - fontSize * 1.5);
+    context.fillText(hueDisplayName, left_buttons, imageHeight - fontSize * 1.5);
 
     var gradient = context.createLinearGradient(0, top + height, 0, top);
 
@@ -4752,9 +4809,9 @@ function loadTreeDOM
 
                         for (var k = getFirstChild(j); k; k = getNextSibling(k)) {
                             newNode.attributes[index][
-                                newNode.attributes[
-                                    index].length - 1].push(
-                                        k.firstChild.nodeValue);
+                            newNode.attributes[
+                                index].length - 1].push(
+                                k.firstChild.nodeValue);
                         }
                     }
                     else {
@@ -4780,6 +4837,7 @@ function loadTreeDOM
                 if (attributeName == magnitudeName
                     || attributeName == hueName) {
                     for (j = 0; j < datasets; j++) {
+                        // j is the dataset index (goes from 0 to datasets-1)
                         var value = newNode.attributes[index][j]
                         == undefined ? 0 : Number(newNode.attributes[index][j]);
 
@@ -4864,6 +4922,7 @@ function mouseMove(e) {
 }
 
 function mouseClick(e) {
+    // Event listener function for mouse click on CANVAS
     if (highlightedNode == focusNode && focusNode != selectedNode
         || selectedNode.hasParent(highlightedNode)) {
         if (highlightedNode.hasChildren()) {
@@ -4879,6 +4938,51 @@ function mouseClick(e) {
         var date = new Date();
         mouseDownTime = date.getTime();
         mouseDown = true;
+        var mySel = undefined;
+        for (var i = 0; i < canvasButtons.length; i++) {
+            if (canvasButtons[i].is_inside(e.pageX, e.pageY)) {
+                context.strokeStyle = '#CC0000';
+                context.lineWidth = 2;
+                mySel = canvasButtons[i];
+                context.strokeRect(mySel.x, mySel.y, mySel.w, mySel.h);
+            }
+        }
+        if (mySel) {
+            // Reorder the array of nodes only when needed
+            if (nodesIndex === undefined || !nodes.reduce(
+                    function (acc, current, index) {
+                        // Calculate deviation from id == index for every node
+                        return acc + Math.abs(current.id - index)
+                    }, 0)) {
+                nodes.sort(function (a, b) {
+                    return b.getHue() - a.getHue()
+                });
+            }
+            switch (mySel.name) {
+                case 'mostScore':
+                    nodesIndex = 0;
+                    break;
+                case 'moreScore':
+                    if (nodesIndex > 0) nodesIndex --;
+                    break;
+                case 'lessScore':
+                    if (nodesIndex < nodes.length - 1) nodesIndex ++;
+                    break;
+                case 'lestScore':
+                    nodesIndex = nodes.length - 1;
+                    break;
+                default:
+                    alert('ERROR! Unknown button in canvas. Ignoring!')
+            }
+            search.value = nodes[nodesIndex].name;
+            onSearchChange();
+            context.strokeStyle = '#CC0000';
+            context.lineWidth = 2;
+            context.strokeRect(mySel.x, mySel.y, mySel.w, mySel.h);
+            setTimeout(function () {
+                drawLegend()
+            }, 700)
+        }
     }
 }
 
@@ -4952,6 +5056,7 @@ function nextDataset() {
 
 function onDatasetChange() {
     selectDataset(datasetDropDown.selectedIndex);
+    nodesIndex = undefined;
 }
 
 function onKeyDown(event) {

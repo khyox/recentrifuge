@@ -27,7 +27,7 @@ try:
 except ImportError:
     _use_pandas = False
 
-__version__ = '0.13.10'
+__version__ = '0.14.0'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Dec 2017'
 
