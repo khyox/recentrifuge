@@ -391,6 +391,37 @@ function CanvasButton(name, x, y, w, h, fill) {
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 0.5;
         ctx.strokeRect(this.x, this.y, this.w, this.h);
+        // Draws symbols in buttons
+        ctx.fillStyle = '#000000';
+        ctx.globalAlpha = 0.7;
+        switch (this.name) {
+            case 'mostScore':
+                ctx.beginPath();
+                ctx.moveTo(this.x + 1*this.w/2, this.y + this.h/8);
+                ctx.lineTo(this.x + 1*this.w/6, this.y + this.h/2);
+                ctx.lineTo(this.x + 5*this.w/6, this.y + this.h/2);
+                ctx.fill();
+            case 'moreScore':
+                ctx.beginPath();
+                ctx.moveTo(this.x + 1*this.w/2, this.y + 1*this.h/4);
+                ctx.lineTo(this.x + 1*this.w/6, this.y + 3*this.h/4);
+                ctx.lineTo(this.x + 5*this.w/6, this.y + 3*this.h/4);
+                ctx.fill();
+                break;
+            case 'lestScore':
+                ctx.beginPath();
+                ctx.moveTo(this.x + 1*this.w/2, this.y + 7*this.h/8);
+                ctx.lineTo(this.x + 1*this.w/6, this.y + 1*this.h/2);
+                ctx.lineTo(this.x + 5*this.w/6, this.y + 1*this.h/2);
+                ctx.fill();
+            case 'lessScore':
+                ctx.beginPath();
+                ctx.moveTo(this.x + 1*this.w/2, this.y + 3*this.h/4);
+                ctx.lineTo(this.x + 1*this.w/6, this.y + 1*this.h/4);
+                ctx.lineTo(this.x + 5*this.w/6, this.y + 1*this.h/4);
+                ctx.fill();
+                break;
+        }
         ctx.globalAlpha = oldAlpha
     };
 
@@ -5579,7 +5610,7 @@ function enableData() {
 
 function showData(indexData, indexAttribute, summary) {
     var dataWindow = window.open('', '_blank');
-    var title = 'Krona - ' + attributes[indexAttribute].displayName
+    var title = 'Re@ - ' + attributes[indexAttribute].displayName
         + ' - ' + focusNode.name;
     dataWindow.document.title = title;
 
@@ -5638,7 +5669,7 @@ function showList(indexList, indexAttribute, summary) {
             pre.innerHTML = list;
         }
 
-        dataWindow.document.title = 'Krona - ' +
+        dataWindow.document.title = 'Re@ - ' +
             attributes[indexAttribute].displayName + ' - ' + focusNode.name;
     }
 }
@@ -5717,7 +5748,7 @@ function svgHeader() {
 	"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\
 <svg width="' + imageWidth + '" height="' + imageHeight + '" version="1.1"\
 	xmlns="http://www.w3.org/2000/svg">\
-<title>Krona (snapshot) - ' +
+<title>Rec@ntrifuge (snapshot) - ' +
         (datasets > 1 ? datasetNames[currentDataset] + ' - ' : '')
         + selectedNode.name +
         '</title>\
@@ -6105,7 +6136,8 @@ function updateView() {
     updateKeyControl();
     updateDatasetWidths();
 
-    document.title = 'Krona - ' + selectedNode.name;
+    document.title = ('Re@ - ' +
+        location.href.split("/").slice(-1)[0].split(".html")[0]);
     updateNavigationButtons();
     snapshotButton.disabled = true;
 
