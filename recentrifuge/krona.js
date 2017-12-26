@@ -131,6 +131,7 @@ var datasetDropDown;
 var datasetButtonLast;
 var datasetButtonPrev;
 var datasetButtonNext;
+var rankDropDown;
 var keyControl;
 var showKeys = true;
 var linkButton;
@@ -281,7 +282,7 @@ var fpsDisplay = document.getElementById('frameRate');
 
 // Arrays to translate xml attribute names into displayable attribute names
 //
-var attributes = new Array();
+var attributes = [];
 //
 var magnitudeIndex; // the index of attribute arrays used for magnitude
 var membersAssignedIndex;
@@ -296,15 +297,19 @@ var hueStopText;
 
 // multiple datasets
 //
+const DEFAULT_RANK = 'species';
+var currentRank = DEFAULT_RANK;
 var currentDataset = 0;
 var lastDataset = 0;
 var datasets = 1;
 var datasetNames;
-var datasetSelectSize = 20;
+var datasetSelectSize = 20;  // Max size in rows of the dataset selection list
+var datasetsVisible = 1; // Number of datasets not hidden
 var datasetAlpha = new Tween(0, 0);
-var datasetWidths = new Array();
+var datasetWidths = [];
 var datasetChanged;
 var datasetSelectWidth = 50;
+var numRawSamples;
 
 window.onload = load;
 
@@ -397,28 +402,28 @@ function CanvasButton(name, x, y, w, h, fill) {
         switch (this.name) {
             case 'mostScore':
                 ctx.beginPath();
-                ctx.moveTo(this.x + 1*this.w/2, this.y + this.h/8);
-                ctx.lineTo(this.x + 1*this.w/6, this.y + this.h/2);
-                ctx.lineTo(this.x + 5*this.w/6, this.y + this.h/2);
+                ctx.moveTo(this.x + 1 * this.w / 2, this.y + this.h / 8);
+                ctx.lineTo(this.x + 1 * this.w / 6, this.y + this.h / 2);
+                ctx.lineTo(this.x + 5 * this.w / 6, this.y + this.h / 2);
                 ctx.fill();
             case 'moreScore':
                 ctx.beginPath();
-                ctx.moveTo(this.x + 1*this.w/2, this.y + 1*this.h/4);
-                ctx.lineTo(this.x + 1*this.w/6, this.y + 3*this.h/4);
-                ctx.lineTo(this.x + 5*this.w/6, this.y + 3*this.h/4);
+                ctx.moveTo(this.x + 1 * this.w / 2, this.y + 1 * this.h / 4);
+                ctx.lineTo(this.x + 1 * this.w / 6, this.y + 3 * this.h / 4);
+                ctx.lineTo(this.x + 5 * this.w / 6, this.y + 3 * this.h / 4);
                 ctx.fill();
                 break;
             case 'lestScore':
                 ctx.beginPath();
-                ctx.moveTo(this.x + 1*this.w/2, this.y + 7*this.h/8);
-                ctx.lineTo(this.x + 1*this.w/6, this.y + 1*this.h/2);
-                ctx.lineTo(this.x + 5*this.w/6, this.y + 1*this.h/2);
+                ctx.moveTo(this.x + 1 * this.w / 2, this.y + 7 * this.h / 8);
+                ctx.lineTo(this.x + 1 * this.w / 6, this.y + 1 * this.h / 2);
+                ctx.lineTo(this.x + 5 * this.w / 6, this.y + 1 * this.h / 2);
                 ctx.fill();
             case 'lessScore':
                 ctx.beginPath();
-                ctx.moveTo(this.x + 1*this.w/2, this.y + 3*this.h/4);
-                ctx.lineTo(this.x + 1*this.w/6, this.y + 1*this.h/4);
-                ctx.lineTo(this.x + 5*this.w/6, this.y + 1*this.h/4);
+                ctx.moveTo(this.x + 1 * this.w / 2, this.y + 3 * this.h / 4);
+                ctx.lineTo(this.x + 1 * this.w / 6, this.y + 1 * this.h / 4);
+                ctx.lineTo(this.x + 5 * this.w / 6, this.y + 1 * this.h / 4);
                 ctx.fill();
                 break;
         }
@@ -2135,15 +2140,8 @@ function Node() {
         if (this.hasChildren() && depth < maxDepth) {
             var lastChild = this.children[this.children.length - 1];
 
-            if (this.name == 'Pseudomonadaceae') {
-                var x = 3;
-            }
-
-            if
-            (
-                lastChild.baseMagnitude + lastChild.magnitude <
-                this.baseMagnitude + this.magnitude
-            ) {
+            if (lastChild.baseMagnitude + lastChild.magnitude <
+                this.baseMagnitude + this.magnitude) {
                 currentMaxDepth++;
             }
 
@@ -2211,8 +2209,8 @@ function Node() {
         if
         (
             !this.getCollapse() &&
-            search.value != '' &&
-            this.name.toLowerCase().indexOf(search.value.toLowerCase()) != -1
+            search.value !== '' &&
+            this.name.toLowerCase().indexOf(search.value.toLowerCase()) !== -1
         ) {
             this.isSearchResult = true;
             this.searchResults = 1;
@@ -2241,9 +2239,9 @@ function Node() {
 
         if
         (
-            this.children.length == 1 &&
+            this.children.length === 1 &&
 //			this.magnitude > 0 &&
-            this.children[0].magnitude == this.magnitude &&
+            this.children[0].magnitude === this.magnitude &&
             (head.children.length > 1 || this.children[0].children.length)
         ) {
             this.collapse = true;
@@ -2261,8 +2259,8 @@ function Node() {
     this.setHighlightStyle = function () {
         context.lineWidth = highlightLineWidth;
 
-        if (this.hasChildren() || this != focusNode
-            || this != highlightedNode) {
+        if (this.hasChildren() || this !== focusNode
+            || this !== highlightedNode) {
             context.strokeStyle = 'black';
             context.fillStyle = "rgba(255, 255, 255, .3)";
         }
@@ -3360,12 +3358,33 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
         for (var i = 0; i < datasetNames.length; i++) {
             select += '<option>' + datasetNames[i] + '</option>';
         }
-
         select +=
             '</select></td><td style="vertical-align:top;padding:1px;">' +
-            '<input style="display:block" title="Previous dataset (Shortcut: &uarr;)" id="prevDataset" type="button" value="&uarr;" onclick="prevDataset()" disabled="true"/>' +
-            '<input title="Next dataset (Shortcut: &darr;)" id="nextDataset" type="button" value="&darr;" onclick="nextDataset()"/><br/></td>' +
-            '<td style="padding-top:1px;vertical-align:top"><input title="Switch to the last dataset that was viewed (Shortcut: TAB)" id="lastDataset" type="button" style="font:11px Ubuntu" value="last" onclick="selectLastDataset()"/></td></tr></table>';
+            '<input style="display:block" title="Previous dataset ' +
+            '(Shortcut: &uarr;)" id="prevDataset" type="button"' +
+            ' value="&uarr;" onclick="prevDataset()" disabled="true"/>' +
+            '<input title="Next dataset (Shortcut: &darr;)" ' +
+            'id="nextDataset" type="button" value="&darr;" ' +
+            'onclick="nextDataset()"/><br/></td>' +
+            '<td style="vertical-align:top;padding:1px;">' +
+            '<input style="display:block" ' +
+            'title="Switch to the prior dataset that was viewed ' +
+            '(Shortcut: TAB)" id="lastDataset" type="button" ' +
+            'style="font:11px Ubuntu" value="prior" ' +
+            'onclick="selectLastDataset()"/>' +
+            '<select id="ranks" onchange="onRankChange()" ' +
+            'title="Filter samples by taxonomic rank">' +
+            '<option value="species">species</option>' +
+            '<option value="genus">genus</option>' +
+            '<option value="family">family</option>' +
+            '<option value="order">order</option>' +
+            '<option value="class">class</option>' +
+            '<option value="phylum">phylum</option>' +
+            '<option value="kingdom">kingdom</option>' +
+            '<option value="domain">domain</option>' +
+            '<option value="ALL">ALL</option>' +
+            '<option value="NONE">NONE</option>' +
+            '</select></td></tr></table>';
 
         position = addOptionElement(position + 5, select);
 
@@ -3373,6 +3392,7 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
         datasetButtonLast = document.getElementById('lastDataset');
         datasetButtonPrev = document.getElementById('prevDataset');
         datasetButtonNext = document.getElementById('nextDataset');
+        rankDropDown = document.getElementById('ranks');
 
         position += datasetDropDown.clientHeight;
     }
@@ -4693,10 +4713,11 @@ function load() {
                 break;
 
             case 'datasets':
-                datasetNames = new Array();
-                //
-                for (j = getFirstChild(element); j; j = getNextSibling(j)) {
-                    datasetNames.push(j.firstChild.nodeValue);
+                datasetNames = [];
+                numRawSamples = element.getAttribute('rawSamples');
+                for (var j = getFirstChild(element); j; j = getNextSibling(j)) {
+                    var datasetName = j.firstChild.nodeValue;
+                    datasetNames.push(datasetName);
                 }
                 datasets = datasetNames.length;
                 break;
@@ -4766,6 +4787,7 @@ function load() {
     }
 
     addOptionElements(hueName, hueDefault);
+    selectRank(DEFAULT_RANK);
     setCallBacks();
 
     head.sort();
@@ -4994,10 +5016,10 @@ function mouseClick(e) {
                     nodesIndex = 0;
                     break;
                 case 'moreScore':
-                    if (nodesIndex > 0) nodesIndex --;
+                    if (nodesIndex > 0) nodesIndex--;
                     break;
                 case 'lessScore':
-                    if (nodesIndex < nodes.length - 1) nodesIndex ++;
+                    if (nodesIndex < nodes.length - 1) nodesIndex++;
                     break;
                 case 'lestScore':
                     nodesIndex = nodes.length - 1;
@@ -5073,14 +5095,15 @@ function nextDataset() {
     var newDataset = currentDataset;
 
     do {
-        if (newDataset == datasets - 1) {
+        if (newDataset === datasets - 1) {
             newDataset = 0;
         }
         else {
             newDataset++;
         }
     }
-    while (datasetDropDown.options[newDataset].disabled)
+    while (datasetDropDown.options[newDataset].disabled
+    || datasetDropDown.options[newDataset].hidden)
 
     selectDataset(newDataset);
 }
@@ -5182,6 +5205,10 @@ function onKeyUp(event) {
     }
 }
 
+function onRankChange() {
+    selectRank(rankDropDown.value);
+}
+
 function onSearchChange() {
     nSearchResults = 0;
     head.search();
@@ -5236,7 +5263,8 @@ function prevDataset() {
             newDataset--;
         }
     }
-    while (datasetDropDown.options[newDataset].disabled);
+    while (datasetDropDown.options[newDataset].disabled
+    || datasetDropDown.options[newDataset].hidden);
 
     selectDataset(newDataset);
 }
@@ -5465,6 +5493,28 @@ function selectNode(newNode) {
     }
 
     updateDatasetButtons();
+}
+
+function selectRank(rank) {
+    rankDropDown.value = rank;
+    currentRank = rank;
+    datasetsVisible = 0;
+    for (var i = 0; i < datasets; i++) {
+        if (currentRank === 'ALL' || i < numRawSamples
+            || (currentRank !== 'NONE'
+                && datasetNames[i].includes('_' + currentRank + '_'))) {
+            datasetDropDown.options[i].hidden = false;
+            datasetsVisible++;
+        } else {
+            datasetDropDown.options[i].hidden = true;
+        }
+    }
+    if (datasetDropDown.options[currentDataset].hidden === true) {
+        selectDataset(0);
+    } else {
+        selectDataset(currentDataset);
+    }
+    datasetDropDown.size = datasetsVisible;
 }
 
 function setFocus(node) {

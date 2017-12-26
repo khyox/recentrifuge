@@ -112,6 +112,7 @@ class KronaTree(ETree.ElementTree):
 
     def __init__(self,
                  samples: List[Sample],
+                 num_raw_samples: int = None,
                  min_score: float = 0.0,
                  max_score: float = 1.0,
                  scoring: Scoring = Scoring.SHEL,
@@ -119,6 +120,7 @@ class KronaTree(ETree.ElementTree):
         """
         Args:
             samples: List of samples in the set
+            num_raw_samples: Number of raw samples (not from cross-analysis)
             min_score: minimum expected score
             max_score: maximum expected score
         """
@@ -171,7 +173,8 @@ class KronaTree(ETree.ElementTree):
 
         # Set datasets
         self.samples = samples
-        self.datasets = ETree.SubElement(self.krona, 'datasets')
+        self.datasets = ETree.SubElement(self.krona, 'datasets',
+                                         {'rawSamples': f'{num_raw_samples}'})
         for sample in self.samples:
             self.sub(self.datasets, 'dataset', {}, sample)
 

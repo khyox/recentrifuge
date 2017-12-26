@@ -25,9 +25,10 @@ _use_pandas = True
 try:
     import pandas as pd
 except ImportError:
+    pd = None
     _use_pandas = False
 
-__version__ = '0.14.1'
+__version__ = '0.14.2'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Dec 2017'
 
@@ -253,7 +254,7 @@ def main():
         print('\033[90mLMAT subdirs to analyze:\033[0m', lmats)
 
     # HTML filename selection
-    htmlfile: Filename = args.outhtml
+    htmlfile: Filename = Filename(args.outhtml)
     if not htmlfile:
         if lmats:  # Select case for dir name or filename prefix
             if os.path.isdir(lmats[0]):  # Dir name
@@ -374,6 +375,7 @@ def main():
     print('\033[90mBuilding the taxonomy multiple tree...\033[0m', end='')
     sys.stdout.flush()
     krona: KronaTree = KronaTree(samples,
+                                 num_raw_samples=len(raw_samples),
                                  min_score=Score(
                                      min([min(scores[sample].values())
                                           for sample in samples
@@ -398,7 +400,7 @@ def main():
 
     # # 2) Generate Excel with results via pandas DataFrame
     if _use_pandas:
-        xlsx_name: Filename = Filename(htmlfile.split('.html')[0] + '.xlsx')
+        xlsx_name: Filename = htmlfile.split('.html')[0] + Filename('.xlsx')
         print(f'\033[90mGenerating Excel {str(excel).lower()}'
               f' summary ({xlsx_name})...\033[0m', end='')
         sys.stdout.flush()
