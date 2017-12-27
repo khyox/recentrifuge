@@ -127,6 +127,7 @@ var searchResults;
 var nSearchResults;
 var useHueCheckBox;
 var useHueDiv;
+var sortByScoreCheckBox;
 var datasetDropDown;
 var datasetButtonLast;
 var datasetButtonPrev;
@@ -298,6 +299,7 @@ var hueStopText;
 // multiple datasets
 //
 const DEFAULT_RANK = 'species';
+const NO_RANK = 'NONE';
 var currentRank = DEFAULT_RANK;
 var currentDataset = 0;
 var lastDataset = 0;
@@ -1094,7 +1096,10 @@ function Node() {
             for (var i = 0; i < this.children.length; i++) {
                 if (this.drawHiddenChildren(i, selected, labelMode,
                         searchHighlighted)) {
-                    i = this.children[i].hiddenEnd;
+                    var childHiddenEnd = this.children[i].hiddenEnd;
+                    if (childHiddenEnd > i) {  // Avoid infinite loop
+                        i = childHiddenEnd;
+                    }
                 }
                 else {
                     this.children[i].draw(labelMode, selected,
@@ -2882,13 +2887,13 @@ function Node() {
         var hiddenStart = -1;
         var hiddenHueNumer = 0;
         var hiddenHueDenom = 0;
-        var i = 0;
+
 
         if (!this.hide) {
             this.hiddenEnd = null;
         }
 
-        while (true) {
+        for (var i = 0; true; i++) {
             if (!this.hideAlone && !hide && (i == this.children.length
                     || !this.children[i].hide)) {
                 // reached a non-hidden child or the end; set targets for
@@ -2998,8 +3003,6 @@ function Node() {
                     false
                 );
             }
-
-            i++;
         }
 
         if (this.hue && this.magnitude) {
@@ -3263,8 +3266,11 @@ function Node() {
 */
     this.sort = function () {
         this.children.sort(function (a, b) {
-            // return b.getHue() - a.getHue()
-            return b.getMagnitude() - a.getMagnitude()
+            if (sortByScoreCheckBox.checked) {
+                return b.getHue() - a.getHue()
+            } else {
+                return b.getMagnitude() - a.getMagnitude()
+            }
         });
 
         for (var i = 0; i < this.children.length; i++) {
@@ -3275,13 +3281,13 @@ function Node() {
 
 var options;
 
-function addOptionElement(position, innerHTML, title) {
+function addOptionElement(position, innerHTML, title, padding) {
     var div = document.createElement("div");
 //	div.style.position = 'absolute';
 //	div.style.top = position + 'px';
     div.innerHTML = innerHTML;
 //	div.style.display = 'block';
-    div.style.padding = '2px';
+    div.style.padding = padding || '2px';
 
     if (title) {
         div.title = title;
@@ -3436,20 +3442,32 @@ and including collapsed wedges.'
         (
             position + 5,
             '<input type="checkbox" id="useHue" style="float:left" ' +
-            '/><div>Color by<br/>' + hueDisplayName +
-            '</div>'
+            '/><div>Color by<br/>' + hueDisplayName + '</div>'
+
         );
 
         useHueCheckBox = document.getElementById('useHue');
         useHueCheckBox.checked = hueDefault;
         useHueCheckBox.onclick = handleResize;
         useHueCheckBox.onmousedown = suppressEvent;
+
+        position = addOptionElement
+        (
+            position,
+            '<input type="checkbox" id="sortByScore"/> Use to sort',
+            'Activates sorting the taxa by this magnitude',
+            '0px 2px 2px 20px'
+        );
+
+        sortByScoreCheckBox = document.getElementById('sortByScore');
+        sortByScoreCheckBox.onclick = onSortChange;
+        sortByScoreCheckBox.onmousedown = suppressEvent;
     }
 
     position = addOptionElement
     (
         position,
-        '<input type="checkbox" id="collapse" checked="checked" />Collapse',
+        '<input type="checkbox" id="collapse" checked="checked"/>Collapse',
         'Collapse wedges that are redundant (entirely composed of another wedge)'
     );
 
@@ -3471,7 +3489,7 @@ and including collapsed wedges.'
 
     position = addOptionElement
     (
-        position + 5,
+        position,
         '<input type="button" id="snapshot" value="Snapshot" title="Render the current view as SVG (Scalable Vector Graphics), a publication-\
 quality format that can be printed and saved (see Help for browser\
     compatibility)"/> <input type="button" id="help" value="?"\
@@ -4787,7 +4805,13 @@ function load() {
     }
 
     addOptionElements(hueName, hueDefault);
-    selectRank(DEFAULT_RANK);
+    if (datasets > 1) {
+        if (datasets > numRawSamples) {  // Check for cross-analysis samples
+            selectRank(DEFAULT_RANK);
+        } else {
+            selectRank(NO_RANK);
+        }
+    }
     setCallBacks();
 
     head.sort();
@@ -5224,6 +5248,12 @@ function onSearchChange() {
     draw();
 }
 
+function onSortChange() {
+    head.sort();
+    head.setMagnitudes(0);
+    handleResize();
+}
+
 function post(url, variable, value, postWindow) {
     var form = document.createElement('form');
     var input = document.createElement('input');
@@ -5474,7 +5504,6 @@ function selectDataset(newDataset) {
 
 function selectLastDataset() {
     selectDataset(lastDataset);
-    handleResize();
 }
 
 function selectNode(newNode) {
@@ -5501,7 +5530,7 @@ function selectRank(rank) {
     datasetsVisible = 0;
     for (var i = 0; i < datasets; i++) {
         if (currentRank === 'ALL' || i < numRawSamples
-            || (currentRank !== 'NONE'
+            || (currentRank !== NO_RANK
                 && datasetNames[i].includes('_' + currentRank + '_'))) {
             datasetDropDown.options[i].hidden = false;
             datasetsVisible++;
