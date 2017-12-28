@@ -2116,16 +2116,16 @@ function Node() {
         else {
             return this;
         }
-    }
+    };
 
     this.hasChildren = function () {
-        return this.children.length && this.depth < maxAbsoluteDepth
-            && this.magnitude;
-    }
+        return this.depth < maxAbsoluteDepth && this.magnitude
+            && this.children.length;
+    };
 
     this.hasParent = function (parent) {
         if (this.parent) {
-            if (this.parent == parent) {
+            if (this.parent === parent) {
                 return true;
             }
             else {
@@ -2135,7 +2135,32 @@ function Node() {
         else {
             return false;
         }
-    }
+    };
+
+    this.isLeaf = function (_recursing) {
+        // Returns true/1 for a real leave, false/0 otherwise, counting the
+        //   non-empty leaves downstream and checking for positive counts.
+        // Param _recursing is an internal auxiliar variable not to be used
+        var leaves = 0;
+        if (this.children.length) {  // Node has children -> recurse
+            for(var i=0; i<this.children.length; i++) {
+                leaves += this.children[i].isLeaf(true);
+            }
+            if (_recursing) {
+                return leaves ? leaves : +!!this.magnitude;
+                // If this has no leaves but has magnitude, this is a leaf.
+                // NOTE: +!!num is 0 for num=0 and is 1 otherwise
+            } else {
+                return !!this.magnitude && !leaves;
+            }
+        } else {  // Node has not children
+            if (!this.magnitude) {
+                return 0;  // Fake leaf (empty)
+            }  else {
+                return 1;  // This is true leaf
+            }
+        }
+    };
 
     this.maxVisibleDepth = function (maxDepth) {
         var childInnerRadius;
@@ -3468,7 +3493,8 @@ and including collapsed wedges.'
     (
         position,
         '<input type="checkbox" id="collapse" checked="checked"/>Collapse',
-        'Collapse wedges that are redundant (entirely composed of another wedge)'
+        'Collapse wedges that are redundant (entirely composed of another ' +
+        'wedge). Also affects score navigation, restricting to lowest level.'
     );
 
     /*
@@ -5015,16 +5041,16 @@ function mouseClick(e) {
         var date = new Date();
         mouseDownTime = date.getTime();
         mouseDown = true;
-        var mySel = undefined;
+        var button = undefined;
         for (var i = 0; i < canvasButtons.length; i++) {
             if (canvasButtons[i].is_inside(e.pageX, e.pageY)) {
                 context.strokeStyle = '#CC0000';
                 context.lineWidth = 2;
-                mySel = canvasButtons[i];
-                context.strokeRect(mySel.x, mySel.y, mySel.w, mySel.h);
+                button = canvasButtons[i];
+                context.strokeRect(button.x, button.y, button.w, button.h);
             }
         }
-        if (mySel) {
+        if (button) {
             // Reorder the array of nodes only when needed
             if (nodesIndex === undefined || !nodes.reduce(
                     function (acc, current, index) {
@@ -5035,18 +5061,42 @@ function mouseClick(e) {
                     return b.getHue() - a.getHue()
                 });
             }
-            switch (mySel.name) {
+
+            function lookForLeaf(testIndex, reverse) {
+                // Look for nodes without children but with counts
+                for(;testIndex >= 0 && testIndex <= nodes.length - 1
+                     && !nodes[testIndex].isLeaf();
+                     reverse ? testIndex-- : testIndex++) {}
+                if (testIndex >= 0 && testIndex <= nodes.length - 1
+                    && nodes[testIndex].isLeaf()) nodesIndex = testIndex;
+            }
+
+            switch (button.name) {
                 case 'mostScore':
                     nodesIndex = 0;
+                    if (collapseCheckBox.checked) {
+                        lookForLeaf(nodesIndex, false);
+                    }
                     break;
                 case 'moreScore':
-                    if (nodesIndex > 0) nodesIndex--;
+                    if (collapseCheckBox.checked) {
+                        lookForLeaf(nodesIndex - 1, true);
+                    } else {
+                        if (nodesIndex > 0) nodesIndex--;
+                    }
                     break;
                 case 'lessScore':
-                    if (nodesIndex < nodes.length - 1) nodesIndex++;
+                    if (collapseCheckBox.checked) {
+                        lookForLeaf(nodesIndex + 1, false);
+                    } else {
+                        if (nodesIndex < nodes.length - 1) nodesIndex++;
+                    }
                     break;
                 case 'lestScore':
                     nodesIndex = nodes.length - 1;
+                    if (collapseCheckBox.checked) {
+                        lookForLeaf(nodesIndex, true);
+                    }
                     break;
                 default:
                     alert('ERROR! Unknown button in canvas. Ignoring!')
@@ -5055,7 +5105,7 @@ function mouseClick(e) {
             onSearchChange();
             context.strokeStyle = '#CC0000';
             context.lineWidth = 2;
-            context.strokeRect(mySel.x, mySel.y, mySel.w, mySel.h);
+            context.strokeRect(button.x, button.y, button.w, button.h);
             setTimeout(function () {
                 drawLegend()
             }, 700)
