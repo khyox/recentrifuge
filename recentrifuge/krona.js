@@ -305,7 +305,7 @@ var currentDataset = 0;
 var lastDataset = 0;
 var datasets = 1;
 var datasetNames;
-var datasetSelectSize = 20;  // Max size in rows of the dataset selection list
+const DATASET_MAX_SIZE = 20;  // Max size in rows of the dataset selection list
 var datasetsVisible = 1; // Number of datasets not hidden
 var datasetAlpha = new Tween(0, 0);
 var datasetWidths = [];
@@ -3380,7 +3380,7 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
     );
 
     if (datasets > 1) {
-        var size = datasets < datasetSelectSize ? datasets : datasetSelectSize;
+        var size = datasets < DATASET_MAX_SIZE ? datasets : DATASET_MAX_SIZE;
 
         var select =
             '<table style="border-collapse:collapse;padding:0px"><tr><td style="padding:0px">' +
@@ -5579,9 +5579,13 @@ function selectRank(rank) {
     currentRank = rank;
     datasetsVisible = 0;
     for (var i = 0; i < datasets; i++) {
-        if (currentRank === 'ALL' || i < numRawSamples
-            || (currentRank !== NO_RANK
-                && datasetNames[i].includes('_' + currentRank + '_'))) {
+        if (currentRank === 'ALL'
+            || i < numRawSamples
+            || (currentRank !== NO_RANK && (
+                datasetNames[i].startsWith('EXCLUSIVE_' + currentRank) ||
+                datasetNames[i].startsWith('SHARED_' + currentRank) ||
+                datasetNames[i].startsWith('SHARED_CONTROL_' + currentRank) ||
+                datasetNames[i].startsWith('CTRL_' + currentRank)))) {
             datasetDropDown.options[i].hidden = false;
             datasetsVisible++;
         } else {
@@ -5593,7 +5597,8 @@ function selectRank(rank) {
     } else {
         selectDataset(currentDataset);
     }
-    datasetDropDown.size = datasetsVisible;
+    datasetDropDown.size = (datasetsVisible < DATASET_MAX_SIZE ?
+        datasetsVisible : DATASET_MAX_SIZE);
 }
 
 function setFocus(node) {
