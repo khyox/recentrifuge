@@ -292,7 +292,7 @@ class Taxonomy:
         pattern2 = re.compile(
             r"""(^(?:[A-Za-z0-9/=\-\.{},]*(?: |.)){1,8})"""
         )
-        match = Counter()
+        match: Counter = Counter()
         try:
             with open(plasmid_file, 'r') as file:
                 for line in file:
