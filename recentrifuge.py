@@ -12,13 +12,13 @@ from typing import Counter, List, Dict, Set, Callable, Optional, Tuple
 
 from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
-from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, STR_CONTROL
+from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import TAXDUMP_PATH
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
-from recentrifuge.krona import KronaTree
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
+from recentrifuge.krona import KronaTree
 
 # optional package pandas (to generate Excel output)
 _use_pandas = True
@@ -28,9 +28,17 @@ except ImportError:
     pd = None
     _use_pandas = False
 
-__version__ = '0.14.4'
+__version__ = '0.15.0'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Dec 2017'
+__date__ = 'Jan 2018'
+
+
+def ansi(n):
+    """Return function that escapes text with ANSI color n."""
+    return lambda txt: f'\033[{n}m{txt}\033[0m'
+
+
+gray, red, green, yellow, blue, magenta, cyan, white = map(ansi, range(90, 98))
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -39,10 +47,10 @@ def _debug_dummy_plot(taxonomy: Taxonomy,
                       ):
     """
 
-    Generate dummy Krona plot via Krona 2.0 XML spec and finish
+    Generate dummy Krona plot via Krona 2.0 XML spec and exit
 
     """
-    print(f'\033[90mGenerating dummy Krona plot {htmlfile}...\033[0m', end='')
+    print(gray(f'Generating dummy Krona plot {htmlfile}...'), end='')
     sys.stdout.flush()
     samples: List[Sample] = [Sample('SINGLE'), ]
     krona: KronaTree = KronaTree(samples,
@@ -54,9 +62,8 @@ def _debug_dummy_plot(taxonomy: Taxonomy,
     polytree.grow(taxonomy=taxonomy)
     polytree.toxml(taxonomy=taxonomy, krona=krona)
     krona.tohtml(htmlfile, pretty=True)
-    print('\033[92m OK! \033[0m')
-    # End execution
-    quit()
+    print(green('OK!'))
+    exit(0)
 
 
 def main():
@@ -68,12 +75,20 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
+        '-n', '--nodespath',
+        action='store',
+        metavar='PATH',
+        default=TAXDUMP_PATH,
+        help=('path for the nodes information files (nodes.dmp and names.dmp'
+              ' from NCBI)')
+    )
+    parser.add_argument(
         '-V', '--version',
         action='version',
         version=f'%(prog)s release {__version__} ({__date__})'
     )
-    filein = parser.add_mutually_exclusive_group(required=True)
-    filein.add_argument(
+    parser_filein = parser.add_mutually_exclusive_group(required=True)
+    parser_filein.add_argument(
         '-f', '--file',
         action='append',
         metavar='FILE',
@@ -81,14 +96,14 @@ def main():
               'every .out file inside will be taken as a different sample. '
               'Multiple -f is available to include several samples.')
     )
-    filein.add_argument(
+    parser_filein.add_argument(
         '-r', '--report',
         action='append',
         metavar='FILE',
         help=('Centrifuge/Kraken report files '
               '(multiple -r is available to include several samples)')
     )
-    filein.add_argument(
+    parser_filein.add_argument(
         '-l', '--lmat',
         action='append',
         metavar='FILE',
@@ -98,91 +113,24 @@ def main():
               'taken as a sample and scanned looking for LMAT output files. '
               'Multiple -l is available to include several samples.')
     )
-    parser.add_argument(
-        '-g', '--debug',
-        action='store_true',
-        help='increase output verbosity and perform additional checks'
-    )
-    parser.add_argument(
-        '-n', '--nodespath',
-        action='store',
-        metavar='PATH',
-        default=TAXDUMP_PATH,
-        help=('path for the nodes information files (nodes.dmp and names.dmp'
-              ' from NCBI)')
-    )
-    parser.add_argument(
-        '-m', '--mintaxa',
-        action='store',
-        metavar='INT',
-        default=DEFMINTAXA,
-        help='minimum taxa to avoid collapsing one level to the parent one'
-    )
-    parser.add_argument(
-        '-y', '--minscore',
-        action='store',
-        metavar='NUMBER',
-        type=float,
-        default=None,
-        help=('minimum score/confidence of the classification of a read'
-              'to pass the quality filter. All pass by default.')
-    )
-    parser.add_argument(
-        '-k', '--nokollapse',
-        action='store_true',
-        help='show the "cellular organisms" taxon'
-    )
-    parser.add_argument(
-        '-o', '--outhtml',
-        action='store',
-        metavar='FILE',
-        help='HTML output file (if not given the filename will be '
-             'inferred from input files)'
-    )
-    parser.add_argument(
-        '-i', '--include',
-        action='append',
-        metavar='TAXID',
-        type=TaxId,
-        default=[],
-        help=('NCBI taxid code to include a taxon and all underneath '
-              '(multiple -i is available to include several taxid). '
-              'By default all the taxa is considered for inclusion.')
-    )
-    parser.add_argument(
-        '-x', '--exclude',
-        action='append',
-        metavar='TAXID',
-        type=TaxId,
-        default=[],
-        help=('NCBI taxid code to exclude a taxon and all underneath '
-              '(multiple -x is available to exclude several taxid)')
-    )
-    parser.add_argument(
-        '-s', '--scoring',
-        action='store',
-        metavar='SCORING',
-        choices=[str(scoring) for scoring in Scoring],
-        default=str(Scoring(0)),
-        help=(f'type of scoring to be applied, and can be one of '
-              f'{[str(scoring) for scoring in Scoring]}')
-    )
-    parser.add_argument(
-        '--sequential',
-        action='store_true',
-        help='deactivate parallel processing'
-    )
-    parser.add_argument(
+    parser_cross = parser.add_mutually_exclusive_group(required=False)
+    parser_cross.add_argument(
         '-a', '--avoidcross',
         action='store_true',
         help='avoid cross analysis'
     )
-    parser.add_argument(
-        '-c', '--control',
-        action='store_true',
-        help='take the first sample as negative control'
+    parser_cross.add_argument(
+        '-c', '--controls',
+        action='store',
+        metavar='CONTROLS_NUMBER',
+        type=int,
+        default=0,
+        help=('this number of first samples will be treated as negative '
+              'controls; default is no controls')
     )
-    parser.add_argument(
+    parser_output = parser.add_argument_group('output',
+                                              'Related to the output files')
+    parser_output.add_argument(
         '-e', '--excel',
         action='store',
         metavar='OUTPUT_TYPE',
@@ -191,10 +139,82 @@ def main():
         help=(f'type of scoring to be applied, and can be one of '
               f'{[str(excel) for excel in Excel]}')
     )
-    parser.add_argument(
+    parser_output.add_argument(
+        '-o', '--outhtml',
+        action='store',
+        metavar='FILE',
+        help='HTML output file (if not given the filename will be '
+             'inferred from input files)'
+    )
+    parser_mode = parser.add_argument_group('mode',
+                                            'Specific modes of running')
+    parser_mode.add_argument(
         '--dummy',  # hidden flag: just generate a dummy plot for JS debugging
         action='store_true',
         help=argparse.SUPPRESS
+    )
+    parser_mode.add_argument(
+        '-g', '--debug',
+        action='store_true',
+        help='increase output verbosity and perform additional checks'
+    )
+    parser_mode.add_argument(
+        '-k', '--nokollapse',
+        action='store_true',
+        help='show the "cellular organisms" taxon'
+    )
+    parser_mode.add_argument(
+        '--sequential',
+        action='store_true',
+        help='deactivate parallel processing'
+    )
+    parser_tuning = parser.add_argument_group(
+        'tuning',
+        'Fine tuning of algorithm parameters')
+    parser_tuning.add_argument(
+        '-i', '--include',
+        action='append',
+        metavar='TAXID',
+        type=TaxId,
+        default=[],
+        help=('NCBI taxid code to include a taxon and all underneath '
+              '(multiple -i is available to include several taxid); '
+              'by default all the taxa is considered for inclusion')
+    )
+    parser_tuning.add_argument(
+        '-m', '--mintaxa',
+        action='store',
+        metavar='INT',
+        type=int,
+        default=DEFMINTAXA,
+        help='minimum taxa to avoid collapsing one level to the parent one'
+    )
+    parser_tuning.add_argument(
+        '-s', '--scoring',
+        action='store',
+        metavar='SCORING',
+        choices=[str(scoring) for scoring in Scoring],
+        default=str(Scoring(0)),
+        help=(f'type of scoring to be applied, and can be one of '
+              f'{[str(scoring) for scoring in Scoring]}')
+    )
+    parser_tuning.add_argument(
+        '-x', '--exclude',
+        action='append',
+        metavar='TAXID',
+        type=TaxId,
+        default=[],
+        help=('NCBI taxid code to exclude a taxon and all underneath '
+              '(multiple -x is available to exclude several taxid)')
+    )
+    parser_tuning.add_argument(
+        '-y', '--minscore',
+        action='store',
+        metavar='NUMBER',
+        type=float,
+        default=None,
+        help=('minimum score/confidence of the classification of a read '
+              'to pass the quality filter; all pass by default')
     )
 
     # Parse arguments
@@ -214,7 +234,7 @@ def main():
     scoring: Scoring = Scoring[args.scoring]
     sequential = args.sequential
     avoidcross = args.avoidcross
-    control = args.control
+    controls = int(args.controls)
     excel: Excel = Excel[args.excel]
 
     # Program header
@@ -223,7 +243,7 @@ def main():
 
     # Check debugging mode
     if debug:
-        print('\033[90mINFO: Debugging mode activated\033[0m\n')
+        print(gray('INFO: Debugging mode activated\n'))
 
     # Centrifuge output processing specific stuff
     if outputs and len(outputs) == 1 and os.path.isdir(outputs[0]):
@@ -237,7 +257,7 @@ def main():
                     else:  # Avoid sample names starting with just the dot
                         outputs.append(f.name)
         outputs.sort()
-        print('\033[90mCentrifuge outputs to analyze:\033[0m', outputs)
+        print(gray('Centrifuge outputs to analyze:'), outputs)
 
     # LMAT processing specific stuff
     plasmidfile: Filename = None
@@ -251,7 +271,7 @@ def main():
                         if entry.name != os.path.basename(TAXDUMP_PATH):
                             lmats.append(entry.name)
             lmats.sort()
-        print('\033[90mLMAT subdirs to analyze:\033[0m', lmats)
+        print(gray('LMAT subdirs to analyze:'), lmats)
 
     # HTML filename selection
     htmlfile: Filename = Filename(args.outhtml)
@@ -304,16 +324,22 @@ def main():
         process = process_output
         reports = outputs
 
-    # Info about the control sample
-    if control:
-        print(f'\033[90mControl sample for subtractions: '
-              f'\033[94m{reports[0]}\033[0m\n')
+    # Info about the controls samples
+    if controls:
+        if controls > len(reports):
+            print(red(' ERROR!'), gray('More controls than samples'))
+            exit(1)
+        print(gray('Control(s) sample(s) for subtractions:'))
+        for i in range(controls):
+            print(blue(f'\t{reports[i]}'))
 
     # # # The big stuff (done in parallel)
     # # 1) Read samples
-    print('\033[90mPlease, wait, processing files in parallel...\033[0m\n')
+    print(gray('\nPlease, wait, processing files in parallel...\n'))
     kwargs = {'taxonomy': ncbi, 'mintaxa': mintaxa, 'minscore': minscore,
-              'debug': debug, 'scoring': scoring, 'lmat': bool(lmats)}
+              'debug': debug, 'scoring': scoring, 'lmat': bool(lmats),
+              'controls': controls
+              }
     # Enable parallelization with 'spawn' under known platforms
     if platform.system() and not sequential:  # Only for known platforms
         mpctx = mp.get_context('spawn')  # Important for OSX&Win
@@ -340,11 +366,9 @@ def main():
     # # 2) Cross analysis of samples in parallel by taxlevel
     # Avoid if just a single report file of explicitly stated by flag
     if len(reports) > 1 and not avoidcross:
-        print('\033[90mPlease, wait. ' +
-              'Performing cross analysis in parallel...\033[0m\n')
+        print(gray('Please, wait. Performing cross analysis in parallel...\n'))
         kwargs.update({'trees': trees, 'taxids': taxids,
-                       'abundances': abundances, 'files': reports,
-                       'control': control})
+                       'abundances': abundances, 'files': reports})
         if platform.system() and not sequential:  # Only for known platforms
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(), len(
@@ -372,7 +396,7 @@ def main():
 
     # # # Final result generation is done in sequential mode
     # # 1) Generate Krona plot with all the results via Krona 2.0 XML spec
-    print('\033[90mBuilding the taxonomy multiple tree...\033[0m', end='')
+    print(gray('Building the taxonomy multiple tree...'), end='')
     sys.stdout.flush()
     krona: KronaTree = KronaTree(samples,
                                  num_raw_samples=len(raw_samples),
@@ -391,18 +415,18 @@ def main():
                   abundances=abundances,
                   accs=accs,
                   scores=scores)
-    print('\033[92m OK! \033[0m')
-    print(f'\033[90mGenerating final plot ({htmlfile})...\033[0m', end='')
+    print(green('OK!'))
+    print(gray(f'Generating final plot ({htmlfile})...'), end='')
     sys.stdout.flush()
     polytree.toxml(taxonomy=ncbi, krona=krona)
     krona.tohtml(htmlfile, pretty=False)
-    print('\033[92m OK! \033[0m')
+    print(green('OK!'))
 
     # # 2) Generate Excel with results via pandas DataFrame
     if _use_pandas:
         xlsx_name: Filename = htmlfile.split('.html')[0] + Filename('.xlsx')
-        print(f'\033[90mGenerating Excel {str(excel).lower()}'
-              f' summary ({xlsx_name})...\033[0m', end='')
+        print(gray(f'Generating Excel {str(excel).lower()}'
+                   f' summary ({xlsx_name})...'), end='')
         sys.stdout.flush()
         xlsxwriter = pd.ExcelWriter(xlsx_name)
         list_rows: List = []
@@ -425,7 +449,7 @@ def main():
             target_ranks: List = [Rank.NO_RANK]
             if control:
                 target_ranks = [Rank.SPECIES, Rank.GENUS,  # Ranks of interest
-                                Rank.FAMILY, Rank.ORDER]   # for cmplxcruncher
+                                Rank.FAMILY, Rank.ORDER]  # for cmplxcruncher
             for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
                 indexes: List[int]
                 sheet_name: str
@@ -449,10 +473,9 @@ def main():
                 df.index.names = ['TaxId']
                 df.to_excel(xlsxwriter, sheet_name=sheet_name)
         else:
-            raise Exception(
-                f'\n\033[91mERROR!\033[0m Unknown Excel option "{excel}"')
+            raise Exception(red('\nERROR!'), f'Unknown Excel option "{excel}"')
         xlsxwriter.save()
-        print('\033[92m OK! \033[0m')
+        print(green('OK!'))
 
 
 if __name__ == '__main__':

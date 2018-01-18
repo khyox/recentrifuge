@@ -1004,7 +1004,7 @@ def process_rank(*args,
     trees: Dict[Sample, TaxTree] = kwargs['trees']
     taxids: Dict[Sample, TaxLevels] = kwargs['taxids']
     files: List[Sample] = kwargs['files']
-    control: bool = kwargs['control']
+    controls: int = kwargs['controls']
 
     # Declare/define variables
     samples: List[Sample] = []
@@ -1080,12 +1080,15 @@ def process_rank(*args,
         if i == 0:  # 1st iteration: Initialize shared abundance and score
             shared_abundance.update(sub_shared_abundance)
             shared_score.update(sub_shared_score)
-        elif i == 1:  # 2nd iteration: Initialize shared-control counters
+        elif i < controls:  # Just update shared abundance and score
+            shared_abundance &= sub_shared_abundance
+            shared_score &= sub_shared_score
+        elif i == controls:  # Initialize shared-control counters
             shared_abundance &= sub_shared_abundance
             shared_score &= sub_shared_score
             shared_ctrl_abundance.update(sub_shared_abundance)
             shared_ctrl_score.update(sub_shared_score)
-        else:  # Accumulate shared abundance and score
+        else:  # Both: Accumulate shared abundance and score
             shared_abundance &= sub_shared_abundance
             shared_score &= sub_shared_score
             shared_ctrl_abundance &= sub_shared_abundance
@@ -1124,11 +1127,13 @@ def process_rank(*args,
                      f'\033[93m VOID\033[90m sample.\033[0m \n')
 
     # Control sample subtraction
-    if control:
-        # Get taxids at this rank that are present in the ctrl sample
-        exclude = set(taxids[files[0]][rank])
+    if controls:
+        # Get taxids at this rank that are present in the control samples
+        exclude = set()
+        for i in range(controls):
+            exclude.update(taxids[files[i]][rank])
         exclude.update(excluding)  # Add explicit excluding taxa if any
-        for file in files[1::]:
+        for file in files[controls::]:
             output.write(f'  \033[90mCtrl: From \033[0m{file}\033[90m '
                          f'excluding {len(exclude)} ctrl taxa. '
                          f'Generating sample...\033[0m')
@@ -1170,8 +1175,8 @@ def process_rank(*args,
         if shared_ctrl_abundance:
             # Normalize scaled scores by total abundance
             shared_ctrl_score /= (+shared_ctrl_abundance)
-            # Get averaged abundance by number of samples minus control sample
-            shared_ctrl_abundance //= (len(files) - 1)
+            # Get averaged abundance by number of samples minus ctrl samples
+            shared_ctrl_abundance //= (len(files) - controls)
             tree = TaxTree()
             tree.grow(taxonomy=taxonomy,
                       abundances=shared_ctrl_abundance,
