@@ -55,3 +55,32 @@ class Excel(Enum):
 
     def __str__(self):
         return f'{str(self.name)}'
+
+
+def ansi(num: int):
+    """Return function that escapes text with ANSI color n."""
+    return lambda txt: f'\033[{num}m{txt}\033[0m'
+
+
+# pylint: disable=invalid-name
+gray, red, green, yellow, blue, magenta, cyan, white = map(ansi, range(90, 98))
+# pylint: enable=invalid-name
+
+
+def nucleotides(num: int) -> str:
+    """Format nucleotides number with SI prefixes and units"""
+    value: float
+    unit: str
+    if num > 1e+12:
+        value = num / 1e+12
+        unit = 'Tnt'
+    elif num > 1e+9:
+        value = num / 1e+9
+        unit = 'Gnt'
+    elif num > 1e+6:
+        value = num / 1e+6
+        unit = 'Mnt'
+    elif num > 1e+6:
+        value = num / 1e+3
+        unit = 'knt'
+    return(f'{value:.2f} {unit}')

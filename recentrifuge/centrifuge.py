@@ -5,16 +5,17 @@ Functions directly related with Centrifuge (or Kraken).
 
 import collections as col
 import io
-from math import log10
 import sys
+from math import log10
 from statistics import mean
 from typing import Tuple, Counter, Set, Dict, List
 
 from Bio import SeqIO
 
-from recentrifuge.config import Filename, TaxId, Score, UNCLASSIFIED, Scoring
-from recentrifuge.core import Rank, Taxonomy, TaxTree, Ranks, TaxLevels, Sample
 from recentrifuge.LMAT import read_lmat_output
+from recentrifuge.config import Filename, TaxId, Score, UNCLASSIFIED, Scoring
+from recentrifuge.config import nucleotides, gray, red, green
+from recentrifuge.core import Rank, Taxonomy, TaxTree, Ranks, TaxLevels, Sample
 
 
 def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
@@ -132,9 +133,11 @@ def read_output(output_file: Filename,
     """
     output: io.StringIO = io.StringIO(newline='')
     all_scores: Dict[TaxId, List[Score]] = {}
-    all_length: Dict[TaxId, List[Score]] = {}
-    num_read = 0
-    output.write(f'\033[90mLoading output file {output_file}...\033[0m')
+    all_length: Dict[TaxId, List[int]] = {}
+    num_read: int = 0
+    nt_read: int = 0
+    num_uncl: int = 0
+    output.write(gray(f'Loading output file {output_file}... '))
     try:
         with open(output_file, 'r') as file:
             file.readline()  # discard header
@@ -145,13 +148,17 @@ def read_output(output_file: Filename,
                 try:
                     # From Centrifuge score get "single hit equivalent length"
                     shel = Score(float(_score) ** 0.5 + 15)
-                    length = Score(float(_length))
+                    length = int(_length)
                 except ValueError:
-                    print(f'\033[91mError\033[0m parsing score ({_score}) '
-                          f'or query length ({_length}) for taxid {_tid} '
+                    print(red('Error'), f'parsing score ({_score}) for query',
+                          f'length ({_length}) for taxid {_tid}',
                           f'in {output_file}. Ignoring line!')
                     continue
-                if minscore is not None:
+                nt_read += length
+                if tid == UNCLASSIFIED:  # Just count unclassified reads
+                    num_uncl += 1
+                    continue
+                elif minscore is not None:
                     if shel < minscore:  # Ignore read if low confidence
                         continue
                 try:
@@ -163,17 +170,19 @@ def read_output(output_file: Filename,
                 except KeyError:
                     all_length[tid] = [length, ]
     except FileNotFoundError:
-        raise Exception(f'\n\033[91mERROR!\033[0m Cannot read "{output_file}"')
+        raise Exception(red('\nERROR!'), f'Cannot read "{output_file}"')
     abundances: Counter[TaxId] = Counter({tid: len(all_scores[tid])
                                           for tid in all_scores})
-    output.write('\033[92m OK! \033[0m\n')
+    output.write(green('OK!\n'))
     # Basic output statistics
+    num_clas: int = num_read - num_uncl
     num_seqs: int = sum([len(scores) for scores in all_scores.values()])
-    num_uncl: int = len(all_scores.pop(UNCLASSIFIED, []))
-    output.write(f'  \033[90mSeqs read: \033[0m{num_read:_d} \033[90m\t'
-                 f'(\033[0m{1-(num_seqs/num_read):.1%}\033[90m filtered)\n')
-    output.write(f'  \033[90mSeqs passed: \033[0m{num_seqs:_d} \033[90m\t'
-                 f'(\033[0m{num_uncl/num_seqs:.1%}\033[90m unclassified)\n')
+    output.write(gray('  Seqs read: ') + f'{num_read:_d}\t' + gray('[') +
+                 nucleotides(nt_read) + gray(']\n'))
+    output.write(gray('  Seqs clas: ') + f'{num_clas:_d}\t' + gray('(') +
+                 f'{num_uncl/num_read:.2%}' + gray(' unclassified)\n'))
+    output.write(gray('  Seqs pass: ') + f'{num_seqs:_d}\t' + gray('(') +
+                 f'{1-(num_seqs/num_clas):.2%}' + gray(' filtered)\n'))
     max_score = max([max(s) for s in all_scores.values()])
     min_score = min([min(s) for s in all_scores.values()])
     mean_score = mean([mean(s) for s in all_scores.values()])
@@ -200,7 +209,7 @@ def read_output(output_file: Filename,
                                       for tid in all_scores}
         lengths: Dict[TaxId, Score] = {tid: Score(mean(all_length[tid]))
                                        for tid in all_length}
-        out_scores = {tid: Score(scores[tid]/lengths[tid]*100)
+        out_scores = {tid: Score(scores[tid] / lengths[tid] * 100)
                       for tid in scores}
     else:
         raise Exception(f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
@@ -218,15 +227,21 @@ def process_output(*args,
     """
     # Recover input and parameters
     fileout: Filename = args[0]
+    is_ctrl: bool = args[1]
     taxonomy: Taxonomy = kwargs['taxonomy']
-    mintaxa: int = kwargs['mintaxa']
-    minscore: Score = kwargs['minscore']
+    mintaxa: int = kwargs['ctrlmintaxa'] if is_ctrl else kwargs['mintaxa']
+    minscore: Score = kwargs['ctrlminscore'] if is_ctrl else kwargs['minscore']
     including: Set[TaxId] = taxonomy.including
     excluding: Set[TaxId] = taxonomy.excluding
     debug: bool = kwargs['debug']
     scoring: Scoring = kwargs['scoring']
     lmat: bool = kwargs['lmat']
     output: io.StringIO = io.StringIO(newline='')
+
+    def vwrite(*a, **k):
+        """Print only if verbose/debug mode is enabled"""
+        if kwargs['debug']:
+            output.write(''.join(*a, **k))
 
     sample: Sample = Sample(fileout)
 
@@ -242,13 +257,13 @@ def process_output(*args,
     output.write(log)
 
     # Build taxonomy tree
-    output.write('  \033[90mBuilding taxonomy tree...\033[0m')
+    vwrite(gray('  Building taxonomy tree...'))
     tree = TaxTree()
     tree.grow(taxonomy=taxonomy,
               abundances=abundances,
               scores=scores)  # Grow tax tree from root node
     tree.shape()
-    output.write('\033[92m OK! \033[0m\n')
+    vwrite(green('OK!'), '\n')
 
     if debug:  # Check the lost of taxids (plasmids typically)
         output.write('  \033[90mChecking taxid loss...\033[0m')
@@ -269,15 +284,15 @@ def process_output(*args,
             output.write(f'\033[93mWARNING!\033[0m Lost {lost} taxids'
                          f' ({lost/len(abundances):.2%} of total)\n')
         else:
-            output.write('\033[92m OK! \033[0m\n')
+            output.write(green('OK!\n'))
 
     # Prune the tree
-    output.write('  \033[90mPruning taxonomy tree...\033[0m')
+    vwrite(gray('  Pruning taxonomy tree...'))
     tree.prune(min_taxa=mintaxa, debug=debug)
-    output.write('\033[92m OK! \033[0m\n')
+    vwrite(green('OK!'), '\n')
 
     # Get the taxa with their abundances, scores and taxonomical levels
-    output.write('  \033[90mFiltering taxa...\033[0m')
+    vwrite(gray('  Filtering taxa...'))
     new_abund: Counter[TaxId] = col.Counter()
     new_accs: Counter[TaxId] = col.Counter()
     new_scores: Dict[TaxId, Score] = {}
@@ -299,7 +314,7 @@ def process_output(*args,
         new_scores = {}  # Reset score
         new_tree.get_taxa(new_abund, new_accs, new_scores)  # Get new values
     taxlevels: TaxLevels = Rank.ranks_to_taxlevels(ranks)
-    output.write('\033[92m OK! \033[0m\n')
+    vwrite(green('OK!'), '\n')
     print(output.getvalue())
     sys.stdout.flush()
     # Return

@@ -15,6 +15,7 @@ from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, STR_CONTROL
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import TAXDUMP_PATH
+from recentrifuge.config import gray, red, green, yellow, blue
 from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
 from recentrifuge.core import process_rank
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
@@ -28,19 +29,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.15.1'
+__version__ = '0.15.3'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jan 2018'
-
-
-def ansi(num: int):
-    """Return function that escapes text with ANSI color n."""
-    return lambda txt: f'\033[{num}m{txt}\033[0m'
-
-
-# pylint: disable=invalid-name
-gray, red, green, yellow, blue, magenta, cyan, white = map(ansi, range(90, 98))
-# pylint: enable=invalid-name
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -203,6 +194,15 @@ def main():
                   f'{[str(scoring) for scoring in Scoring]}')
         )
         parser_tuning.add_argument(
+            '-w', '--ctrlmintaxa',
+            action='store',
+            metavar='INT',
+            type=int,
+            default=DEFMINTAXA,
+            help='minimum taxa to avoid collapsing one level to the parent one'
+                 ' in control samples; it defaults to "mintaxa"'
+        )
+        parser_tuning.add_argument(
             '-x', '--exclude',
             action='append',
             metavar='TAXID',
@@ -220,6 +220,16 @@ def main():
             help=('minimum score/confidence of the classification of a read '
                   'to pass the quality filter; all pass by default')
         )
+        parser_tuning.add_argument(
+            '-z', '--ctrlminscore',
+            action='store',
+            metavar='NUMBER',
+            type=lambda txt: Score(float(txt)),
+            default=None,
+            help=('minimum score/confidence of the classification of a read '
+                  'in control samples to pass the quality filter; if defaults '
+                  'to "minscore"')
+        )
         return parser
 
     def check_debug():
@@ -229,9 +239,11 @@ def main():
 
     def select_inputs():
         """Choose right input and output files"""
-        nonlocal outputs, lmats, plasmidfile, reports, process, scoring
-        # Centrifuge output processing specific stuff
-        if outputs and len(outputs) == 1 and os.path.isdir(outputs[0]):
+        nonlocal process, scoring, reports
+
+        def select_centrifuge_inputs():
+            """Centrifuge output files processing specific stuff"""
+            nonlocal outputs
             dir_name = outputs[0]
             outputs = []
             with os.scandir(dir_name) as dir_entry:
@@ -245,8 +257,9 @@ def main():
             outputs.sort()
             print(gray('Centrifuge outputs to analyze:'), outputs)
 
-        # LMAT processing specific stuff
-        if lmats:
+        def select_lmat_inputs():
+            """"LMAT files processing specific stuff"""
+            nonlocal plasmidfile, lmats
             plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))
             if lmats == ['.']:
                 lmats = []
@@ -257,6 +270,11 @@ def main():
                                 lmats.append(entry.name)
                 lmats.sort()
             print(gray('LMAT subdirs to analyze:'), lmats)
+
+        if outputs and len(outputs) == 1 and os.path.isdir(outputs[0]):
+            select_centrifuge_inputs()
+        if lmats:
+            select_lmat_inputs()
 
         # Select method and arguments depending on type of files to analyze
         if lmats:
@@ -309,9 +327,10 @@ def main():
                                           len(reports))) as pool:
                 async_results = [pool.apply_async(
                     process,
-                    args=[file],
+                    args=[reports[num],  # file name
+                          True if num < args.controls else False],  # is ctrl?
                     kwds=kwargs
-                ) for file in reports]
+                ) for num in range(len(reports))]
                 for file, (sample, trees[sample],
                            taxids[sample], abundances[sample],
                            accs[sample], scores[sample]
@@ -491,7 +510,14 @@ def main():
     raw_samples: List[Sample] = []
 
     # Define dictionary of parameters for methods to be called
-    kwargs = {'controls': args.controls, 'debug': args.debug,
+    kwargs = {'controls': args.controls,
+              'ctrlminscore': (
+                  args.ctrlminscore
+                  if args.ctrlminscore is not None else args.minscore),
+              'ctrlmintaxa': (
+                  args.ctrlmintaxa
+                  if args.ctrlmintaxa is not None else args.mintaxa),
+              'debug': args.debug,
               'lmat': bool(lmats), 'minscore': args.minscore,
               'mintaxa': args.mintaxa, 'scoring': scoring, 'taxonomy': ncbi,
               }
