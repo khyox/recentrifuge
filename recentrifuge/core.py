@@ -1,988 +1,24 @@
 """
-Recentrifuge core classes and functions.
+Recentrifuge core functions.
 
 """
-# pylint: disable=not-an-iterable, bad-reversed-sequence, E0203
 import collections as col
 import copy
 import csv
 import io
-import re
 import subprocess
 import sys
-from enum import Enum
-from typing import List, Iterator, Set, Counter, Iterable, Tuple, Union, Dict
-from typing import NewType
+from typing import List, Set, Counter, Tuple, Union, Dict
 
-from recentrifuge.config import Filename, Sample, TaxId, Children, Names
+from recentrifuge.config import Filename, Sample, TaxId
 from recentrifuge.config import Parents, Score
-from recentrifuge.config import ROOT, HTML_SUFFIX, CELLULAR_ORGANISMS, NO_SCORE
+from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_SHARED_CONTROL
-from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
-from recentrifuge.krona import KronaTree, Elm
-
-# Type annotations
-# pylint: disable=invalid-name
-# Ranks and Levels are devised to be one the inverse of the other
-Ranks = NewType('Ranks', Dict[TaxId, 'Rank'])  # Rank of each TaxId
-TaxLevels = NewType('TaxLevels', Dict['Rank', Set[TaxId]])  # TaxIds for rank
-
-
-# pylint: enable=invalid-name
-
-class classproperty(object):  # pylint: disable=invalid-name
-    """Decorator to emulate a class property."""
-
-    # pylint: disable=too-few-public-methods
-    def __init__(self, fget):
-        self.fget = fget
-
-    def __get__(self, owner_self, owner_cls):
-        return self.fget(owner_cls)
-
-
-class UnsupportedTaxLevelError(Exception):
-    """Raised if a unsupported tax level is found."""
-
-
-class Rank(Enum):
-    """Enumeration with ranks (taxonomical levels).
-
-    The members are initialized using a customized __new__ method so
-    that there are 3 different mechanisms to assign value to members:
-      1) Empty will imply decrease autonumbering starting at 99.
-      2) Direct assignation of an integer value is allowed.
-      3) A string with the name of a previously listed member will
-        assign that same value to the current member.
-    With this, different comparisons between ranks will be available.
-
-    """
-    # pylint: disable=invalid-name
-    DOMAIN = ()
-    D = 'DOMAIN'
-    SUPERKINGDOM = ()
-    KINGDOM = ()
-    K = 'KINGDOM'
-    SUBKINGDOM = ()
-    SUPERPHYLUM = ()
-    PHYLUM = ()
-    P = 'PHYLUM'
-    SUBPHYLUM = ()
-    SUPERCLASS = ()
-    CLASS = ()
-    C = 'CLASS'
-    SUBCLASS = ()
-    INFRACLASS = ()
-    COHORT = ()
-    SUPERORDER = ()
-    ORDER = ()
-    O = 'ORDER'
-    SUBORDER = ()
-    INFRAORDER = ()
-    PARVORDER = ()
-    SUPERFAMILY = ()
-    FAMILY = ()
-    F = 'FAMILY'
-    SUBFAMILY = ()
-    TRIBE = ()
-    SUBTRIBE = ()
-    GENUS = ()
-    G = 'GENUS'
-    SUBGENUS = ()
-    SPECIES_GROUP = ()
-    SPECIES_SUBGROUP = ()
-    SPECIES = ()
-    S = 'SPECIES'
-    SUBSPECIES = ()
-    VARIETAS = ()
-    FORMA = ()
-    UNCLASSIFIED = 0
-    U = 'UNCLASSIFIED'
-    NO_RANK = -1
-
-    # pylint: enable=invalid-name
-
-    @classproperty
-    def selected_ranks(cls):  # pylint: disable=no-self-argument
-        """Ranks selected for deep analysis and comparisons"""
-        _selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O,
-                                             cls.C, cls.P, cls.K, cls.D]
-        return _selected_taxlevels
-
-    @classmethod
-    def centrifuge(cls, tax_level: str) -> 'Rank':
-        """Transforms Centrifuge codes for taxonomical levels"""
-        taxonomic_level: Rank
-        if tax_level == '-':
-            taxonomic_level = cls.NO_RANK
-        else:
-            try:
-                taxonomic_level = cls[tax_level]
-            except KeyError:
-                raise UnsupportedTaxLevelError(
-                    f'Unknown tax level {tax_level}')
-        return taxonomic_level
-
-    @classmethod
-    def ranks_to_taxlevels(cls, ranks: Ranks) -> TaxLevels:
-        """Generate TaxLevels (taxids of ranks) from Ranks (rank of taxids)."""
-        return TaxLevels({rank: {taxid for taxid in ranks if
-                                 ranks[taxid] is rank} for rank in Rank})
-
-    @property
-    def ranks_from_specific(self) -> Iterator['Rank']:
-        """Generator returning selected taxlevels from specific to general."""
-        for rank in Rank.selected_ranks:
-            yield rank
-            if rank is self:
-                break
-
-    @property
-    def ranks_from_general(self) -> Iterator['Rank']:
-        """Generator returning selected taxlevels from general to specific."""
-        for rank in reversed(Rank.selected_ranks):
-            yield rank
-            if rank is self:
-                break
-
-    def __new__(cls, init=None):
-        _value: int
-        if isinstance(init, int):
-            _value = init
-        elif isinstance(init, str):
-            _value = cls[init].value
-        else:
-            _value = 99 - len(cls.__members__)  # Give decreasing values < 100
-        obj = object.__new__(cls)
-        obj._value_ = _value  # pylint: disable=protected-access
-        return obj
-
-    def __repr__(self):
-        return '<%s.%s>' % (self.__class__.__name__, self.name)
-
-    def __str__(self):
-        return f'{self.name}'
-
-    def __lt__(self, other):
-        if self.__class__ is other.__class__:
-            if self.value > 0 and other.value > 0:
-                return self.value < other.value
-            return False
-        return NotImplemented
-
-    def __le__(self, other):
-        if self.__class__ is other.__class__:
-            if self.value > 0 and other.value > 0:
-                return self.value <= other.value
-            return False
-        return NotImplemented
-
-    def __gt__(self, other):
-        if self.__class__ is other.__class__:
-            if self.value > 0 and other.value > 0:
-                return self.value > other.value
-            return False
-        return NotImplemented
-
-    def __ge__(self, other):
-        if self.__class__ is other.__class__:
-            if self.value > 0 and other.value > 0:
-                return self.value >= other.value
-            return False
-        return NotImplemented
-
-
-class Taxonomy:
-    """Taxonomy related data and methods."""
-
-    def __init__(self,
-                 nodes_file: Filename,
-                 names_file: Filename,
-                 plasmid_file: Filename,
-                 collapse: bool = True,
-                 excluding: Set[TaxId] = None,
-                 including: Set[TaxId] = None,
-                 debug: bool = False,
-                 ) -> None:
-
-        # Type data declaration and initialization
-        self.parents: Parents = Parents({})
-        self.ranks: Ranks = Ranks({})
-        self.names: Names = Names({})
-        self.children: Children = Children({})
-        self.collapse: bool = collapse
-        self.debug: bool = debug
-
-        # Initialization methods
-        self.read_nodes(nodes_file)
-        self.read_names(names_file)
-        if plasmid_file:
-            self.read_plasmids(plasmid_file)
-        self.build_children()
-
-        # Show explicitly included and excluded taxa
-        if including:
-            print('List of taxa (and below) to be explicitly included:')
-            print('\t\tTaxId\tScientific Name')
-            for taxid in including:
-                print(f'\t\t{taxid}\t{self.names[taxid]}')
-        else:
-            # To excluding to operate not on single taxa but on subtrees
-            including = {ROOT}
-        self.including: Set[TaxId] = including
-        if excluding:
-            print('List of taxa (and below) to be excluded:')
-            print('\t\tTaxId\tScientific Name')
-            for taxid in excluding:
-                print(f'\t\t{taxid}\t{self.names[taxid]}')
-        self.excluding: Set[TaxId] = excluding
-
-    def read_nodes(self, nodes_file: Filename) -> None:
-        """Build dicts of parent and rank for a given taxid (key)"""
-        print('\033[90mLoading NCBI nodes...\033[0m', end='')
-        sys.stdout.flush()
-        try:
-            with open(nodes_file, 'r') as file:
-                for line in file:
-                    _tid, _parent, _rank, *_ = line.split('\t|\t')
-                    tid = TaxId(_tid)
-                    parent = TaxId(_parent)
-                    if self.collapse and parent == CELLULAR_ORGANISMS:
-                        self.parents[tid] = ROOT
-                    else:
-                        self.parents[tid] = parent
-                    rank: Rank
-                    try:
-                        rank = Rank[_rank.upper().replace(" ", "_")]
-                    except KeyError:
-                        raise UnsupportedTaxLevelError(
-                            f'Unknown tax level {_rank}')
-                    self.ranks[tid] = rank
-
-        except OSError:
-            print(f'\n\033[91mERROR!\033[0m Cannot read {nodes_file}')
-            raise
-        else:
-            print('\033[92m OK! \033[0m')
-
-    def read_names(self, names_file: Filename) -> None:
-        """Build dict with name for a given taxid (key)."""
-        print('\033[90mLoading NCBI names...\033[0m', end='')
-        sys.stdout.flush()
-        try:
-            with open(names_file, 'r') as file:
-                for line in file:
-                    if 'scientific name' in line:
-                        tid, scientific_name, *_ = line.split('\t|\t')
-                        self.names[TaxId(tid)] = scientific_name
-        except OSError:
-            raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
-                            names_file + '"')
-        else:
-            print('\033[92m OK! \033[0m')
-
-    def read_plasmids(self, plasmid_file: Filename) -> None:
-        """Read, check and include plasmid data"""
-        print('\033[90mLoading LMAT plasmids...\033[0m', end='')
-        sys.stdout.flush()
-        pattern1 = re.compile(
-            r"""((?:"([\w\-\.\(\)/+=':,%\*\s]*)"$)|(?:^([\w\-\.\(\)/+=':\*\s]*(?:, (?:strain|isolate|plasmid) [\w\-/\.]*)*(?:, fragment \w*)?(?:, contig \w)?)(?:, a cloning vector)?(?=(?=(?:, (?:complete|partial) (?:plasmid |genomic )*(?:sequence|genome|cds|replicon))(?:\[sequence_id)*)|(?:, complete sequence)*, whole genome shotgun sequence|\[sequence_id)))"""
-        )
-        pattern2 = re.compile(
-            r"""(^(?:[A-Za-z0-9/=\-\.{},]*(?: |.)){1,8})"""
-        )
-        match: Counter = Counter()
-        try:
-            with open(plasmid_file, 'r') as file:
-                for line in file:
-                    _tid, _parent, *_, last = line.rstrip('\n').split('\t')
-                    last = last.split(r'|')[-1]
-                    tid = TaxId(_tid)
-                    parent = TaxId(_parent)
-                    # Plasmids sanity checks
-                    if tid in self.parents:  # if plasmid tid already in NCBI
-                        match['ERR1'] += 1
-                        if self.debug:
-                            print(f'\033[93mPlasmid taxid ERROR!\033[0m'
-                                  f' Taxid={tid} already a NCBI taxid. '
-                                  f'Declared parent is {parent} but '
-                                  f'NCBI parent is {self.parents[tid]}.')
-                            print('\tPlasmid details: ', last)
-                        continue
-                    elif tid == parent:  # if plasmid and parent tids are equal
-                        match['ERR2'] += 1
-                        if self.debug:
-                            print(f'\033[93mPlasmid parent taxid ERROR!\033[0m'
-                                  f' Taxid={tid} and parent={parent}.')
-                            print('\t\t   Plasmid details: ', last)
-                        continue
-                    else:  # No problem, go ahead and add the plasmid!
-                        self.parents[tid] = parent
-                    # Plasmid name extraction by regular expressions
-                    name: str
-                    try:
-                        name = pattern1.search(last).group(1)
-                        name = 'Plasmid ' + name.strip(r'"').strip(',')
-                    except AttributeError:
-                        try:
-                            name = pattern2.search(last).group(1).strip()
-                            name = 'Plasmid ' + name
-                        except AttributeError:
-                            name = 'Plasmid ' + tid
-                            match['FAIL'] += 1
-                        else:
-                            match['PAT2'] += 1
-                    else:
-                        match['PAT1'] += 1
-                    self.names[tid] = name
-        except OSError:
-            print('\033[93mWARNING\033[0m: Cannot read "' +
-                        plasmid_file + '". Plasmid taxids not loaded!')
-        else:  # Statistics about plasmids
-            print('\033[92m OK! \033[0m\n',
-                  '\033[90mPlasmid sanity check:\033[0m',
-                  f'\033[93m rejected\033[0m (taxid error) = {match["ERR1"]}',
-                  f'\033[93m rejected\033[0m (parent error) = {match["ERR2"]}')
-            print('\033[90m Plasmid pattern matching:\033[0m',
-                  f'\033[90m 1st type =\033[0m {match["PAT1"]} ',
-                  f'\033[90m 2nd type =\033[0m {match["PAT2"]} ',
-                  f'\033[90m other =\033[0m {match["FAIL"]}')
-
-
-    def build_children(self) -> None:
-        """Build dict of children for a given parent taxid (key)."""
-        print('\033[90mBuilding dict of parent to children taxa...\033[0m',
-              end='')
-        sys.stdout.flush()
-        self.children: Children = Children({})
-        for tid in self.parents:
-            if self.parents[tid] not in self.children:
-                self.children[self.parents[tid]] = {}
-            self.children[self.parents[tid]][tid] = 0
-        print('\033[92m OK! \033[0m')
-
-    def get_rank(self, taxid: TaxId) -> Rank:
-        """Retrieve the rank for a TaxId."""
-        return self.ranks.get(taxid, Rank.UNCLASSIFIED)
-
-    def get_name(self, taxid: TaxId) -> str:
-        """Retrieve the name for a TaxId."""
-        return self.names.get(taxid, 'Unnamed')
-
-
-class TaxTree(dict):
-    """Nodes of a taxonomical tree"""
-
-    def __init__(self, *args,
-                 counts: int = 0,
-                 rank: Rank = Rank.UNCLASSIFIED,
-                 score: float = 0
-                 ) -> None:
-        super().__init__(args)
-        self.counts: int = counts
-        self.taxlevel: Rank = rank
-        self.score: float = score
-        # Accumulated counts are optionally populated with self.accumulate()
-        self.acc: int = 0
-
-    def __str__(self, num_min: int = 1) -> None:
-        """Recursively print populated nodes of the taxonomy tree"""
-        for tid in self:
-            if self[tid].counts >= num_min:
-                print(f'{tid}[{self[tid].counts}]', end='')
-            if self[tid]:  # Has descendants
-                print('', end='->(')
-                self[tid].__str__(num_min=num_min)
-            else:
-                print('', end=',')
-        print(')', end='')
-
-    def grow(self,
-             taxonomy: Taxonomy,
-             abundances: Counter[TaxId] = None,
-             scores: Union[Dict[TaxId, Score], 'SharedCounter'] = None,
-             taxid: TaxId = ROOT,
-             _path: List[TaxId] = None,
-             ) -> None:
-        """
-        Recursively build a taxonomy tree.
-
-        Args:
-            taxonomy: Taxonomy object.
-            abundances: counter for taxids with their abundances.
-            scores: optional dict with the score for each taxid.
-            taxid: It's ROOT by default for the first/base method call
-            _path: list used by the recursive algorithm to avoid loops
-
-        Returns: None
-
-        """
-        if not _path:
-            _path = []
-        if not abundances:
-            abundances = col.Counter({ROOT: 1})
-        if not scores:
-            scores = {}
-        if taxid not in _path:  # Avoid loops for repeated taxid (like root)
-            self[taxid] = TaxTree(counts=abundances.get(taxid, 0),
-                                  score=scores.get(taxid, NO_SCORE),
-                                  rank=taxonomy.get_rank(taxid))
-            if taxid in taxonomy.children:  # taxid has children
-                for child in taxonomy.children[taxid]:
-                    self[taxid].grow(taxonomy=taxonomy,
-                                     abundances=abundances,
-                                     scores=scores,
-                                     taxid=child,
-                                     _path=_path + [taxid])
-
-    def trace(self,
-              target: TaxId,
-              nodes: List[TaxId],
-              ) -> bool:
-        """
-        Recursively get a list of nodes from self to target taxid.
-
-        Args:
-            target: TaxId of the node to trace
-            nodes: Input/output list of TaxIds: at 1st entry is empty.
-
-        Returns:
-            Boolean about the success of the tracing.
-
-        """
-        target_found: bool = False
-        for tid in self:
-            if self[tid]:
-                nodes.append(tid)
-                if target in self[tid] and target != ROOT:
-                    # Avoid to append more than once the root node
-                    nodes.append(target)
-                    target_found = True
-                    break
-                if self[tid].trace(target, nodes):
-                    target_found = True
-                    break
-                else:
-                    nodes.pop()
-        return target_found
-
-    def get_lineage(self,
-                    parents: Parents,
-                    taxids: Iterable,
-                    ) -> Tuple[str, Dict[TaxId, List[TaxId]]]:
-        """
-        Build dict with taxid as keys, whose values are the list of
-            nodes in the tree in the path from root to such a taxid.
-
-        Args:
-            parents: dictionary of taxids parents.
-            taxids: collection with the taxids to process.
-
-        Returns:
-            Log string, dict with the list of nodes for each taxid.
-
-        """
-        output = io.StringIO(newline='')
-        output.write('  \033[90mGetting lineage of taxa...\033[0m')
-        nodes_traced: Dict[TaxId, List[TaxId]] = {}
-        for tid in taxids:
-            if tid == ROOT:
-                nodes_traced[ROOT] = [ROOT, ]  # Root node special case
-            elif tid in parents:
-                nodes: List[TaxId] = []
-                if self.trace(tid, nodes):  # list nodes is populated
-                    nodes_traced[tid] = nodes
-                else:
-                    output.write('[\033[93mWARNING\033[0m: Failed tracing '
-                                 f'of taxid {tid}: missing in tree]\n')
-            else:
-                output.write('[\033[93mWARNING\033[0m: Discarded unknown '
-                             f'taxid {tid}: missing in parents]\n')
-        output.write('\033[92m OK! \033[0m\n')
-        return output.getvalue(), nodes_traced
-
-    def get_taxa(self,
-                 abundance: Counter[TaxId] = None,
-                 accs: Counter[TaxId] = None,
-                 scores: Union[Dict[TaxId, Score], 'SharedCounter'] = None,
-                 ranks: Ranks = None,
-                 mindepth: int = 0,
-                 maxdepth: int = 0,
-                 include: Union[Tuple, Set[TaxId]] = (),
-                 exclude: Union[Tuple, Set[TaxId]] = (),
-                 just_level: Rank = None,
-                 _in_branch: bool = False
-                 ) -> None:
-        """
-        Recursively get the taxa between min and max depth levels.
-
-        The three outputs are optional, abundance, accumulated
-        abundance and rank: to enable them, an empty dictionary should
-        be attached to them. Makes no sense to call the method without,
-        at least, one of them.
-
-        Args:
-            abundance: Optional I/O dict; at 1st entry should be empty.
-            accs: Optional I/O dict; at 1st entry should be empty.
-            scores: Optional I/O dict; at 1st entry should be empty.
-            ranks: Optional I/O dict; at 1st entry should be empty.
-            mindepth: 0 gets the taxa from the very beginning depth.
-            maxdepth: 0 does not stop the search at any depth level.
-            include: contains the root taxid of the subtrees to be
-                included. If it is empty (default) all the taxa is
-                included (except explicitly excluded).
-            exclude: contains the root taxid of the subtrees to be
-                excluded
-            just_level: If set, just taxa in this taxlevel will be
-                counted.
-            _in_branch: is like a static variable to tell the
-                recursive function that it is in a subtree that is
-                a branch of a taxon in the include list.
-
-        Returns: None
-
-        """
-        mindepth -= 1
-        if maxdepth != 1:
-            maxdepth -= 1
-            for tid in self:
-                in_branch: bool = (
-                    (_in_branch or  # called with flag activated? or
-                     not include or  # include by default? or
-                     (tid in include))  # tid is to be included?
-                    and tid not in exclude  # and not in exclude list
-                )
-                if (mindepth <= 0
-                    and in_branch
-                    and (just_level is None
-                         or self[tid].taxlevel is just_level)):
-                    if abundance is not None:
-                        abundance[tid] = self[tid].counts
-                    if accs is not None:
-                        accs[tid] = self[tid].acc
-                    if scores is not None and self[tid].score != NO_SCORE:
-                        scores[tid] = self[tid].score
-                    if ranks is not None:
-                        ranks[tid] = self[tid].taxlevel
-                if self[tid]:
-                    self[tid].get_taxa(abundance, accs, scores, ranks,
-                                       mindepth, maxdepth,
-                                       include, exclude,
-                                       just_level, in_branch)
-
-    def toxml(self,
-              taxonomy: Taxonomy,
-              krona: KronaTree,
-              node: Elm = None,
-              mindepth: int = 0,
-              maxdepth: int = 0,
-              include: Union[Tuple, Set[TaxId]] = (),
-              exclude: Union[Tuple, Set[TaxId]] = (),
-              _in_branch: bool = False
-              ) -> None:
-        """
-        Recursively convert to XML between min and max depth levels.
-
-        Args:
-            taxonomy: Taxonomy object.
-            krona: Input/Output KronaTree object to be populated.
-            node: Base node (None to use the root of krona argument).
-            mindepth: 0 gets the taxa from the very beginning depth.
-            maxdepth: 0 does not stop the search at any depth level.
-            include: contains the root taxid of the subtrees to be
-                included. If it is empty (default) all the taxa is
-                included (except explicitly excluded).
-            exclude: contains the root taxid of the subtrees to be
-                excluded
-            _in_branch: is like a static variable to tell the
-                recursive function that it is in a subtree that is
-                a branch of a taxon in the include list.
-
-        Returns: None
-
-        """
-        mindepth -= 1
-        if maxdepth != 1:
-            maxdepth -= 1
-            for tid in self:
-                in_branch: bool = (
-                    (_in_branch or  # called with flag activated? or
-                     not include or  # include by default? or
-                     (tid in include))  # tid is to be included?
-                    and tid not in exclude  # and not in exclude list
-                )
-                new_node: Elm
-                if mindepth <= 0 and in_branch:
-                    if node is None:
-                        node = krona.getroot()
-                    new_node = krona.node(
-                        node, taxonomy.get_name(tid),
-                        {COUNT: {krona.samples[0]: str(self[tid].acc)},
-                         UNASSIGNED: {krona.samples[0]: str(self[tid].counts)},
-                         TID: str(tid),
-                         RANK: taxonomy.get_rank(tid).name.lower(),
-                         SCORE: {krona.samples[0]: str(self[tid].score)}}
-                    )
-                if self[tid]:
-                    self[tid].toxml(taxonomy,
-                                    krona, new_node,
-                                    mindepth, maxdepth,
-                                    include, exclude,
-                                    in_branch)
-
-    def shape(self) -> None:
-        """
-        Recursively populate accumulated counts and score.
-
-        From bottom to top, accumulate counts in higher taxonomical
-        levels, so populate self.acc of the tree. Also calculate
-        score for levels that have no reads directly assigned
-        (unassigned = 0). It eliminates leafs with no accumulated
-        counts. With all, it shapes the tree to the most useful form.
-
-        """
-        self.acc = self.counts  # Initialize accumulated with unassigned counts
-        for tid in list(self):  # Loop if this node has subtrees
-            self[tid].shape()  # Accumulate for each branch/leaf
-            if not self[tid].acc:
-                self.pop(tid)  # Prune empty leaf
-            else:
-                self.acc += self[tid].acc  # Acc lower tax acc in this node
-        if not self.counts:
-            # If not unassigned (no reads directly assigned to the level),
-            #  calculate score from leafs, trying different approaches.
-            if self.acc:  # Leafs (at least 1) have accum.
-                self.score = sum([self[tid].score * self[tid].acc
-                                  / self.acc for tid in self])
-            else:  # No leaf with unassigned counts nor accumulated
-                # Just get the averaged score by number of leafs
-                # self.score = sum([self[tid].score
-                #                   for tid in list(self)])/len(self)
-                pass
-
-    def prune(self,
-              min_taxa: int = 1,
-              min_rank: Rank = None,
-              collapse: bool = True,
-              debug: bool = False) -> bool:
-        """
-        Recursively prune/collapse low abundant taxa of the TaxTree.
-
-        Args:
-            min_taxa: minimum taxa to avoid pruning/collapsing
-                one level to the parent one.
-            min_rank: if any, minimum Rank allowed in the TaxTree.
-            collapse: selects if a lower level should be accumulated in
-                the higher one before pruning a node (do so by default).
-            debug: increase output verbosity (just for debug)
-
-        Returns: True if this node is a leaf
-
-        """
-        for tid in list(self):  # Loop if this node has subtrees
-            if (self[tid]  # If the subtree has branches,
-                    and self[tid].prune(min_taxa, min_rank, collapse, debug)):
-                # The pruned subtree keeps having branches (still not a leaf!)
-                if debug:
-                    print(f'[NOT pruning branch {tid}, '
-                          f'counts={self[tid].counts}]', end='')
-            else:  # self[tid] is a leaf (after pruning its branches or not)
-                if (self[tid].counts < min_taxa  # Not enough counts, or check
-                    or (min_rank  # if min_rank is set, then check if level
-                        and (self[tid].taxlevel < min_rank  # is lower or
-                             or self.taxlevel <= min_rank))):  # other test
-                    if collapse:
-                        collapsed_counts: int = self.counts + self[tid].counts
-                        if collapsed_counts:  # Average the collapsed score
-                            self.score = ((self.score * self.counts
-                                          + self[tid].score * self[tid].counts)
-                                          / collapsed_counts)
-                            # Accumulate abundance in higher tax
-                            self.counts = collapsed_counts
-                    else:  # No collapse: update acc counts erasing leaf counts
-                        if self.acc > self[tid].counts:
-                            self.acc -= self[tid].counts
-                        else:
-                            self.acc = 0
-                    if debug and self[tid].counts:
-                        print(f'[Pruning branch {tid}, '
-                              f'counts={self[tid].counts}]', end='')
-                    self.pop(tid)  # Prune leaf
-                elif debug:
-                    print(f'[NOT pruning leaf {tid}, '
-                          f'counts={self[tid].counts}]', end='')
-        return bool(self)  # True if this node has branches (is not a leaf)
-
-
-class MultiTree(dict):
-    """Nodes of a multiple taxonomical tree"""
-
-    def __init__(self, *args,
-                 samples: List[Sample],
-                 counts: Dict[Sample, int] = None,
-                 accs: Dict[Sample, int] = None,
-                 rank: Rank = Rank.UNCLASSIFIED,
-                 scores: Dict[Sample, Score] = None
-                 ) -> None:
-        """
-
-        Args:
-            *args: Arguments to parent class (dict)
-            samples: List of samples to coexist in the (XML) tree
-            counts: Dict of abundance for each sample in this tax node
-            accs: Dict of accumulated abundance for each sample
-            rank: Rank of this tax node
-            scores: Dict with score for each sample
-        """
-        super().__init__(args)
-        self.samples: List[Sample] = samples
-        self.taxlevel: Rank = rank
-        # Dict(s) to List(s) following samples order to save space in each node
-        if counts is None:
-            counts = {sample: 0 for sample in samples}
-        self.counts: List[int] = [counts[sample] for sample in samples]
-        if accs is None:
-            accs = {sample: 0 for sample in samples}
-        self.accs: List[int] = [accs[sample] for sample in samples]
-        if scores is None:
-            scores = {sample: NO_SCORE for sample in samples}
-        self.score: List[Score] = [scores[sample] for sample in samples]
-
-    def __str__(self, num_min: int = 1) -> None:
-        """
-        Recursively print populated nodes of the taxonomy tree
-
-        Args:
-            num_min: minimum abundance of a node to be printed
-
-        Returns: None
-
-        """
-        for tid in self:
-            if max(self[tid].counts) >= num_min:
-                print(f'{tid}[{self[tid].counts}]', end='')
-            if self[tid]:  # Has descendants
-                print('', end='->(')
-                self[tid].__str__(num_min=num_min)
-            else:
-                print('', end=',')
-        print(')', end='')
-
-    def grow(self,
-             taxonomy: Taxonomy,
-             abundances: Dict[Sample, Counter[TaxId]] = None,
-             accs: Dict[Sample, Counter[TaxId]] = None,
-             scores: Dict[Sample, Dict[TaxId, Score]] = None,
-             taxid: TaxId = ROOT,
-             _path: List[TaxId] = None) -> None:
-        """
-        Recursively build a taxonomy tree.
-
-        Args:
-            taxonomy: Taxonomy object.
-            abundances: Dict of counters with taxids' abundance.
-            accs: Dict of counters with taxids' accumulated abundance.
-            scores: Dict of dicts with taxids' score.
-            taxid: It's ROOT by default for the first/base method call
-            _path: list used by the recursive algorithm to avoid loops
-
-        Returns: None
-
-        """
-        # Create dummy variables in case they are None
-        if not _path:
-            _path = []
-        if not abundances:
-            abundances = {sample: col.Counter({ROOT: 1})
-                          for sample in self.samples}
-        if not accs:
-            accs = {sample: col.Counter({ROOT: 1})
-                          for sample in self.samples}
-        if not scores:
-            scores = {sample: {} for sample in self.samples}
-        if taxid not in _path:  # Avoid loops for repeated taxid (like root)
-            multi_count: Dict[Sample, int] = {
-                sample: abundances[sample].get(taxid, 0)
-                for sample in self.samples
-            }
-            multi_acc: Dict[Sample, int] = {
-                sample: accs[sample].get(taxid, 0)
-                for sample in self.samples
-            }
-            multi_score: Dict[Sample, Score] = {
-                sample: scores[sample].get(taxid, NO_SCORE)
-                for sample in self.samples
-            }
-            if any(multi_acc.values()):  # Check for any populated branch
-                self[taxid] = MultiTree(samples=self.samples,
-                                        counts=multi_count,
-                                        accs=multi_acc,
-                                        scores=multi_score,
-                                        rank=taxonomy.get_rank(taxid))
-                if taxid in taxonomy.children:  # taxid has children
-                    for child in taxonomy.children[taxid]:
-                        self[taxid].grow(taxonomy=taxonomy,
-                                         abundances=abundances,
-                                         accs=accs,
-                                         scores=scores,
-                                         taxid=child,
-                                         _path=_path + [taxid])
-
-    def toxml(self,
-              taxonomy: Taxonomy,
-              krona: KronaTree,
-              node: Elm = None,
-              ) -> None:
-        """
-        Recursive method to generate XML.
-
-        Args:
-            taxonomy: Taxonomy object.
-            krona: Input/Output KronaTree object to be populated.
-            node: Base node (None to use the root of krona argument).
-
-        Returns: None
-
-        """
-        for tid in self:
-            if node is None:
-                node = krona.getroot()
-            num_samples = len(self.samples)
-            new_node: Elm = krona.node(
-                parent=node,
-                name=taxonomy.get_name(tid),
-                values={COUNT: {self.samples[i]: str(self[tid].accs[i])
-                                for i in range(num_samples)},
-                        UNASSIGNED: {self.samples[i]: str(self[tid].counts[i])
-                                     for i in range(num_samples)},
-                        TID: str(tid),
-                        RANK: taxonomy.get_rank(tid).name.lower(),
-                        SCORE: {self.samples[i]: (
-                            f'{self[tid].score[i]:.1f}'
-                            if self[tid].score[i] != NO_SCORE else '0')
-                            for i in range(num_samples)},
-                        }
-            )
-            if self[tid]:
-                self[tid].toxml(taxonomy=taxonomy,
-                                krona=krona,
-                                node=new_node)
-
-    def to_items(self,
-                 taxonomy: Taxonomy,
-                 items: List[Tuple[TaxId, List]],
-                 sample_indexes: List[int] = None
-                 ) -> None:
-        """
-        Recursive method to populate a list (used to feed a DataFrame).
-
-        Args:
-            taxonomy: Taxonomy object.
-            items: Input/Output list to be populated.
-            sample_indexes: Indexes of the samples of interest (for cC)
-
-        Returns: None
-
-        """
-        for tid in self:
-            list_row: List = []
-            if sample_indexes:
-                for i in sample_indexes:
-                    list_row.append(self[tid].counts[i])
-            else:
-                for i in range(len(self.samples)):
-                    list_row.extend([self[tid].accs[i],
-                                     self[tid].counts[i],
-                                     self[tid].score[i]])
-                list_row.extend([taxonomy.get_rank(tid).name.lower(),
-                                 taxonomy.get_name(tid)])
-            items.append((tid, list_row))
-            if self[tid]:
-                self[tid].to_items(taxonomy=taxonomy, items=items,
-                                   sample_indexes=sample_indexes)
-
-
-class SharedCounter(col.Counter):
-    """Extends collection.Counter with useful ops. for shared taxa."""
-
-    def __ilshift__(self, other):
-        """c <<= d add counts of d but only in existing items in c."""
-        if isinstance(self, col.Counter) and isinstance(other, col.Counter):
-            for counter in other:
-                if counter in self:
-                    self[counter] += other[counter]
-            return self
-        return NotImplemented
-
-    def __and__(self, other):
-        """c & d add counts only for existing items in both c & d."""
-        if isinstance(self, col.Counter) and isinstance(other, col.Counter):
-            result: SharedCounter = SharedCounter()
-            for item in other:
-                if item in self:
-                    result[item] = self[item] + other[item]
-            return result
-        return NotImplemented
-
-    def __iand__(self, other):
-        """c &= d add counts only for existing items in both c & d."""
-        self = SharedCounter.__and__(self, other)
-        return self
-
-    def __mul__(self, other):
-        """c * d multiply each element of c by the element in d, if exists."""
-        if isinstance(self, col.Counter) and isinstance(other, col.Counter):
-            result: SharedCounter = SharedCounter()
-            for item in self:
-                if item in other:
-                    result[item] = self[item] * other[item]
-            return result
-        return NotImplemented
-
-    def __imul__(self, other):
-        """c *= d multiply each element of c by the element in d, if exists."""
-        self = SharedCounter.__mul__(self, other)
-        return self
-
-    def __truediv__(self, other):
-        """c / d divide each element of c by the element in d, if exists."""
-        if isinstance(self, col.Counter) and isinstance(other, col.Counter):
-            result: SharedCounter = SharedCounter()
-            for item in self:
-                if item in other:
-                    result[item] = self[item] / other[item]
-            return result
-        return NotImplemented
-
-    def __itruediv__(self, other):
-        """c /= d divide each element of c by the element in d, if exists."""
-        self = SharedCounter.__truediv__(self, other)
-        return self
-
-    def __floordiv__(self, other):
-        """c // i floor divide each element of c by integer i."""
-        if isinstance(self, col.Counter) and isinstance(other, int):
-            result: SharedCounter = SharedCounter()
-            for item in self:
-                result[item] = self[item] // other
-            return result
-        return NotImplemented
-
-    def __rfloordiv__(self, other):
-        return SharedCounter.__floordiv__(self, other)
-
-    def __ifloordiv__(self, other):
-        """c //= i floor divide each element of c by integer i."""
-        if isinstance(self, col.Counter) and isinstance(other, int):
-            for counter in self:
-                self[counter] //= other
-            return self
-        return NotImplemented
-
-    def __pos__(self):
-        """+d just remove non-positive counts."""
-        return SharedCounter(Counter.__pos__(self))
+from recentrifuge.rank import Rank, TaxLevels
+from recentrifuge.shared_counter import SharedCounter
+from recentrifuge.taxonomy import Taxonomy
+from recentrifuge.trees import TaxTree
 
 
 def process_rank(*args,
@@ -1011,16 +47,66 @@ def process_rank(*args,
     abundances: Dict[Sample, Counter[TaxId]] = {}
     accumulators: Dict[Sample, Counter[TaxId]] = {}
     scores: Dict[Sample, Dict[TaxId, Score]] = {}
+    # pylint: disable = unused-variable
     shared_abundance: SharedCounter = SharedCounter()
     shared_score: SharedCounter = SharedCounter()
     shared_ctrl_abundance: SharedCounter = SharedCounter()
     shared_ctrl_score: SharedCounter = SharedCounter()
+    # pylint: enable = unused-variable
     output: io.StringIO = io.StringIO(newline='')
 
     output.write(f'\033[90mAnalysis for taxonomic rank "'
                  f'\033[95m{rank.name.lower()}\033[90m":\033[0m\n')
-    # Cross analysis iterating by output: exclusive and part of shared&ctrl
-    for i, file in zip(range(len(files)), files):
+
+    def cross_analysis(iteration, file):
+        """Cross analysis: exclusive and part of shared&ctrl"""
+        nonlocal shared_abundance, shared_score
+        nonlocal shared_ctrl_abundance, shared_ctrl_score
+
+        def generate_exclusive():
+            """Generate a new tree to recalculate accs (and scores)"""
+            nonlocal exclusive_score, sample
+            tree = TaxTree()
+            tree.grow(taxonomy=taxonomy,
+                      abundances=exclusive_abundance,
+                      scores=exclusive_score)
+            tree.shape()
+            exclusive_acc: Counter[TaxId] = col.Counter()
+            exclusive_score = {}
+            tree.get_taxa(accs=exclusive_acc,
+                          scores=exclusive_score,
+                          include=including,
+                          exclude=excluding)
+            sample = Sample(f'{STR_EXCLUSIVE}_{rank.name.lower()}_{file}')
+            samples.append(sample)
+            abundances[sample] = exclusive_abundance
+            accumulators[sample] = exclusive_acc
+            scores[sample] = exclusive_score
+
+        def partial_shared_update(i):
+            """Perform shared and shared-control taxa partial evaluations"""
+            nonlocal shared_abundance, shared_score
+            nonlocal shared_ctrl_abundance, shared_ctrl_score
+            if i == 0:  # 1st iteration: Initialize shared abundance and score
+                shared_abundance.update(sub_shared_abundance)
+                shared_score.update(sub_shared_score)
+            elif i < controls:  # Just update shared abundance and score
+                shared_abundance &= sub_shared_abundance
+                shared_score &= sub_shared_score
+            elif i == controls:  # Initialize shared-control counters
+                shared_abundance &= sub_shared_abundance
+                shared_score &= sub_shared_score
+                shared_ctrl_abundance.update(sub_shared_abundance)
+                shared_ctrl_score.update(sub_shared_score)
+            elif controls:  # Both: Accumulate shared abundance and score
+                shared_abundance &= sub_shared_abundance
+                shared_score &= sub_shared_score
+                shared_ctrl_abundance &= sub_shared_abundance
+                shared_ctrl_score &= sub_shared_score
+            else:  # Both: Accumulate shared abundance and score (no controls)
+                shared_abundance &= sub_shared_abundance
+                shared_score &= sub_shared_score
+
         exclude: Set[TaxId] = set()
         # Get taxids at this rank that are present in the other samples
         for sample in (_file for _file in files if _file != file):
@@ -1044,23 +130,7 @@ def process_rank(*args,
                               )
         exclusive_abundance = +exclusive_abundance  # remove counts <= 0
         if exclusive_abundance:  # Avoid adding empty samples
-            # Generate a new tree to be able to recalculate accs (and scores)
-            tree = TaxTree()
-            tree.grow(taxonomy=taxonomy,
-                      abundances=exclusive_abundance,
-                      scores=exclusive_score)
-            tree.shape()
-            exclusive_acc: Counter[TaxId] = col.Counter()
-            exclusive_score = {}
-            tree.get_taxa(accs=exclusive_acc,
-                          scores=exclusive_score,
-                          include=including,
-                          exclude=excluding)
-            sample = Sample(f'{STR_EXCLUSIVE}_{rank.name.lower()}_{file}')
-            samples.append(sample)
-            abundances[sample] = exclusive_abundance
-            accumulators[sample] = exclusive_acc
-            scores[sample] = exclusive_score
+            generate_exclusive()
             output.write('\033[92m OK! \033[0m\n')
         else:
             output.write('\033[93m VOID \033[0m\n')
@@ -1076,27 +146,11 @@ def process_rank(*args,
                               )
         # Scale scores by abundance
         sub_shared_score *= sub_shared_abundance
-        # Shared and shared-control taxa partial evaluations
-        if i == 0:  # 1st iteration: Initialize shared abundance and score
-            shared_abundance.update(sub_shared_abundance)
-            shared_score.update(sub_shared_score)
-        elif i < controls:  # Just update shared abundance and score
-            shared_abundance &= sub_shared_abundance
-            shared_score &= sub_shared_score
-        elif i == controls:  # Initialize shared-control counters
-            shared_abundance &= sub_shared_abundance
-            shared_score &= sub_shared_score
-            shared_ctrl_abundance.update(sub_shared_abundance)
-            shared_ctrl_score.update(sub_shared_score)
-        else:  # Both: Accumulate shared abundance and score
-            shared_abundance &= sub_shared_abundance
-            shared_score &= sub_shared_score
-            shared_ctrl_abundance &= sub_shared_abundance
-            shared_ctrl_score &= sub_shared_score
+        partial_shared_update(iteration)
 
-    # Shared taxa final analysis
-    shared_abundance = +shared_abundance  # remove counts <= 0
-    if shared_abundance:
+    def shared_analysis():
+        """Perform last steps of shared taxa analysis"""
+        nonlocal shared_abundance, shared_score
         # Normalize scaled scores by total abundance (after eliminating zeros)
         shared_score /= (+shared_abundance)
         # Get averaged abundance by number of samples
@@ -1122,12 +176,31 @@ def process_rank(*args,
         accumulators[Sample(sample)] = new_accs
         scores[sample] = new_score
         output.write('\033[92m OK! \033[0m\n')
-    else:
-        output.write(f'  \033[90mShared: No shared taxa!'
-                     f'\033[93m VOID\033[90m sample.\033[0m \n')
 
-    # Control sample subtraction
-    if controls:
+    def control_analysis():
+        """Perform last steps of control and shared controls analysis"""
+        nonlocal shared_ctrl_abundance, shared_ctrl_score
+
+        def generate_control(file_name):
+            """Generate a new tree to be able to calculate accs and scores"""
+            nonlocal tree, sample, control_score
+            tree = TaxTree()
+            tree.grow(taxonomy=taxonomy,
+                      abundances=control_abundance,
+                      scores=control_score)
+            tree.shape()
+            control_acc: Counter[TaxId] = col.Counter()
+            control_score = {}
+            tree.get_taxa(accs=control_acc,
+                          scores=control_score,
+                          include=including,
+                          exclude=excluding)
+            sample = Sample(f'{STR_CONTROL}_{rank.name.lower()}_{file_name}')
+            samples.append(sample)
+            abundances[sample] = control_abundance
+            accumulators[sample] = control_acc
+            scores[sample] = control_score
+
         # Get taxids at this rank that are present in the control samples
         exclude = set()
         for i in range(controls):
@@ -1150,23 +223,7 @@ def process_rank(*args,
                                   )
             control_abundance = +control_abundance  # remove counts <= 0
             if control_abundance:  # Avoid adding empty samples
-                # Generate a new tree to be able to calculate accs and scores
-                tree = TaxTree()
-                tree.grow(taxonomy=taxonomy,
-                          abundances=control_abundance,
-                          scores=control_score)
-                tree.shape()
-                control_acc: Counter[TaxId] = col.Counter()
-                control_score = {}
-                tree.get_taxa(accs=control_acc,
-                              scores=control_score,
-                              include=including,
-                              exclude=excluding)
-                sample = Sample(f'{STR_CONTROL}_{rank.name.lower()}_{file}')
-                samples.append(sample)
-                abundances[sample] = control_abundance
-                accumulators[sample] = control_acc
-                scores[sample] = control_score
+                generate_control(file)
                 output.write('\033[92m OK! \033[0m\n')
             else:
                 output.write('\033[93m VOID \033[0m\n')
@@ -1221,6 +278,22 @@ def process_rank(*args,
         else:
             output.write(f'\033[90mNo shared-ctrl taxa!'
                          f'\033[93m VOID\033[90m sample.\033[0m \n')
+
+    # Cross analysis iterating by output: exclusive and part of shared&ctrl
+    for iteration, filename in zip(range(len(files)), files):
+        cross_analysis(iteration, filename)
+
+    # Shared taxa final analysis
+    shared_abundance = +shared_abundance  # remove counts <= 0
+    if shared_abundance:
+        shared_analysis()
+    else:
+        output.write(f'  \033[90mShared: No shared taxa!'
+                     f'\033[93m VOID\033[90m sample.\033[0m \n')
+
+    # Control sample subtraction
+    if controls:
+        control_analysis()
 
     # Print output and return
     print(output.getvalue())
@@ -1289,7 +362,7 @@ def krona_from_text(samples: List[Sample],
     subprc.extend(samples)
     try:
         subprc.extend([outputs[level][i]
-                       for level in Rank.selected_ranks
+                       for level in List(Rank.selected_ranks)
                        for i in range(len(outputs[level]))])
     except KeyError:
         pass

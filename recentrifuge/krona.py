@@ -7,8 +7,8 @@ import csv
 import html
 import os
 import subprocess
-import xml.etree.ElementTree as ETree
 from typing import List, Dict, NewType, Any, Optional
+import xml.etree.ElementTree as ETree
 from xml.dom import minidom
 
 from recentrifuge.config import JSLIB, HTML_SUFFIX, Filename, Sample, Scoring
@@ -243,9 +243,9 @@ class KronaTree(ETree.ElementTree):
         # Read aux files
         path = os.path.dirname(os.path.realpath(__file__))
         with open(path + '/img/hidden.uri', 'r') as file:
-            hiddenImage = file.read()
+            hidden_image = file.read()
         with open(path + '/img/loading.uri', 'r') as file:
-            loadingImage = file.read()
+            loading_image = file.read()
         with open(path + '/img/favicon.uri', 'r') as file:
             favicon = file.read()
         with open(path + '/img/logo-med.uri', 'r') as file:
@@ -272,10 +272,10 @@ class KronaTree(ETree.ElementTree):
                  script)  # Include javascript
         body = self.sub(html_root, 'body')
         self.sub(body, 'img', {'id': 'hiddenImage',
-                               'src': hiddenImage,
+                               'src': hidden_image,
                                'style': 'display:none'})
         self.sub(body, 'img', {'id': 'loadingImage',
-                               'src': loadingImage,
+                               'src': loading_image,
                                'style': 'display:none'})
         self.sub(body, 'img', {'id': 'logo',
                                'src': logo,
@@ -288,7 +288,7 @@ class KronaTree(ETree.ElementTree):
         # Write the HTML file
         with open(filename, 'w') as html_file:
             html_file.write(
-                '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">\n')
+                '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">\n')  # pylint: disable=line-too-long
             if pretty:
                 html_file.write(self.to_pretty_string(html_root))
             else:

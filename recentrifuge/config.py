@@ -83,4 +83,7 @@ def nucleotides(num: int) -> str:
     elif num > 1e+6:
         value = num / 1e+3
         unit = 'knt'
-    return(f'{value:.2f} {unit}')
+    else:
+        value = num
+        unit = 'nt'
+    return f'{value:.2f} {unit}'

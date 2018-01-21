@@ -16,7 +16,9 @@ from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, STR_CONTROL
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import TAXDUMP_PATH
 from recentrifuge.config import gray, red, green, yellow, blue
-from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, MultiTree, Rank
+from recentrifuge.taxonomy import Taxonomy
+from recentrifuge.rank import Rank, TaxLevels
+from recentrifuge.trees import TaxTree, MultiTree
 from recentrifuge.core import process_rank
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.krona import KronaTree
@@ -29,7 +31,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.15.3'
+__version__ = '0.15.4'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jan 2018'
 

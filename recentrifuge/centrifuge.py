@@ -12,10 +12,12 @@ from typing import Tuple, Counter, Set, Dict, List
 
 from Bio import SeqIO
 
-from recentrifuge.LMAT import read_lmat_output
+from recentrifuge.lmat import read_lmat_output
 from recentrifuge.config import Filename, TaxId, Score, UNCLASSIFIED, Scoring
-from recentrifuge.config import nucleotides, gray, red, green
-from recentrifuge.core import Rank, Taxonomy, TaxTree, Ranks, TaxLevels, Sample
+from recentrifuge.config import Sample, nucleotides, gray, red, green
+from recentrifuge.rank import Rank, Ranks, TaxLevels
+from recentrifuge.trees import TaxTree
+from recentrifuge.taxonomy import Taxonomy
 
 
 def read_report(report_file: str) -> Tuple[str, Counter[TaxId],

@@ -14,7 +14,7 @@ from Bio.SeqIO.Interfaces import SequentialSequenceWriter
 __docformat__ = "restructuredtext en"
 
 
-def SimpleLmatOutParser(handle):
+def simple_lmat_out_parser(handle):
     """Generator function to iterate LMAT output records (as string tuples)
 
     For each record a tuple of five strings is returned:
@@ -37,13 +37,13 @@ def SimpleLmatOutParser(handle):
         line = (rawline.rstrip('\n')).split('\t')
         try:
             (title, sequence, stats, lists, finalcall) = line
-        except (ValueError):
-            return # Stop Iteration
+        except ValueError:
+            return  # Stop Iteration
         yield title, sequence, stats, lists, finalcall
         rawline = handle.readline()
 
 
-def LmatOutIterator(handle, alphabet=single_letter_alphabet):
+def lmat_out_iterator(handle, alphabet=single_letter_alphabet):
     """Generator function to iterate LMAT output records (as SeqRecord objects)
 
     Arguments:
@@ -51,7 +51,7 @@ def LmatOutIterator(handle, alphabet=single_letter_alphabet):
      - alphabet - optional alphabet
     """
     for (title, sequence,
-         stats, candidates, finalcall) in SimpleLmatOutParser(handle):
+         stats, candidates, finalcall) in simple_lmat_out_parser(handle):
         try:
             first_word = title.split(None, 1)[0]
         except IndexError:
@@ -147,4 +147,3 @@ class LmatOutWriter(SequentialSequenceWriter):
         self.handle.write(record.annotations['stats'] + '\t')
         self.handle.write(record.annotations['candidates'] + '\t')
         self.handle.write(record.annotations['finalcall'] + '\n')
-
