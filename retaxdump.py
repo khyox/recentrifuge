@@ -2,18 +2,17 @@
 """
 Get needed taxdump files from NCBI.
 """
-# pylint: disable=no-name-in-module, not-an-iterable
+
 import argparse
 from ftplib import FTP
-import os
 import sys
 from zipfile import ZipFile
 
 from recentrifuge.config import NODES_FILE, NAMES_FILE, ZIPFILE, TAXDUMP_PATH
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Ago 2017'
+__date__ = 'Jan 2018'
 
 
 def main():
@@ -58,11 +57,12 @@ def main():
     for filename in [NODES_FILE, NAMES_FILE]:
         print(f'\033[90mExtracting "{filename}"...', end='')
         try:
-            path = filezip.extract(filename, path=args.nodespath)
+            filezip.extract(filename, path=args.nodespath)
         except KeyError:
             print('\n\033[91mERROR!\033[0m')
         else:
             print('\033[92m OK! \033[0m')
+
 
 if __name__ == '__main__':
     main()

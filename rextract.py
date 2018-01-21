@@ -13,11 +13,13 @@ from Bio import SeqIO, SeqRecord
 
 from recentrifuge.config import Filename, TaxId
 from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
-from recentrifuge.core import Taxonomy, TaxLevels, TaxTree, Rank, Ranks
+from recentrifuge.rank import Rank, Ranks, TaxLevels
+from recentrifuge.taxonomy import Taxonomy
+from recentrifuge.trees import TaxTree
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Oct 2017'
+__date__ = 'Jan 2018'
 
 MAX_LENGTH_TAXID_LIST = 32
 
@@ -112,7 +114,8 @@ def main():
     sys.stdout.flush()
 
     # Load NCBI nodes, names and build children
-    ncbi: Taxonomy = Taxonomy(nodesfile, namesfile,
+    plasmidfile: Filename = None
+    ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,
                               False, excluding, including)
 
     # Build taxonomy tree
@@ -215,9 +218,8 @@ def main():
         except FileNotFoundError:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read FASTQ file')
     print('\033[92m OK! \033[0m')
-    taxids = ".".join(taxids)
 
-    def format_filename(fastq: Filename) -> str:
+    def format_filename(fastq: Filename) -> Filename:
         """Auxiliary function to properly format the output filenames.
 
         Args:
@@ -234,7 +236,7 @@ def main():
             output_list.append('_excl')
             output_list.extend('_'.join(excluding))
         output_list.append('.fastq')
-        return ''.join(output_list)
+        return Filename(''.join(output_list))
 
     filename1: Filename = format_filename(fastq_1)
     SeqIO.write(seqs1, filename1, 'fastq')
