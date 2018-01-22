@@ -12,7 +12,7 @@ import sys
 from typing import List, Set, Counter, Tuple, Union, Dict
 
 from recentrifuge.config import Filename, Sample, TaxId
-from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT
+from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT, EPS
 from recentrifuge.config import Parents, Score
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_SHARED_CONTROL
@@ -223,11 +223,13 @@ def process_rank(*args,
                     continue
                 # Broad/crossover contaminant checks
                 abund = [abundances[file][tid] for file in files[controls:]]
-                mu: float = statistics.mean(abund)
-                sigma: float = statistics.pstdev(abund, mu)
-                # TODO: Check sigma is zero
-                abund_norm = [(abundance - mu) / sigma for abundance in abund]
-                print(tid, taxonomy.get_name(tid), abund_norm)
+                mdn: float = statistics.median(abund)
+                mad: float = statistics.median([abs(mdn - a) for a in abund])
+                if mad < EPS:
+                    print('no mad', tid, taxonomy.get_name(tid), abund, mdn)
+                else:
+                    abund_norm = [(a - mdn) / mad for a in abund]
+                    print(tid, taxonomy.get_name(tid), abund_norm)
 
         # Get taxids at this rank that are present in the control samples
         exclude_candidates = set()
