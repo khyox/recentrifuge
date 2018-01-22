@@ -41,7 +41,7 @@ def process_rank(*args,
     excluding = taxonomy.excluding
     trees: Dict[Sample, TaxTree] = kwargs['trees']
     taxids: Dict[Sample, TaxLevels] = kwargs['taxids']
-    accs: Dict[Sample, Counter[TaxId]] = kwargs['acss']
+    accs: Dict[Sample, Counter[TaxId]] = kwargs['accs']
     files: List[Sample] = kwargs['files']
 
     # Declare/define variables
