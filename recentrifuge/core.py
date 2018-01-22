@@ -41,12 +41,12 @@ def process_rank(*args,
     excluding = taxonomy.excluding
     trees: Dict[Sample, TaxTree] = kwargs['trees']
     taxids: Dict[Sample, TaxLevels] = kwargs['taxids']
-    abundances: Dict[Sample, Counter[TaxId]] = kwargs['abundances']
+    accs: Dict[Sample, Counter[TaxId]] = kwargs['acss']
     files: List[Sample] = kwargs['files']
 
     # Declare/define variables
     samples: List[Sample] = []
-    accumulators: Dict[Sample, Counter[TaxId]] = {}
+    abundances: Dict[Sample, Counter[TaxId]]
     scores: Dict[Sample, Dict[TaxId, Score]] = {}
     # pylint: disable = unused-variable
     shared_abundance: SharedCounter = SharedCounter()
@@ -81,7 +81,7 @@ def process_rank(*args,
             sample = Sample(f'{STR_EXCLUSIVE}_{rank.name.lower()}_{file}')
             samples.append(sample)
             abundances[sample] = exclusive_abundance
-            accumulators[sample] = exclusive_acc
+            accs[sample] = exclusive_acc
             scores[sample] = exclusive_score
 
         def partial_shared_update(i):
@@ -174,7 +174,7 @@ def process_rank(*args,
         sample = Sample(f'{STR_SHARED}_{rank.name.lower()}')
         samples.append(sample)
         abundances[Sample(sample)] = new_abund
-        accumulators[Sample(sample)] = new_accs
+        accs[Sample(sample)] = new_accs
         scores[sample] = new_score
         output.write('\033[92m OK! \033[0m\n')
 
@@ -199,7 +199,7 @@ def process_rank(*args,
             sample = Sample(f'{STR_CONTROL}_{rank.name.lower()}_{file_name}')
             samples.append(sample)
             abundances[sample] = control_abundance
-            accumulators[sample] = control_acc
+            accs[sample] = control_acc
             scores[sample] = control_score
 
         def advanced_control_removal():
@@ -207,14 +207,15 @@ def process_rank(*args,
             nonlocal exclude_sets
             abund: List[float]
             abund_norm: List[float]
-            exclude_sets = {file: set() for file in files[controls::]}
+            crossover: List[bool]
+            exclude_sets = {file: set() for file in files[controls:]}
             for tid in exclude_candidates:
                 # Severe contaminant check
                 is_severe_contaminant: bool = False
                 for ctrl in files[:controls]:
                     # Severe contaminant if its rel.freq >1% in any control
-                    # TODO: Check trees[ctrl][ROOT].acc is zero
-                    if abundances[ctrl][tid] / trees[ctrl][ROOT].acc > 0.01:
+                    assert accs[ctrl][ROOT] > 0, 'Panic! Empty tree!'
+                    if accs[ctrl][tid] / accs[ctrl][ROOT] > 0.01:
                         is_severe_contaminant = True
                         for exclude_set in exclude_sets.values():
                             exclude_set.add(tid)
@@ -222,14 +223,26 @@ def process_rank(*args,
                 if is_severe_contaminant:
                     continue
                 # Broad/crossover contaminant checks
-                abund = [abundances[file][tid] for file in files[controls:]]
+                abund = [accs[file][tid] for file in files[controls:]]
                 mdn: float = statistics.median(abund)
                 mad: float = statistics.median([abs(mdn - a) for a in abund])
-                if mad < EPS:
-                    print('no mad', tid, taxonomy.get_name(tid), abund, mdn)
+                if mdn < EPS:
+                    print('only-ctrl', tid, taxonomy.get_name(tid),
+                          [accs[ctrl][tid] for ctrl in files[:controls]],
+                          abund)
+                elif mad < EPS:
+                    print('no mad', tid, taxonomy.get_name(tid),
+                          [accs[ctrl][tid] for ctrl in files[:controls]],
+                          abund)
                 else:
                     abund_norm = [(a - mdn) / mad for a in abund]
-                    print(tid, taxonomy.get_name(tid), abund_norm)
+                    crossover = [(a > 2*mad) for a in abund_norm]
+                    if any(crossover):
+                        print('crossover', tid, taxonomy.get_name(tid),
+                              abund_norm, crossover)
+                    else:
+                        print('contamination', tid, taxonomy.get_name(tid),
+                              abund_norm, crossover)
 
         # Get taxids at this rank that are present in the control samples
         exclude_candidates = set()
@@ -309,7 +322,7 @@ def process_rank(*args,
                 sample = Sample(f'{STR_SHARED_CONTROL}_{rank.name.lower()}')
                 samples.append(sample)
                 abundances[sample] = new_shared_ctrl_abundance
-                accumulators[sample] = new_shared_ctrl_acc
+                accs[sample] = new_shared_ctrl_acc
                 scores[sample] = new_shared_ctrl_score
                 output.write('\033[92m OK! \033[0m\n')
             else:
@@ -338,7 +351,7 @@ def process_rank(*args,
     # Print output and return
     print(output.getvalue())
     sys.stdout.flush()
-    return samples, abundances, accumulators, scores
+    return samples, abundances, accs, scores
 
 
 def write_lineage(parents: Parents,

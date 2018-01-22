@@ -354,7 +354,7 @@ def main():
                 'Please, wait. Performing cross analysis in parallel...\n'))
             # Update kwargs with more parameters for the followings func calls
             kwargs.update({'trees': trees, 'taxids': taxids,
-                           'abundances': abundances, 'files': reports})
+                           'accs': accs, 'files': reports})
             if platform.system() and not args.sequential:  # Only4known systems
                 mpctx = mp.get_context('spawn')  # Important for OSX&Win
                 with mpctx.Pool(processes=min(os.cpu_count(), len(
@@ -512,7 +512,7 @@ def main():
     samples: List[Sample] = []
     raw_samples: List[Sample] = []
 
-    # Define dictionary of parameters for methods to be called
+    # Define dictionary of parameters for methods to be called (to be extended)
     kwargs = {'controls': args.controls,
               'ctrlminscore': (
                   args.ctrlminscore
