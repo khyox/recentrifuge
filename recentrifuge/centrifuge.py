@@ -240,10 +240,10 @@ def process_output(*args,
     lmat: bool = kwargs['lmat']
     output: io.StringIO = io.StringIO(newline='')
 
-    def vwrite(*a, **k):
+    def vwrite(*args):
         """Print only if verbose/debug mode is enabled"""
         if kwargs['debug']:
-            output.write(''.join(*a, **k))
+            output.write(''.join(args))
 
     sample: Sample = Sample(fileout)
 

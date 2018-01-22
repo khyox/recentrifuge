@@ -47,10 +47,10 @@ def process_rank(*args,
     output: io.StringIO = io.StringIO(newline='')
     kwargs['debug'] = True  # TODO: Unforce debugging in module
 
-    def vwrite(*a, **k):
+    def vwrite(*args):
         """Print only if verbose/debug mode is enabled"""
         if kwargs['debug']:
-            output.write(''.join(*a, **k))
+            output.write(''.join(args))
 
     # Declare/define variables
     samples: List[Sample] = []
