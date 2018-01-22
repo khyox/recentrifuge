@@ -16,6 +16,7 @@ from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT, EPS
 from recentrifuge.config import Parents, Score
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_SHARED_CONTROL, ADV_CTRL_MIN_SAMPLES
+from recentrifuge.config import SEVR_CONTM_MIN_RELFREQ, MILD_CONTM_MIN_RELFREQ
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
 from recentrifuge.taxonomy import Taxonomy
@@ -43,6 +44,13 @@ def process_rank(*args,
     taxids: Dict[Sample, TaxLevels] = kwargs['taxids']
     accs: Dict[Sample, Counter[TaxId]] = kwargs['accs']
     files: List[Sample] = kwargs['files']
+    output: io.StringIO = io.StringIO(newline='')
+    kwargs['debug'] = True  # TODO: Unforce debugging in module
+
+    def vwrite(*a, **k):
+        """Print only if verbose/debug mode is enabled"""
+        if kwargs['debug']:
+            output.write(''.join(*a, **k))
 
     # Declare/define variables
     samples: List[Sample] = []
@@ -54,7 +62,6 @@ def process_rank(*args,
     shared_ctrl_abundance: SharedCounter = SharedCounter()
     shared_ctrl_score: SharedCounter = SharedCounter()
     # pylint: enable = unused-variable
-    output: io.StringIO = io.StringIO(newline='')
 
     output.write(f'\033[90mAnalysis for taxonomic rank "'
                  f'\033[95m{rank.name.lower()}\033[90m":\033[0m\n')
@@ -205,32 +212,36 @@ def process_rank(*args,
         def advanced_control_removal():
             """Implement advanced control removal"""
             nonlocal exclude_sets
+
+            relfreq_ctrl: List[float]
             relfreq: List[float]
             relfreq_norm: List[float] = None
             crossover: List[bool] = None
             exclude_sets = {file: set() for file in files[controls:]}
             for tid in exclude_candidates:
+
+                def set_add_tid(myset: Set[TaxId], tid: TaxId = tid) -> None:
+                    """Pseudo lambda for safe checking with mypy"""
+                    return myset.add(tid)
+
+                relfreq_ctrl = [accs[ctrl][tid] / accs[ctrl][ROOT]
+                                for ctrl in files[:controls]]
                 # Severe contaminant check
-                is_severe_contaminant: bool = False
-                for ctrl in files[:controls]:
-                    # Severe contaminant if its rel.freq >1% in any control
-                    assert accs[ctrl][ROOT] > 0, 'Panic! Empty tree!'
-                    if accs[ctrl][tid] / accs[ctrl][ROOT] > 0.01:
-                        is_severe_contaminant = True
-                        for exclude_set in exclude_sets.values():
-                            exclude_set.add(tid)
-                        break
-                if is_severe_contaminant:
-                    continue
+                if any([rf > SEVR_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
+                    vwrite('severe contam:', tid, taxonomy.get_name(tid),
+                           relfreq_ctrl, '\n')
+                    map(set_add_tid, exclude_sets.values())
+                    continue  # Go for next candidate
+
                 # Just-controls/broad/crossover contaminants check
                 relfreq = [accs[sample][tid] / accs[sample][ROOT]
                            for sample in files[controls:]]
                 mdn: float = statistics.median(relfreq)
                 mad: float
                 if mdn < EPS:
-                    print('only-ctrl', tid, taxonomy.get_name(tid),
-                          [accs[ctrl][tid] for ctrl in files[:controls]],
-                          relfreq)
+                    vwrite('only-ctrl contam:', tid, taxonomy.get_name(tid),
+                           [accs[ctrl][tid] for ctrl in files[:controls]],
+                           relfreq)
                 else:
                     # Calculate median and MAD but including controls
                     relfreq = [accs[file][tid] / accs[file][ROOT]
@@ -238,16 +249,29 @@ def process_rank(*args,
                     mdn = statistics.median(relfreq)
                     mad = statistics.median([abs(mdn - rf) for rf in relfreq])
                     if mad < EPS:
-                        print('no MAD!', tid, taxonomy.get_name(tid), relfreq)
+                        vwrite('no MAD!', tid, taxonomy.get_name(tid), relfreq)
                     else:
                         relfreq_norm = [(rf - mdn) / mad for rf in relfreq]
-                        crossover = [(rf > 2 * mad) for rf in relfreq_norm]
-                    if any(crossover):
-                        print('crossover', tid, taxonomy.get_name(tid),
-                              relfreq_norm, crossover)
+                        # Calculate crossover in samples
+                        crossover = [(rf > 3 * mad)
+                                     for rf in relfreq_norm[controls:]]
+                    if all(crossover) and any([rf > MILD_CONTM_MIN_RELFREQ
+                                               for rf in relfreq_ctrl]):
+                        vwrite('mild contam:', tid, taxonomy.get_name(tid),
+                               relfreq_norm, crossover, mad)
+                        map(set_add_tid, exclude_sets.values())
+                    elif any(crossover):
+                        vwrite('crossover:', tid, taxonomy.get_name(tid),
+                               relfreq_norm, crossover, mad)
+                        for i in range(len(samples[controls:])):
+                            if crossover[i]:
+                                set_add_tid(exclude_sets[samples[i]])
+                        for exclude_set in exclude_sets.values():
+                            exclude_set.add(tid)  # Exclude for all samples
                     else:
-                        print('contamination', tid, taxonomy.get_name(tid),
-                              relfreq_norm, crossover)
+                        vwrite('typical contam:', tid, taxonomy.get_name(tid),
+                               relfreq_norm, crossover, mad)
+                        map(set_add_tid, exclude_sets.values())
 
         # Get taxids at this rank that are present in the control samples
         exclude_candidates = set()

@@ -36,6 +36,8 @@ CELLULAR_ORGANISMS = TaxId('131567')
 NO_SCORE = Score(None)  # Score given to taxa with no score
 EPS = 1e-8
 ADV_CTRL_MIN_SAMPLES = 2  # Min num of non-ctrl samples to enable adv control
+SEVR_CONTM_MIN_RELFREQ = 0.01  # Minimum rel frequency of severe contaminant
+MILD_CONTM_MIN_RELFREQ = 0.001  # Minimum rel frequency of mild contaminant
 
 class Scoring(Enum):
     """Enumeration with scoring options."""
