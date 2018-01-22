@@ -31,7 +31,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.15.4'
+__version__ = '0.15.5'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jan 2018'
 
@@ -352,6 +352,7 @@ def main():
         if len(reports) > 1 and not args.avoidcross:
             print(gray(
                 'Please, wait. Performing cross analysis in parallel...\n'))
+            # Update kwargs with more parameters for the followings func calls
             kwargs.update({'trees': trees, 'taxids': taxids,
                            'abundances': abundances, 'files': reports})
             if platform.system() and not args.sequential:  # Only4known systems

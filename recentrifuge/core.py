@@ -6,13 +6,14 @@ import collections as col
 import copy
 import csv
 import io
+import statistics
 import subprocess
 import sys
 from typing import List, Set, Counter, Tuple, Union, Dict
 
 from recentrifuge.config import Filename, Sample, TaxId
+from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT
 from recentrifuge.config import Parents, Score
-from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_SHARED_CONTROL
 from recentrifuge.rank import Rank, TaxLevels
@@ -33,18 +34,18 @@ def process_rank(*args,
 
     # Recover input and parameters
     rank: Rank = args[0]
+    controls: int = kwargs['controls']
+    mintaxa = kwargs['mintaxa']
     taxonomy: Taxonomy = kwargs['taxonomy']
     including = taxonomy.including
     excluding = taxonomy.excluding
-    mintaxa = kwargs['mintaxa']
     trees: Dict[Sample, TaxTree] = kwargs['trees']
     taxids: Dict[Sample, TaxLevels] = kwargs['taxids']
+    abundances: Dict[Sample, Counter[TaxId]] = kwargs['abundances']
     files: List[Sample] = kwargs['files']
-    controls: int = kwargs['controls']
 
     # Declare/define variables
     samples: List[Sample] = []
-    abundances: Dict[Sample, Counter[TaxId]] = {}
     accumulators: Dict[Sample, Counter[TaxId]] = {}
     scores: Dict[Sample, Dict[TaxId, Score]] = {}
     # pylint: disable = unused-variable
@@ -201,14 +202,51 @@ def process_rank(*args,
             accumulators[sample] = control_acc
             scores[sample] = control_score
 
+        def advanced_control_removal():
+            """Implement advanced control removal"""
+            nonlocal exclude_sets
+            abund: List[float]
+            abund_norm: List[float]
+            exclude_sets = {file: set() for file in files[controls::]}
+            for tid in exclude_candidates:
+                # Severe contaminant check
+                is_severe_contaminant: bool = False
+                for ctrl in files[:controls]:
+                    # Severe contaminant if its rel.freq >1% in any control
+                    # TODO: Check trees[ctrl][ROOT].acc is zero
+                    if abundances[ctrl][tid] / trees[ctrl][ROOT].acc > 0.01:
+                        is_severe_contaminant = True
+                        for exclude_set in exclude_sets.values():
+                            exclude_set.add(tid)
+                        break
+                if is_severe_contaminant:
+                    continue
+                # Broad/crossover contaminant checks
+                abund = [abundances[file][tid] for file in files[controls:]]
+                mu: float = statistics.mean(abund)
+                sigma: float = statistics.pstdev(abund, mu)
+                # TODO: Check sigma is zero
+                abund_norm = [(abundance - mu) / sigma for abundance in abund]
+                print(tid, taxonomy.get_name(tid), abund_norm)
+
         # Get taxids at this rank that are present in the control samples
-        exclude = set()
+        exclude_candidates = set()
         for i in range(controls):
-            exclude.update(taxids[files[i]][rank])
-        exclude.update(excluding)  # Add explicit excluding taxa if any
-        for file in files[controls::]:
+            exclude_candidates.update(taxids[files[i]][rank])
+        exclude_sets: Dict[Sample, Set[TaxId]]
+        if len(samples) - controls > 0:
+            advanced_control_removal()
+        else:  # If less than 3 samples, just apply strict control
+            exclude_sets = {file: exclude_candidates
+                            for file in files[controls::]}
+        # Add explicit excluding taxa (if any) to exclude sets
+        for exclude_set in exclude_sets.values():
+            exclude_set.update(excluding)
+        exclude_candidates.update(excluding)
+        # Process each sample excluding control taxa
+        for file in files[controls:]:
             output.write(f'  \033[90mCtrl: From \033[0m{file}\033[90m '
-                         f'excluding {len(exclude)} ctrl taxa. '
+                         f'excluding {len(exclude_sets[file])} ctrl taxa. '
                          f'Generating sample...\033[0m')
             leveled_tree = copy.deepcopy(trees[file])
             leveled_tree.prune(mintaxa, rank)
@@ -218,7 +256,7 @@ def process_rank(*args,
             leveled_tree.get_taxa(abundance=control_abundance,
                                   scores=control_score,
                                   include=including,
-                                  exclude=exclude,  # Extended exclusion set
+                                  exclude=exclude_sets[file],
                                   just_level=rank,
                                   )
             control_abundance = +control_abundance  # remove counts <= 0
@@ -244,7 +282,7 @@ def process_rank(*args,
             tree.get_taxa(abundance=new_shared_ctrl_abundance,
                           scores=new_shared_ctrl_score,
                           include=including,
-                          exclude=exclude,  # Extended exclusion set
+                          exclude=exclude_candidates,  # Extended exclusion set
                           just_level=rank,
                           )
             new_shared_ctrl_abundance = +new_shared_ctrl_abundance
@@ -280,8 +318,8 @@ def process_rank(*args,
                          f'\033[93m VOID\033[90m sample.\033[0m \n')
 
     # Cross analysis iterating by output: exclusive and part of shared&ctrl
-    for iteration, filename in zip(range(len(files)), files):
-        cross_analysis(iteration, filename)
+    for numfile, filename in zip(range(len(files)), files):
+        cross_analysis(numfile, filename)
 
     # Shared taxa final analysis
     shared_abundance = +shared_abundance  # remove counts <= 0
