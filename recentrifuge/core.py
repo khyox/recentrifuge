@@ -15,7 +15,7 @@ from recentrifuge.config import Filename, Sample, TaxId
 from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT, EPS
 from recentrifuge.config import Parents, Score
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
-from recentrifuge.config import STR_SHARED_CONTROL
+from recentrifuge.config import STR_SHARED_CONTROL, ADV_CTRL_MIN_SAMPLES
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
 from recentrifuge.taxonomy import Taxonomy
@@ -205,9 +205,9 @@ def process_rank(*args,
         def advanced_control_removal():
             """Implement advanced control removal"""
             nonlocal exclude_sets
-            abund: List[float]
-            abund_norm: List[float]
-            crossover: List[bool]
+            relfreq: List[float]
+            relfreq_norm: List[float] = None
+            crossover: List[bool] = None
             exclude_sets = {file: set() for file in files[controls:]}
             for tid in exclude_candidates:
                 # Severe contaminant check
@@ -222,36 +222,41 @@ def process_rank(*args,
                         break
                 if is_severe_contaminant:
                     continue
-                # Broad/crossover contaminant checks
-                abund = [accs[file][tid] for file in files[controls:]]
-                mdn: float = statistics.median(abund)
-                mad: float = statistics.median([abs(mdn - a) for a in abund])
+                # Just-controls/broad/crossover contaminants check
+                relfreq = [accs[sample][tid] / accs[sample][ROOT]
+                           for sample in files[controls:]]
+                mdn: float = statistics.median(relfreq)
+                mad: float
                 if mdn < EPS:
                     print('only-ctrl', tid, taxonomy.get_name(tid),
                           [accs[ctrl][tid] for ctrl in files[:controls]],
-                          abund)
-                elif mad < EPS:
-                    print('no mad', tid, taxonomy.get_name(tid),
-                          [accs[ctrl][tid] for ctrl in files[:controls]],
-                          abund)
+                          relfreq)
                 else:
-                    abund_norm = [(a - mdn) / mad for a in abund]
-                    crossover = [(a > 2*mad) for a in abund_norm]
+                    # Calculate median and MAD but including controls
+                    relfreq = [accs[file][tid] / accs[file][ROOT]
+                               for file in files]
+                    mdn = statistics.median(relfreq)
+                    mad = statistics.median([abs(mdn - rf) for rf in relfreq])
+                    if mad < EPS:
+                        print('no MAD!', tid, taxonomy.get_name(tid), relfreq)
+                    else:
+                        relfreq_norm = [(rf - mdn) / mad for rf in relfreq]
+                        crossover = [(rf > 2 * mad) for rf in relfreq_norm]
                     if any(crossover):
                         print('crossover', tid, taxonomy.get_name(tid),
-                              abund_norm, crossover)
+                              relfreq_norm, crossover)
                     else:
                         print('contamination', tid, taxonomy.get_name(tid),
-                              abund_norm, crossover)
+                              relfreq_norm, crossover)
 
         # Get taxids at this rank that are present in the control samples
         exclude_candidates = set()
         for i in range(controls):
             exclude_candidates.update(taxids[files[i]][rank])
         exclude_sets: Dict[Sample, Set[TaxId]]
-        if len(samples) - controls > 0:
+        if controls and (len(samples) - controls >= ADV_CTRL_MIN_SAMPLES):
             advanced_control_removal()
-        else:  # If less than 3 samples, just apply strict control
+        else:  # If this case, just apply strict control
             exclude_sets = {file: exclude_candidates
                             for file in files[controls::]}
         # Add explicit excluding taxa (if any) to exclude sets

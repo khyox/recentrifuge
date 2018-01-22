@@ -35,6 +35,7 @@ ROOT = TaxId('1')
 CELLULAR_ORGANISMS = TaxId('131567')
 NO_SCORE = Score(None)  # Score given to taxa with no score
 EPS = 1e-8
+ADV_CTRL_MIN_SAMPLES = 2  # Min num of non-ctrl samples to enable adv control
 
 class Scoring(Enum):
     """Enumeration with scoring options."""
