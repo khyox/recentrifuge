@@ -46,7 +46,7 @@ def process_rank(*args,
 
     # Declare/define variables
     samples: List[Sample] = []
-    abundances: Dict[Sample, Counter[TaxId]]
+    abundances: Dict[Sample, Counter[TaxId]] = {}
     scores: Dict[Sample, Dict[TaxId, Score]] = {}
     # pylint: disable = unused-variable
     shared_abundance: SharedCounter = SharedCounter()
