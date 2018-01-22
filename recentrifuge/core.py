@@ -50,7 +50,7 @@ def process_rank(*args,
     def vwrite(*args):
         """Print only if verbose/debug mode is enabled"""
         if kwargs['debug']:
-            output.write(''.join(str(item) + ' ' for item in args))
+            output.write(' '.join(str(item) for item in args))
 
     # Declare/define variables
     samples: List[Sample] = []
@@ -241,7 +241,7 @@ def process_rank(*args,
                 if mdn < EPS:
                     vwrite('only-ctrl contam:', tid, taxonomy.get_name(tid),
                            [accs[ctrl][tid] for ctrl in files[:controls]],
-                           relfreq)
+                           relfreq, '\n')
                 else:
                     # Calculate median and MAD but including controls
                     relfreq = [accs[file][tid] / accs[file][ROOT]
@@ -249,7 +249,8 @@ def process_rank(*args,
                     mdn = statistics.median(relfreq)
                     mad = statistics.median([abs(mdn - rf) for rf in relfreq])
                     if mad < EPS:
-                        vwrite('no MAD!', tid, taxonomy.get_name(tid), relfreq)
+                        vwrite('no MAD!', tid, taxonomy.get_name(tid),
+			       relfreq, '\n')
                     else:
                         relfreq_norm = [(rf - mdn) / mad for rf in relfreq]
                         # Calculate crossover in samples
@@ -258,19 +259,19 @@ def process_rank(*args,
                     if all(crossover) and any([rf > MILD_CONTM_MIN_RELFREQ
                                                for rf in relfreq_ctrl]):
                         vwrite('mild contam:', tid, taxonomy.get_name(tid),
-                               relfreq_norm, crossover, mad)
+                               relfreq_norm, crossover, mad, '\n')
                         map(set_add_tid, exclude_sets.values())
                     elif any(crossover):
                         vwrite('crossover:', tid, taxonomy.get_name(tid),
-                               relfreq_norm, crossover, mad)
-                        for i in range(len(samples[controls:])):
+                               relfreq_norm, crossover, mad, '\n')
+                        for i in range(len(files[controls:])):
                             if crossover[i]:
-                                set_add_tid(exclude_sets[samples[i]])
+                                set_add_tid(exclude_sets[files[i + controls]])
                         for exclude_set in exclude_sets.values():
                             exclude_set.add(tid)  # Exclude for all samples
                     else:
                         vwrite('typical contam:', tid, taxonomy.get_name(tid),
-                               relfreq_norm, crossover, mad)
+                               relfreq_norm, crossover, mad, '\n')
                         map(set_add_tid, exclude_sets.values())
 
         # Get taxids at this rank that are present in the control samples

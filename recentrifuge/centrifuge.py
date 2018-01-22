@@ -243,7 +243,7 @@ def process_output(*args,
     def vwrite(*args):
         """Print only if verbose/debug mode is enabled"""
         if kwargs['debug']:
-            output.write(''.join(str(item) + ' ' for item in args))
+            output.write(' '.join(str(item) for item in args))
 
     sample: Sample = Sample(fileout)
 
