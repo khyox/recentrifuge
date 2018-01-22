@@ -50,7 +50,7 @@ def process_rank(*args,
     def vwrite(*args):
         """Print only if verbose/debug mode is enabled"""
         if kwargs['debug']:
-            output.write(''.join(args))
+            output.write(''.join(str(item) + ' ' for item in args))
 
     # Declare/define variables
     samples: List[Sample] = []
