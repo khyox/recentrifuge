@@ -14,9 +14,10 @@ from typing import List, Set, Counter, Tuple, Union, Dict
 from recentrifuge.config import Filename, Sample, TaxId
 from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT, EPS
 from recentrifuge.config import Parents, Score
+from recentrifuge.config import SEVR_CONTM_MIN_RELFREQ, MILD_CONTM_MIN_RELFREQ
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_SHARED_CONTROL, ADV_CTRL_MIN_SAMPLES
-from recentrifuge.config import SEVR_CONTM_MIN_RELFREQ, MILD_CONTM_MIN_RELFREQ
+from recentrifuge.config import gray, red, yellow, blue, magenta, cyan
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
 from recentrifuge.taxonomy import Taxonomy
@@ -226,53 +227,57 @@ def process_rank(*args,
 
                 relfreq_ctrl = [accs[ctrl][tid] / accs[ctrl][ROOT]
                                 for ctrl in files[:controls]]
-                # Severe contaminant check
+                # Severe contamination check
                 if any([rf > SEVR_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
-                    vwrite('severe contam:', tid, taxonomy.get_name(tid),
+                    vwrite(yellow('severe contam:'), tid,
+                           taxonomy.get_name(tid), relfreq_ctrl, '\n')
+                    map(set_add_tid, exclude_sets.values())
+                    continue  # Go for next candidate
+                # Mild contamination check
+                if all([rf > MILD_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
+                    vwrite(blue('mild contam:'), tid, taxonomy.get_name(tid),
                            relfreq_ctrl, '\n')
                     map(set_add_tid, exclude_sets.values())
                     continue  # Go for next candidate
 
-                # Just-controls/broad/crossover contaminants check
+                # Just-controls contamination check
                 relfreq = [accs[sample][tid] / accs[sample][ROOT]
                            for sample in files[controls:]]
                 mdn: float = statistics.median(relfreq)
                 mad: float
                 if mdn < EPS:
-                    vwrite('only-ctrl contam:', tid, taxonomy.get_name(tid),
+                    vwrite(cyan('only-ctrl contam:'), tid,
+                           taxonomy.get_name(tid),
                            [accs[ctrl][tid] for ctrl in files[:controls]],
                            relfreq, '\n')
+                    continue  # Go for next candidate
+
+                # Calculate median and MAD median but including controls
+                relfreq = [accs[file][tid]/accs[file][ROOT] for file in files]
+                mdn = statistics.median(relfreq)
+                mad = statistics.mean([abs(mdn - rf) for rf in relfreq])
+                if mad < EPS:
+                    vwrite(red('Error!'), 'no MAD median!', tid,
+                           taxonomy.get_name(tid), relfreq, '\n')
                 else:
-                    # Calculate median and MAD but including controls
-                    relfreq = [accs[file][tid] / accs[file][ROOT]
-                               for file in files]
-                    mdn = statistics.median(relfreq)
-                    mad = statistics.median([abs(mdn - rf) for rf in relfreq])
-                    if mad < EPS:
-                        vwrite('no MAD!', tid, taxonomy.get_name(tid),
-			       relfreq, '\n')
-                    else:
-                        relfreq_norm = [(rf - mdn) / mad for rf in relfreq]
-                        # Calculate crossover in samples
-                        crossover = [(rf > 3 * mad)
-                                     for rf in relfreq_norm[controls:]]
-                    if all(crossover) and any([rf > MILD_CONTM_MIN_RELFREQ
-                                               for rf in relfreq_ctrl]):
-                        vwrite('mild contam:', tid, taxonomy.get_name(tid),
-                               relfreq_norm, crossover, mad, '\n')
-                        map(set_add_tid, exclude_sets.values())
-                    elif any(crossover):
-                        vwrite('crossover:', tid, taxonomy.get_name(tid),
-                               relfreq_norm, crossover, mad, '\n')
-                        for i in range(len(files[controls:])):
-                            if crossover[i]:
-                                set_add_tid(exclude_sets[files[i + controls]])
-                        for exclude_set in exclude_sets.values():
-                            exclude_set.add(tid)  # Exclude for all samples
-                    else:
-                        vwrite('typical contam:', tid, taxonomy.get_name(tid),
-                               relfreq_norm, crossover, mad, '\n')
-                        map(set_add_tid, exclude_sets.values())
+                    relfreq_norm = [(rf - mdn) / mad for rf in relfreq]
+                    # TODO devise relfreq_norm_ctrl = relfreq_norm[controls:]
+                    # Calculate crossover in samples
+                    crossover = [(rf > 2 * mad)
+                                 for rf in relfreq_norm[controls:]]
+                # Crossover contamination check
+                if any(crossover):
+                    vwrite(magenta('crossover:'), tid, taxonomy.get_name(tid),
+                           relfreq_norm, crossover, mad, '\n')
+                    for i in range(len(files[controls:])):
+                        if crossover[i]:
+                            set_add_tid(exclude_sets[files[i + controls]])
+                    for exclude_set in exclude_sets.values():
+                        exclude_set.add(tid)  # Exclude for all samples
+                else:
+                    vwrite(gray('other contam:'), tid, taxonomy.get_name(tid),
+                           relfreq_norm, crossover, mad, '\n')
+                    map(set_add_tid, exclude_sets.values())
 
         # Get taxids at this rank that are present in the control samples
         exclude_candidates = set()
