@@ -244,40 +244,41 @@ def process_rank(*args,
                 relfreq = [accs[sample][tid] / accs[sample][ROOT]
                            for sample in files[controls:]]
                 mdn: float = statistics.median(relfreq)
-                mad: float
                 if mdn < EPS:
                     vwrite(cyan('only-ctrl contam:'), tid,
                            taxonomy.get_name(tid),
-                           [accs[ctrl][tid] for ctrl in files[:controls]],
-                           relfreq, '\n')
+                           [accs[ctrl][tid] / accs[ctrl][ROOT]
+                            for ctrl in files[:controls]], '\n')
                     continue  # Go for next candidate
 
                 # Calculate median and MAD median but including controls
-                relfreq = [accs[file][tid]/accs[file][ROOT] for file in files]
+                relfreq = [accs[file][tid] / accs[file][ROOT] for file in
+                           files]
                 mdn = statistics.median(relfreq)
-                mad = statistics.mean([abs(mdn - rf) for rf in relfreq])
+                mad: float = statistics.mean([abs(mdn - rf) for rf in relfreq])
                 if mad < EPS:
                     vwrite(red('Error!'), 'no MAD median!', tid,
                            taxonomy.get_name(tid), relfreq, '\n')
                 else:
-                    relfreq_norm = [(rf - mdn) / mad for rf in relfreq]
+                    # TODO relfreq_norm = [(rf - mdn) / mad for rf in relfreq]
                     # TODO devise relfreq_norm_ctrl = relfreq_norm[controls:]
                     # Calculate crossover in samples
-                    crossover = [(rf > 2 * mad)
-                                 for rf in relfreq_norm[controls:]]
-                # Crossover contamination check
-                if any(crossover):
-                    vwrite(magenta('crossover:'), tid, taxonomy.get_name(tid),
-                           relfreq_norm, crossover, mad, '\n')
-                    for i in range(len(files[controls:])):
-                        if crossover[i]:
-                            set_add_tid(exclude_sets[files[i + controls]])
-                    for exclude_set in exclude_sets.values():
-                        exclude_set.add(tid)  # Exclude for all samples
-                else:
-                    vwrite(gray('other contam:'), tid, taxonomy.get_name(tid),
-                           relfreq_norm, crossover, mad, '\n')
-                    map(set_add_tid, exclude_sets.values())
+                    crossover = [(rf > (mdn + 5 * mad)
+                                  and (rf > max(relfreq_ctrl) * 10))
+                                 for rf in relfreq[controls:]]
+                    # Crossover contamination check
+                    if any(crossover):
+                        vwrite(magenta('crossover:'), tid,
+                               taxonomy.get_name(tid),
+                               relfreq_norm, crossover, mad, '\n')
+                        for i in range(len(files[controls:])):
+                            if crossover[i]:
+                                set_add_tid(exclude_sets[files[i + controls]])
+                    else:
+                        vwrite(gray('other contam:'), tid,
+                               taxonomy.get_name(tid),
+                               relfreq_norm, crossover, mad, '\n')
+                        map(set_add_tid, exclude_sets.values())
 
         # Get taxids at this rank that are present in the control samples
         exclude_candidates = set()
