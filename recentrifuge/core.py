@@ -219,25 +219,23 @@ def process_rank(*args,
             relfreq_norm: List[float] = None
             crossover: List[bool] = None
             exclude_sets = {file: set() for file in files[controls:]}
+            vwrite(gray('Advanced negative ctrl removal: Contaminants...\n'))
             for tid in exclude_candidates:
-
-                def set_add_tid(myset: Set[TaxId], tid: TaxId = tid) -> None:
-                    """Pseudo lambda for safe checking with mypy"""
-                    return myset.add(tid)
-
                 relfreq_ctrl = [accs[ctrl][tid] / accs[ctrl][ROOT]
                                 for ctrl in files[:controls]]
                 # Severe contamination check
                 if any([rf > SEVR_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
                     vwrite(yellow('severe contam:'), tid,
                            taxonomy.get_name(tid), relfreq_ctrl, '\n')
-                    map(set_add_tid, exclude_sets.values())
+                    for exclude_set in exclude_sets.values():
+                        exclude_set.add(tid)
                     continue  # Go for next candidate
                 # Mild contamination check
                 if all([rf > MILD_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
                     vwrite(blue('mild contam:'), tid, taxonomy.get_name(tid),
                            relfreq_ctrl, '\n')
-                    map(set_add_tid, exclude_sets.values())
+                    for exclude_set in exclude_sets.values():
+                        exclude_set.add(tid)
                     continue  # Go for next candidate
 
                 # Just-controls contamination check
@@ -273,19 +271,20 @@ def process_rank(*args,
                                relfreq_norm, crossover, mad, '\n')
                         for i in range(len(files[controls:])):
                             if crossover[i]:
-                                set_add_tid(exclude_sets[files[i + controls]])
+                                exclude_sets[files[i + controls]].add(tid)
                     else:
                         vwrite(gray('other contam:'), tid,
                                taxonomy.get_name(tid),
                                relfreq_norm, crossover, mad, '\n')
-                        map(set_add_tid, exclude_sets.values())
+                        for exclude_set in exclude_sets.values():
+                            exclude_set.add(tid)
 
         # Get taxids at this rank that are present in the control samples
         exclude_candidates = set()
         for i in range(controls):
             exclude_candidates.update(taxids[files[i]][rank])
         exclude_sets: Dict[Sample, Set[TaxId]]
-        if controls and (len(samples) - controls >= ADV_CTRL_MIN_SAMPLES):
+        if controls and (len(files) - controls >= ADV_CTRL_MIN_SAMPLES):
             advanced_control_removal()
         else:  # If this case, just apply strict control
             exclude_sets = {file: exclude_candidates
