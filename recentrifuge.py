@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Post-process Centrifuge/Kraken output.
+Post-process Centrifuge/LMAT output.
 """
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse
@@ -10,18 +10,20 @@ import platform
 import sys
 from typing import Counter, List, Dict, Set, Callable, Optional, Tuple
 
+from recentrifuge.core import process_rank
+from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, STR_CONTROL
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import TAXDUMP_PATH
 from recentrifuge.config import gray, red, green, yellow, blue
-from recentrifuge.taxonomy import Taxonomy
-from recentrifuge.rank import Rank, TaxLevels
-from recentrifuge.trees import TaxTree, MultiTree
-from recentrifuge.core import process_rank
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.krona import KronaTree
+from recentrifuge.lmat import select_lmat_inputs
+from recentrifuge.rank import Rank, TaxLevels
+from recentrifuge.taxonomy import Taxonomy
+from recentrifuge.trees import TaxTree, MultiTree
 
 # optional package pandas (to generate Excel output)
 _USE_PANDAS = True
@@ -200,7 +202,7 @@ def main():
             action='store',
             metavar='INT',
             type=int,
-            default=DEFMINTAXA,
+            default=None,
             help='minimum taxa to avoid collapsing one level to the parent one'
                  ' in control samples; it defaults to "mintaxa"'
         )
@@ -241,42 +243,13 @@ def main():
 
     def select_inputs():
         """Choose right input and output files"""
-        nonlocal process, scoring, reports
-
-        def select_centrifuge_inputs():
-            """Centrifuge output files processing specific stuff"""
-            nonlocal outputs
-            dir_name = outputs[0]
-            outputs = []
-            with os.scandir(dir_name) as dir_entry:
-                for fil in dir_entry:
-                    if not fil.name.startswith('.') and fil.name.endswith(
-                            '.out'):
-                        if dir_name != '.':
-                            outputs.append(os.path.join(dir_name, fil.name))
-                        else:  # Avoid sample names starting with just the dot
-                            outputs.append(fil.name)
-            outputs.sort()
-            print(gray('Centrifuge outputs to analyze:'), outputs)
-
-        def select_lmat_inputs():
-            """"LMAT files processing specific stuff"""
-            nonlocal plasmidfile, lmats
-            plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))
-            if lmats == ['.']:
-                lmats = []
-                with os.scandir() as dir_entry:
-                    for entry in dir_entry:
-                        if not entry.name.startswith('.') and entry.is_dir():
-                            if entry.name != os.path.basename(TAXDUMP_PATH):
-                                lmats.append(entry.name)
-                lmats.sort()
-            print(gray('LMAT subdirs to analyze:'), lmats)
+        nonlocal process, scoring, reports, plasmidfile
 
         if outputs and len(outputs) == 1 and os.path.isdir(outputs[0]):
-            select_centrifuge_inputs()
+            select_centrifuge_inputs(outputs)
         if lmats:
-            select_lmat_inputs()
+            plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))
+            select_lmat_inputs(lmats)
 
         # Select method and arguments depending on type of files to analyze
         if lmats:
@@ -300,24 +273,23 @@ def main():
             for i in range(args.controls):
                 print(blue(f'\t{reports[i]}'))
 
-    def select_outputs():
+    def select_html_file():
         """HTML filename selection"""
         nonlocal htmlfile
-        if not htmlfile:
-            if lmats:  # Select case for dir name or filename prefix
-                if os.path.isdir(lmats[0]):  # Dir name
-                    dirname = os.path.dirname(os.path.normpath(lmats[0]))
-                    if not dirname or dirname == '.':
-                        basename = 'output'
-                    else:
-                        basename = os.path.basename(dirname)
-                else:  # Explicit path and file name prefix is provided
-                    dirname, basename = os.path.split(lmats[0])
-                htmlfile = os.path.join(dirname, basename + HTML_SUFFIX)
-            elif reports:
-                htmlfile = reports[0].split('_mhl')[0] + HTML_SUFFIX
-            else:
-                htmlfile = outputs[0].split('_mhl')[0] + HTML_SUFFIX
+        if lmats:  # Select case for dir name or filename prefix
+            if os.path.isdir(lmats[0]):  # Dir name
+                dirname = os.path.dirname(os.path.normpath(lmats[0]))
+                if not dirname or dirname == '.':
+                    basename = 'output'
+                else:
+                    basename = os.path.basename(dirname)
+            else:  # Explicit path and file name prefix is provided
+                dirname, basename = os.path.split(lmats[0])
+            htmlfile = os.path.join(dirname, basename + HTML_SUFFIX)
+        elif reports:
+            htmlfile = reports[0].split('_mhl')[0] + HTML_SUFFIX
+        else:
+            htmlfile = outputs[0].split('_mhl')[0] + HTML_SUFFIX
 
     def read_samples():
         """Read samples"""
@@ -492,7 +464,8 @@ def main():
                                  Dict[TaxId, Optional[Score]]]]
     select_inputs()
     check_controls()
-    select_outputs()
+    if not htmlfile:
+        select_html_file()
 
     # Load NCBI nodes, names and build children
     ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,

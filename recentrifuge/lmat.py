@@ -13,6 +13,7 @@ from typing import Tuple, Counter, Dict, List
 from Bio import SeqIO
 
 from recentrifuge.config import TaxId, Score, Scoring, Filename
+from recentrifuge.config import TAXDUMP_PATH, gray
 
 
 class UnsupportedMatchingError(Exception):
@@ -158,3 +159,16 @@ def read_lmat_output(output_file: Filename,
         raise Exception(f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
     # Return
     return output.getvalue(), abundances, out_scores
+
+
+def select_lmat_inputs(lmats: List[Filename]) -> None:
+    """"LMAT files processing specific stuff"""
+    if lmats == ['.']:
+        lmats.clear()
+        with os.scandir() as dir_entry:
+            for entry in dir_entry:
+                if not entry.name.startswith('.') and entry.is_dir():
+                    if entry.name != os.path.basename(TAXDUMP_PATH):
+                        lmats.append(Filename(entry.name))
+        lmats.sort()
+    print(gray('LMAT subdirs to analyze:'), lmats)

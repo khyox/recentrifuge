@@ -5,6 +5,7 @@ Functions directly related with Centrifuge (or Kraken).
 
 import collections as col
 import io
+import os
 import sys
 from math import log10
 from statistics import mean
@@ -13,8 +14,8 @@ from typing import Tuple, Counter, Set, Dict, List
 from Bio import SeqIO
 
 from recentrifuge.lmat import read_lmat_output
-from recentrifuge.config import Filename, TaxId, Score, UNCLASSIFIED, Scoring
-from recentrifuge.config import Sample, nucleotides, gray, red, green
+from recentrifuge.config import Filename, TaxId, Score, Scoring, Sample
+from recentrifuge.config import UNCLASSIFIED, nucleotides, gray, red, green
 from recentrifuge.rank import Rank, Ranks, TaxLevels
 from recentrifuge.trees import TaxTree
 from recentrifuge.taxonomy import Taxonomy
@@ -338,3 +339,19 @@ def analize_outputs(outputs: List[Filename]) -> None:
             scores = [seq.annotations['score'] for seq in seqs_lst if
                       seq.annotations['score'] > 0]
             print(f'- Scores: max={max(scores)}, min={min(scores)}')
+
+
+def select_centrifuge_inputs(outputs: List[Filename],
+                             ext: str = '.out') -> None:
+    """Centrifuge output files processing specific stuff"""
+    dir_name = outputs[0]
+    outputs.clear()
+    with os.scandir(dir_name) as dir_entry:
+        for fil in dir_entry:
+            if not fil.name.startswith('.') and fil.name.endswith(ext):
+                if dir_name != '.':
+                    outputs.append(Filename(os.path.join(dir_name, fil.name)))
+                else:  # Avoid sample names starting with just the dot
+                    outputs.append(Filename(fil.name))
+    outputs.sort()
+    print(gray(f'Centrifuge {ext} files to analyze:'), outputs)
