@@ -11,18 +11,26 @@ import sys
 from typing import Counter
 
 from recentrifuge.centrifuge import select_centrifuge_inputs
-from recentrifuge.config import Filename, TaxId, Score
+from recentrifuge.config import Filename, TaxId
 from recentrifuge.config import NODES_FILE, NAMES_FILE
 from recentrifuge.config import TAXDUMP_PATH
 from recentrifuge.config import gray, red, green, yellow, blue, cyan
-from recentrifuge.rank import Rank
 from recentrifuge.taxonomy import Taxonomy
 
-__version__ = '0.1.0'
+# optional package pandas (to read Excel with mock layout)
+_USE_PANDAS = True
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+    _USE_PANDAS = False
+
+__version__ = '0.2.0'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Jan 2018'
 
 MAX_HIT_LENGTH: int = 200  # Max hit length for random score generation
+
 
 def main():
     """Main entry point to recentrifuge."""
@@ -62,13 +70,25 @@ def main():
             action='store_true',
             help='increase output verbosity and perform additional checks'
         )
-        parser.add_argument(
+        parser_input = parser.add_mutually_exclusive_group(required=True)
+        parser_input.add_argument(
             '-m', '--mock',
             action='append',
             metavar='FILE',
             type=Filename,
-            help='Mock files to be read for mock Centrifuge sequences layout'
+            help=('Mock files to be read for mock Centrifuge sequences layout.'
+                  ' If a single directory is entered, every .out file inside '
+                  'will be taken as a different sample. '
+                  'Multiple -f is available to include several samples.')
         )
+        if _USE_PANDAS:
+            parser_input.add_argument(
+                '-x', '--xcel',
+                action='store',
+                metavar='FILE',
+                type=Filename,
+                help='Excel file with the mock layout.'
+            )
         parser.add_argument(
             '-n', '--nodespath',
             action='store',
@@ -89,7 +109,7 @@ def main():
         if args.debug:
             print(gray('INFO: Debugging mode activated\n'))
 
-    def read_mock_layout(mock: Filename) -> Counter[TaxId]:
+    def read_mock_files(mock: Filename) -> Counter[TaxId]:
         """Read a mock layout (.mck) file"""
         mock_layout: Counter[TaxId] = col.Counter()
         with open(mock, 'r') as file:
@@ -146,6 +166,33 @@ def main():
                     reads_writen += 1
             vprint(reads_writen, 'reads', green('OK!\n'))
 
+    def by_mock_files() -> None:
+        """Do the job in case of mock files"""
+        if len(args.mock) == 1 and os.path.isdir(args.mock[0]):
+            select_centrifuge_inputs(args.mock, ext='.mck')
+        for mock in args.mock:
+            mock_layout: Counter[TaxId] = read_mock_files(mock)
+            test: Filename = Filename(mock.split('.mck')[0] + '.out')
+            if args.file:
+                mock_from_source(test, mock_layout)
+            else:
+                mock_from_scratch(test, mock_layout)
+
+    def by_excel_file() -> None:
+        """Do the job in case of Excel file with all the details"""
+        dirname = os.path.dirname(args.xcel)
+        mock_df = pd.read_excel(args.xcel, index_col=1)
+        del mock_df['RECENTRIFUGE MOCK']
+        vprint(gray('Layout to generate the mock files:\n'), mock_df, '\n')
+        for name, series in mock_df.iteritems():
+            mock_layout: Counter[TaxId] = col.Counter(series.to_dict(dict))
+            # In prev, series.to_dict(col.Counter) fails, so this is workaround
+            test: Filename = Filename(os.path.join(dirname, name + '.out'))
+            if args.file:
+                mock_from_source(test, mock_layout)
+            else:
+                mock_from_scratch(test, mock_layout)
+
     # Program header
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
     sys.stdout.flush()
@@ -162,15 +209,10 @@ def main():
     # Load NCBI nodes, names and build children
     ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, None, False)
 
-    if len(args.mock) == 1 and os.path.isdir(args.mock[0]):
-        select_centrifuge_inputs(args.mock, ext='.mck')
-    for mock in args.mock:
-        mock_layout = read_mock_layout(mock)
-        test: Filename = Filename(mock.split('.mck')[0] + '.out')
-        if args.file:
-            mock_from_source(test, mock_layout)
-        else:
-            mock_from_scratch(test, mock_layout)
+    if args.mock:
+        by_mock_files()
+    elif args.xcel:
+        by_excel_file()
 
 
 if __name__ == '__main__':
