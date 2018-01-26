@@ -181,7 +181,9 @@ def main():
     def by_excel_file() -> None:
         """Do the job in case of Excel file with all the details"""
         dirname = os.path.dirname(args.xcel)
-        mock_df = pd.read_excel(args.xcel, index_col=1)
+        # Expected index (taxids) in column after taxa name, and last row will
+        #  be removed (reserved for sum of reads in Excel file)
+        mock_df = pd.read_excel(args.xcel, index_col=1, skip_footer=1)
         del mock_df['RECENTRIFUGE MOCK']
         vprint(gray('Layout to generate the mock files:\n'), mock_df, '\n')
         for name, series in mock_df.iteritems():
