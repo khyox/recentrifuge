@@ -303,7 +303,21 @@ class TaxTree(dict):
                 # Just get the averaged score by number of leafs
                 # self.score = sum([self[tid].score
                 #                   for tid in list(self)])/len(self)
-                pass
+                pass  # TODO: recheck this change and remove else
+
+    def subtract(self) -> None:
+        """
+        Recursively subtract counts of lower levels from higher ones.
+
+        From bottom to top, subtract counts from higher taxonomical
+        levels, under the assumption than they were accumulated before.
+
+        """
+        for tid in list(self):  # Loop if this node has subtrees
+            self[tid].subtract()  # Subtract for each branch/leaf
+            self.counts -= self[tid].counts  # Subtract lower taxa counts
+            if self.counts < 0:
+                self.counts = 0  # Avoid negative counts
 
     def prune(self,
               min_taxa: int = 1,

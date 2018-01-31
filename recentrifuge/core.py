@@ -11,12 +11,12 @@ import subprocess
 import sys
 from typing import List, Set, Counter, Tuple, Union, Dict
 
-from recentrifuge.config import Filename, Sample, TaxId
+from recentrifuge.config import ADV_CTRL_MIN_SAMPLES
+from recentrifuge.config import Filename, Sample, TaxId, Parents, Score
 from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT, EPS
-from recentrifuge.config import Parents, Score
 from recentrifuge.config import SEVR_CONTM_MIN_RELFREQ, MILD_CONTM_MIN_RELFREQ
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
-from recentrifuge.config import STR_SHARED_CONTROL, ADV_CTRL_MIN_SAMPLES
+from recentrifuge.config import STR_SHARED_CONTROL, STR_SUMMARY
 from recentrifuge.config import gray, red, yellow, blue, magenta, cyan, green
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
@@ -199,7 +199,7 @@ def process_rank(*args,
                       scores=control_score)
             tree.shape()
             control_acc: Counter[TaxId] = col.Counter()
-            control_score = {}
+            control_score.clear()
             tree.get_taxa(accs=control_acc,
                           scores=control_score,
                           include=including,
@@ -394,6 +394,65 @@ def process_rank(*args,
     print(output.getvalue())
     sys.stdout.flush()
     return samples, abundances, accs, scores
+
+
+def summarize_analysis(*args,
+                       **kwargs
+                       ) -> Tuple[Sample,
+                                  Counter[TaxId],
+                                  Counter[TaxId],
+                                  Dict[TaxId, Score]]:
+    """
+    Summarize for a cross-analysis (to be usually called in parallel!).
+    """
+    # Recover input and parameters
+    analysis: str = args[0]
+    taxonomy: Taxonomy = kwargs['taxonomy']
+    including = taxonomy.including
+    excluding = taxonomy.excluding
+    abundances: Dict[Sample, Counter[TaxId]] = kwargs['abundances']
+    scores: Dict[Sample, Dict[TaxId, Score]] = kwargs['scores']
+    samples: List[Sample] = kwargs['samples']
+    output: io.StringIO = io.StringIO(newline='')
+
+    # Declare/define variables
+    summary_abund: Counter[TaxId] = Counter()
+    summary_acc: Counter[TaxId] = Counter()
+    summary_score: Dict[TaxId, Score] = {}
+    summary: Sample = None
+
+    output.write(gray(f'Summary for {analysis} samples...'))
+
+    target_samples: List[Sample] = [smpl for smpl in samples
+                                    if smpl.startswith(analysis)]
+
+    for smpl in target_samples:
+        summary_abund += abundances[smpl]
+        summary_score.update(scores[smpl])
+
+    tree = TaxTree()
+    tree.grow(taxonomy=taxonomy,
+              abundances=summary_abund,
+              scores=summary_score)
+    tree.subtract()
+    tree.shape()
+    summary_abund.clear()
+    summary_score.clear()
+    tree.get_taxa(abundance=summary_abund,
+                  accs=summary_acc,
+                  scores=summary_score,
+                  include=including,
+                  exclude=excluding)
+    summary_abund = +summary_abund  # remove counts <= 0
+    if summary_abund:  # Avoid returning empty sample (summary would be None)
+        summary = Sample(f'{STR_SUMMARY}_{analysis}')
+        output.write(green(' OK!\n'))
+    else:
+        output.write(yellow(' VOID\n'))
+    # Print output and return
+    print(output.getvalue(), end='')
+    sys.stdout.flush()
+    return summary, summary_abund, summary_acc, summary_score
 
 
 def write_lineage(parents: Parents,

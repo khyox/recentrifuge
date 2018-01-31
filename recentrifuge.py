@@ -10,13 +10,14 @@ import platform
 import sys
 from typing import Counter, List, Dict, Set, Callable, Optional, Tuple
 
-from recentrifuge.core import process_rank
+from recentrifuge.core import process_rank, summarize_analysis
 from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
-from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, STR_CONTROL
+from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
-from recentrifuge.config import TAXDUMP_PATH
+from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
+from recentrifuge.config import STR_SHARED_CONTROL, STR_SUMMARY
 from recentrifuge.config import gray, red, green, yellow, blue
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.krona import KronaTree
@@ -90,6 +91,7 @@ def main():
             '-f', '--file',
             action='append',
             metavar='FILE',
+            type=Filename,
             help=('Centrifuge output files. If a single directory is entered, '
                   'every .out file inside will be taken as a different sample.'
                   ' Multiple -f is available to include several samples.')
@@ -98,6 +100,7 @@ def main():
             '-r', '--report',
             action='append',
             metavar='FILE',
+            type=Filename,
             help=('Centrifuge/Kraken report files '
                   '(multiple -r is available to include several samples)')
         )
@@ -105,6 +108,7 @@ def main():
             '-l', '--lmat',
             action='append',
             metavar='FILE',
+            type=Filename,
             default=None,
             help=('LMAT output dir or file prefix. If just "." is entered, '
                   'every subdirectory under the current directory will be '
@@ -243,7 +247,7 @@ def main():
 
     def select_inputs():
         """Choose right input and output files"""
-        nonlocal process, scoring, reports, plasmidfile
+        nonlocal process, scoring, input_files, plasmidfile
 
         if outputs and len(outputs) == 1 and os.path.isdir(outputs[0]):
             select_centrifuge_inputs(outputs)
@@ -254,24 +258,24 @@ def main():
         # Select method and arguments depending on type of files to analyze
         if lmats:
             process = process_output
-            reports = lmats
+            input_files = lmats
             scoring = Scoring.LMAT
         elif reports:
             process = process_report
-            reports = reports
+            input_files = reports
         else:
             process = process_output
-            reports = outputs
+            input_files = outputs
 
     def check_controls():
         """Check and info about the control samples"""
         if args.controls:
-            if args.controls > len(reports):
+            if args.controls > len(input_files):
                 print(red(' ERROR!'), gray('More controls than samples'))
                 exit(1)
             print(gray('Control(s) sample(s) for subtractions:'))
             for i in range(args.controls):
-                print(blue(f'\t{reports[i]}'))
+                print(blue(f'\t{input_files[i]}'))
 
     def select_html_file():
         """HTML filename selection"""
@@ -285,11 +289,11 @@ def main():
                     basename = os.path.basename(dirname)
             else:  # Explicit path and file name prefix is provided
                 dirname, basename = os.path.split(lmats[0])
-            htmlfile = os.path.join(dirname, basename + HTML_SUFFIX)
+            htmlfile = Filename(os.path.join(dirname, basename + HTML_SUFFIX))
         elif reports:
-            htmlfile = reports[0].split('_mhl')[0] + HTML_SUFFIX
+            htmlfile = Filename(reports[0].split('_mhl')[0] + HTML_SUFFIX)
         else:
-            htmlfile = outputs[0].split('_mhl')[0] + HTML_SUFFIX
+            htmlfile = Filename(outputs[0].split('_mhl')[0] + HTML_SUFFIX)
 
     def read_samples():
         """Read samples"""
@@ -298,20 +302,21 @@ def main():
         if platform.system() and not args.sequential:  # Only for known systems
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(),
-                                          len(reports))) as pool:
+                                          len(input_files))) as pool:
                 async_results = [pool.apply_async(
                     process,
-                    args=[reports[num],  # file name
+                    args=[input_files[num],  # file name
                           True if num < args.controls else False],  # is ctrl?
                     kwds=kwargs
-                ) for num in range(len(reports))]
+                ) for num in range(len(input_files))]
                 for file, (sample, trees[sample],
                            taxids[sample], abundances[sample],
                            accs[sample], scores[sample]
-                           ) in zip(reports, [r.get() for r in async_results]):
+                           ) in zip(input_files,
+                                    [r.get() for r in async_results]):
                     samples.append(sample)
         else:  # sequential processing of each sample
-            for file in reports:
+            for file in input_files:
                 (sample, trees[sample],
                  taxids[sample], abundances[sample],
                  accs[sample], scores[sample]) = process(file, **kwargs)
@@ -320,37 +325,67 @@ def main():
 
     def analyze_samples():
         """Cross analysis of samples in parallel by taxlevel"""
-        # Avoid if just a single report file of explicitly stated by flag
-        if len(reports) > 1 and not args.avoidcross:
-            print(gray(
-                'Please, wait. Performing cross analysis in parallel...\n'))
-            # Update kwargs with more parameters for the followings func calls
-            kwargs.update({'trees': trees, 'taxids': taxids,
-                           'accs': accs, 'files': reports})
-            if platform.system() and not args.sequential:  # Only4known systems
-                mpctx = mp.get_context('spawn')  # Important for OSX&Win
-                with mpctx.Pool(processes=min(os.cpu_count(), len(
-                        Rank.selected_ranks))) as pool:
-                    async_results = [pool.apply_async(
-                        process_rank,
-                        args=[level],
-                        kwds=kwargs
-                    ) for level in Rank.selected_ranks]
-                    for level, (filenames, abunds, accumulators, score) in zip(
-                            Rank.selected_ranks,
-                            [r.get() for r in async_results]):
-                        samples.extend(filenames)
-                        abundances.update(abunds)
-                        accs.update(accumulators)
-                        scores.update(score)
-            else:  # sequential processing of each selected rank
-                for level in Rank.selected_ranks:
-                    (filenames, abunds,
-                     accumulators, score) = process_rank(level, **kwargs)
-                    samples.extend(filenames)
+        print(gray('Please, wait. Performing cross analysis in parallel...\n'))
+        # Update kwargs with more parameters for the followings func calls
+        kwargs.update({'trees': trees, 'taxids': taxids,
+                       'accs': accs, 'files': input_files})
+        if platform.system() and not args.sequential:  # Only for known systems
+            mpctx = mp.get_context('spawn')  # Important for OSX&Win
+            with mpctx.Pool(processes=min(os.cpu_count(), len(
+                    Rank.selected_ranks))) as pool:
+                async_results = [pool.apply_async(
+                    process_rank,
+                    args=[level],
+                    kwds=kwargs
+                ) for level in Rank.selected_ranks]
+                for level, (smpls, abunds, accumulators, score) in zip(
+                        Rank.selected_ranks,
+                        [r.get() for r in async_results]):
+                    samples.extend(smpls)
                     abundances.update(abunds)
                     accs.update(accumulators)
                     scores.update(score)
+        else:  # sequential processing of each selected rank
+            for level in Rank.selected_ranks:
+                (smpls, abunds,
+                 accumulators, score) = process_rank(level, **kwargs)
+                samples.extend(smpls)
+                abundances.update(abunds)
+                accs.update(accumulators)
+                scores.update(score)
+
+    def summarize_samples():
+        """Summary of samples in parallel by type of cross-analysis"""
+        print(gray('Please, wait. Generating summary in parallel...'))
+        # Update kwargs with more parameters for the followings func calls
+        kwargs.update({'abundances': abundances, 'scores': scores,
+                       'samples': samples})
+        if platform.system() and not args.sequential:  # Only for known systems
+            mpctx = mp.get_context('spawn')  # Important for OSX&Win
+            with mpctx.Pool(processes=min(os.cpu_count(),
+                                          len(input_files))) as pool:
+                async_results = [pool.apply_async(
+                    summarize_analysis,
+                    args=[analysis],
+                    kwds=kwargs
+                ) for analysis in [STR_SHARED, STR_SHARED_CONTROL]]
+                for analysis, (summary, abund, acc, score) in zip(
+                        [STR_SHARED, STR_SHARED_CONTROL],
+                        [r.get() for r in async_results]):
+                    if summary:  # Avoid adding empty samples
+                        samples.append(summary)
+                        abundances[summary] = abund
+                        accs[summary] = acc
+                        scores[summary] = score
+        else:  # sequential processing of each selected rank
+            for analysis in [STR_SHARED, STR_SHARED_CONTROL]:
+                (summary, abund,
+                 acc, score) = summarize_analysis(analysis, **kwargs)
+                if summary:  # Avoid adding empty samples
+                    samples.append(summary)
+                    abundances[summary] = abund
+                    accs[summary] = acc
+                    scores[summary] = score
 
     def generate_krona():
         """Generate Krona plot with all the results via Krona 2.0 XML spec"""
@@ -444,9 +479,10 @@ def main():
     # Parse arguments
     argparser = configure_parser()
     args = argparser.parse_args()
-    outputs: List = args.file
-    reports: List = args.report
-    lmats: List = args.lmat
+    outputs: List[Filename] = args.file
+    reports: List[Filename] = args.report
+    lmats: List[Filename] = args.lmat
+    input_files: List[Filename]
     nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
     htmlfile: Filename = args.outhtml
@@ -499,7 +535,10 @@ def main():
               }
     # The big stuff (done in parallel)
     read_samples()
-    analyze_samples()
+    # Avoid cross analysis if just one report file or explicitly stated by flag
+    if len(input_files) > 1 and not args.avoidcross:
+        analyze_samples()
+        summarize_samples()
     # Final result generation is done in sequential mode
     polytree: MultiTree = MultiTree(samples=samples)
     generate_krona()

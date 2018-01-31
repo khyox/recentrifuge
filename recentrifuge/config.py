@@ -29,6 +29,7 @@ STR_CONTROL = 'CTRL'
 STR_EXCLUSIVE = 'EXCLUSIVE'
 STR_SHARED = 'SHARED'
 STR_SHARED_CONTROL = 'SHARED_CONTROL'
+STR_SUMMARY = 'SUMMARY'
 DEFMINTAXA = 10  # minimum taxa to avoid collapsing one level to the parent one
 UNCLASSIFIED = TaxId('0')
 ROOT = TaxId('1')
