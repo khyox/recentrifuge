@@ -229,7 +229,7 @@ def process_output(*args,
     Process Centrifuge/LMAT output files (to be usually called in parallel!).
     """
     # Recover input and parameters
-    fileout: Filename = args[0]
+    target_file: Filename = args[0]
     is_ctrl: bool = args[1]
     taxonomy: Taxonomy = kwargs['taxonomy']
     mintaxa: int = kwargs['ctrlmintaxa'] if is_ctrl else kwargs['mintaxa']
@@ -246,7 +246,7 @@ def process_output(*args,
         if kwargs['debug']:
             output.write(' '.join(str(item) for item in args))
 
-    sample: Sample = Sample(fileout)
+    sample: Sample = Sample(os.path.splitext(target_file)[0])
 
     # Read Centrifuge/LMAT output files to get abundances
     if lmat:
@@ -256,7 +256,7 @@ def process_output(*args,
     log: str
     abundances: Counter[TaxId]
     scores: Dict[TaxId, Score]
-    log, abundances, scores = read_method(fileout, scoring, minscore)
+    log, abundances, scores = read_method(target_file, scoring, minscore)
     output.write(log)
 
     # Build taxonomy tree

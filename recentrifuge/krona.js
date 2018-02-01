@@ -3405,6 +3405,7 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
             'onclick="selectLastDataset()"/>' +
             '<select id="ranks" onchange="onRankChange()" ' +
             'title="Filter samples by taxonomic rank">' +
+            '<option value="SUMMARY">SUMMARY</option>' +
             '<option value="species">species</option>' +
             '<option value="genus">genus</option>' +
             '<option value="family">family</option>' +
@@ -5582,10 +5583,10 @@ function selectRank(rank) {
         if (currentRank === 'ALL'
             || i < numRawSamples
             || (currentRank !== NO_RANK && (
-                datasetNames[i].startsWith('EXCLUSIVE_' + currentRank) ||
-                datasetNames[i].startsWith('SHARED_' + currentRank) ||
-                datasetNames[i].startsWith('SHARED_CONTROL_' + currentRank) ||
-                datasetNames[i].startsWith('CTRL_' + currentRank)))) {
+                datasetNames[i].endsWith('EXCLUSIVE_' + currentRank) ||
+                datasetNames[i].endsWith('SHARED_' + currentRank) ||
+                datasetNames[i].endsWith('CONTROL_SHARED' + currentRank) ||
+                datasetNames[i].endsWith('CTRL_' + currentRank)))) {
             datasetDropDown.options[i].hidden = false;
             datasetsVisible++;
         } else {

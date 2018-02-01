@@ -90,10 +90,8 @@ class Rank(Enum):
     @classproperty
     def selected_ranks(cls):  # pylint: disable=no-self-argument
         """Ranks selected for deep analysis and comparisons"""
-        # TODO: Recover full taxlevels list
-        #_selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O,
-        #                                     cls.C, cls.P, cls.K, cls.D]
-        _selected_taxlevels: List['Rank'] = [cls.S, cls.G]
+        _selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O,
+                                             cls.C, cls.P, cls.K, cls.D]
         return _selected_taxlevels
 
     @classmethod

@@ -17,28 +17,28 @@ Score = NewType('Score', float)
 # pylint: enable=invalid-name
 
 # Predefined internal constants
-PATH = '.'
-TAXDUMP_PATH = './taxdump'
-NODES_FILE = 'nodes.dmp'
-NAMES_FILE = 'names.dmp'
-PLASMID_FILE = 'plasmid.names.txt'
-ZIPFILE = 'taxdmp.zip'
-JSLIB = 'krona.js'
-HTML_SUFFIX = '.rcf.html'
-STR_CONTROL = 'CTRL'
-STR_EXCLUSIVE = 'EXCLUSIVE'
-STR_SHARED = 'SHARED'
-STR_SHARED_CONTROL = 'SHARED_CONTROL'
-STR_SUMMARY = 'SUMMARY'
-DEFMINTAXA = 10  # minimum taxa to avoid collapsing one level to the parent one
-UNCLASSIFIED = TaxId('0')
-ROOT = TaxId('1')
-CELLULAR_ORGANISMS = TaxId('131567')
-NO_SCORE = Score(None)  # Score given to taxa with no score
-EPS = 1e-8
-ADV_CTRL_MIN_SAMPLES = 2  # Min num of non-ctrl samples to enable adv control
-SEVR_CONTM_MIN_RELFREQ = 0.01  # Minimum rel frequency of severe contaminant
-MILD_CONTM_MIN_RELFREQ = 0.001  # Minimum rel frequency of mild contaminant
+PATH: Filename = Filename('.')
+TAXDUMP_PATH: Filename = Filename('./taxdump')
+NODES_FILE: Filename = Filename('nodes.dmp')
+NAMES_FILE: Filename = Filename('names.dmp')
+PLASMID_FILE: Filename = Filename('plasmid.names.txt')
+ZIPFILE: Filename = Filename('taxdmp.zip')
+JSLIB: Filename = Filename('krona.js')
+HTML_SUFFIX: Filename = Filename('.rcf.html')
+STR_CONTROL: str = 'CTRL'
+STR_EXCLUSIVE: str = 'EXCLUSIVE'
+STR_SHARED: str = 'SHARED'
+STR_CONTROL_SHARED: str = 'CONTROL_SHARED'
+STR_SUMMARY: str = 'SUMMARY'
+DEFMINTAXA: int = 10  # min taxa to avoid collapsing one level into the parent
+UNCLASSIFIED: TaxId = TaxId('0')
+ROOT: TaxId = TaxId('1')
+CELLULAR_ORGANISMS: TaxId = TaxId('131567')
+NO_SCORE: Score = Score(None)  # Score given to taxa with no score
+EPS: float = 1e-8
+ADV_CTRL_MIN_SAMPLES: int = 2  # Min num of non-ctrl samples to enable advCtrl
+SEVR_CONTM_MIN_RELFREQ: float = 0.01  # Min rel frequency of severe contaminant
+MILD_CONTM_MIN_RELFREQ: float = 0.001  # Min rel frequency of mild contaminant
 
 class Scoring(Enum):
     """Enumeration with scoring options."""

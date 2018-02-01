@@ -4,21 +4,22 @@ Post-process Centrifuge/LMAT output.
 """
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse
+import collections as col
 import multiprocessing as mp
 import os
 import platform
 import sys
 from typing import Counter, List, Dict, Set, Callable, Optional, Tuple
 
-from recentrifuge.core import process_rank, summarize_analysis
-from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.centrifuge import process_report, process_output
+from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
-from recentrifuge.config import STR_SHARED_CONTROL, STR_SUMMARY
-from recentrifuge.config import gray, red, green, yellow, blue
+from recentrifuge.config import STR_CONTROL_SHARED
+from recentrifuge.config import gray, red, green, yellow, blue, magenta
+from recentrifuge.core import process_rank, summarize_analysis
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.krona import KronaTree
 from recentrifuge.lmat import select_lmat_inputs
@@ -34,9 +35,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.15.5'
+__version__ = '0.16.0'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Jan 2018'
+__date__ = 'Feb 2018'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -328,7 +329,7 @@ def main():
         print(gray('Please, wait. Performing cross analysis in parallel...\n'))
         # Update kwargs with more parameters for the followings func calls
         kwargs.update({'trees': trees, 'taxids': taxids,
-                       'accs': accs, 'files': input_files})
+                       'accs': accs, 'raw_samples': raw_samples})
         if platform.system() and not args.sequential:  # Only for known systems
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(), len(
@@ -356,10 +357,25 @@ def main():
 
     def summarize_samples():
         """Summary of samples in parallel by type of cross-analysis"""
-        print(gray('Please, wait. Generating summary in parallel...'))
+        print(gray('Please, wait. Generating summaries in parallel...'))
         # Update kwargs with more parameters for the followings func calls
         kwargs.update({'abundances': abundances, 'scores': scores,
                        'samples': samples})
+        # Get list of set of samples to summarize (note pylint bug #776)
+        # pylint: disable=unsubscriptable-object
+        target_analysis: col.OrderedDict[str, None] = col.OrderedDict({
+            f'{raw}_{study}': None for study in [STR_EXCLUSIVE, STR_CONTROL]
+            for raw in raw_samples
+            for smpl in samples if smpl.startswith(f'{raw}_{study}')
+        })
+        # pylint: enable=unsubscriptable-object
+        # Add shared and control_shared analysis if they exist (are not void)
+        for study in [STR_SHARED, STR_CONTROL_SHARED]:
+            for smpl in samples:
+                if smpl.startswith(study):
+                    target_analysis[study] = None
+                    break
+
         if platform.system() and not args.sequential:  # Only for known systems
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(),
@@ -368,17 +384,16 @@ def main():
                     summarize_analysis,
                     args=[analysis],
                     kwds=kwargs
-                ) for analysis in [STR_SHARED, STR_SHARED_CONTROL]]
+                ) for analysis in target_analysis]
                 for analysis, (summary, abund, acc, score) in zip(
-                        [STR_SHARED, STR_SHARED_CONTROL],
-                        [r.get() for r in async_results]):
+                        target_analysis, [r.get() for r in async_results]):
                     if summary:  # Avoid adding empty samples
                         samples.append(summary)
                         abundances[summary] = abund
                         accs[summary] = acc
                         scores[summary] = score
         else:  # sequential processing of each selected rank
-            for analysis in [STR_SHARED, STR_SHARED_CONTROL]:
+            for analysis in target_analysis:
                 (summary, abund,
                  acc, score) = summarize_analysis(analysis, **kwargs)
                 if summary:  # Avoid adding empty samples
@@ -390,7 +405,7 @@ def main():
     def generate_krona():
         """Generate Krona plot with all the results via Krona 2.0 XML spec"""
 
-        print(gray('Building the taxonomy multiple tree...'), end='')
+        print(gray('\nBuilding the taxonomy multiple tree... '), end='')
         sys.stdout.flush()
         krona: KronaTree = KronaTree(samples,
                                      num_raw_samples=len(raw_samples),
@@ -409,7 +424,8 @@ def main():
                       accs=accs,
                       scores=scores)
         print(green('OK!'))
-        print(gray(f'Generating final plot ({htmlfile})...'), end='')
+        print(gray('Generating final plot (') + magenta(htmlfile) +
+              gray(')... '), end='')
         sys.stdout.flush()
         polytree.toxml(taxonomy=ncbi, krona=krona)
         krona.tohtml(htmlfile, pretty=False)
@@ -419,8 +435,8 @@ def main():
         """Generate Excel with results via pandas DataFrame"""
 
         xlsx_name: Filename = Filename(htmlfile.split('.html')[0] + '.xlsx')
-        print(gray(f'Generating Excel {str(excel).lower()}'
-                   f' summary ({xlsx_name})...'), end='')
+        print(gray(f'Generating Excel {str(excel).lower()} summary (') +
+              magenta(xlsx_name) + gray(')... '), end='')
         sys.stdout.flush()
         xlsxwriter = pd.ExcelWriter(xlsx_name)
         list_rows: List = []
