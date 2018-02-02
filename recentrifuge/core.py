@@ -425,7 +425,7 @@ def summarize_analysis(*args,
 
     target_samples: List[Sample] = [smpl for smpl in samples
                                     if smpl.startswith(analysis)]
-    assert len(target_samples) > 0, \
+    assert len(target_samples) >= 1, \
         red('ERROR! ') + analysis + gray(' has no samples to summarize!')
     for smpl in target_samples:
         summary_abund += abundances[smpl]

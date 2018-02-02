@@ -13,12 +13,13 @@ from typing import Tuple, Counter, Set, Dict, List
 
 from Bio import SeqIO
 
-from recentrifuge.lmat import read_lmat_output
 from recentrifuge.config import Filename, TaxId, Score, Scoring, Sample
-from recentrifuge.config import UNCLASSIFIED, nucleotides, gray, red, green
-from recentrifuge.rank import Rank, Ranks, TaxLevels
-from recentrifuge.trees import TaxTree
+from recentrifuge.config import UNCLASSIFIED, nucleotides, Err
+from recentrifuge.config import gray, red, green, yellow, blue
+from recentrifuge.lmat import read_lmat_output
+from recentrifuge.rank import Rank, Ranks
 from recentrifuge.taxonomy import Taxonomy
+from recentrifuge.trees import TaxTree, SampleDataByTaxId
 
 
 def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
@@ -52,10 +53,8 @@ def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
     return output.getvalue(), abundances, level_dic
 
 
-def process_report(*args,
-                   **kwargs
-                   ) -> Tuple[Sample, TaxTree, TaxLevels,
-                              Counter[TaxId], Counter[TaxId], None]:
+def process_report(*args, **kwargs
+                   ) -> Tuple[Sample, TaxTree, SampleDataByTaxId, Err]:
     """
     Process Centrifuge/Kraken report files (to be usually called in parallel!).
     """
@@ -109,12 +108,12 @@ def process_report(*args,
         new_abund = col.Counter()  # Reset abundances
         new_accs = col.Counter()  # Reset accumulated
         new_tree.get_taxa(new_abund, new_accs)  # Get new accumulated counts
-    taxlevels: TaxLevels = Rank.ranks_to_taxlevels(ranks)
+    out: SampleDataByTaxId = SampleDataByTaxId()
+    out.set(counts=new_abund, ranks=ranks, accs=new_accs)
     output.write('\033[92m OK! \033[0m\n')
     print(output.getvalue())
     sys.stdout.flush()
-    # Return
-    return sample, tree, taxlevels, new_abund, new_accs, None
+    return sample, tree, out, Err.NO_ERROR
 
 
 def read_output(output_file: Filename,
@@ -222,9 +221,7 @@ def read_output(output_file: Filename,
 
 def process_output(*args,
                    **kwargs
-                   ) -> Tuple[Sample, TaxTree, TaxLevels,
-                              Counter[TaxId], Counter[TaxId],
-                              Dict[TaxId, Score]]:
+                   ) -> Tuple[Sample, TaxTree, SampleDataByTaxId, Err]:
     """
     Process Centrifuge/LMAT output files (to be usually called in parallel!).
     """
@@ -247,7 +244,7 @@ def process_output(*args,
             output.write(' '.join(str(item) for item in args))
 
     sample: Sample = Sample(os.path.splitext(target_file)[0])
-
+    error: Err = Err.NO_ERROR
     # Read Centrifuge/LMAT output files to get abundances
     if lmat:
         read_method = read_lmat_output
@@ -258,70 +255,51 @@ def process_output(*args,
     scores: Dict[TaxId, Score]
     log, abundances, scores = read_method(target_file, scoring, minscore)
     output.write(log)
+    output.write(gray('Building from raw data... '))
 
-    # Build taxonomy tree
-    vwrite(gray('  Building taxonomy tree...'))
+    # Building taxonomy tree
+    vwrite(gray('  Building taxonomy tree with all-in-1...'))
     tree = TaxTree()
-    tree.grow(taxonomy=taxonomy,
-              abundances=abundances,
-              scores=scores)  # Grow tax tree from root node
-    tree.shape()
+    out = SampleDataByTaxId(['all'])
+    tree.allin1(taxonomy=taxonomy,
+                abundances=abundances,
+                scores=scores,
+                min_taxa=mintaxa,
+                include=including,
+                exclude=excluding,
+                out=out)
+    out.purge_counters()
     vwrite(green('OK!'), '\n')
 
-    if debug:  # Check the lost of taxids (plasmids typically)
-        output.write('  \033[90mChecking taxid loss...\033[0m')
-        n_abund: Counter[TaxId] = col.Counter()
-        n_accs: Counter[TaxId] = col.Counter()
-        n_scores: Dict[TaxId, Score] = {}
-        n_ranks: Ranks = Ranks({})
-        tree.get_taxa(n_abund, n_accs, n_scores, n_ranks,
-                      mindepth=0, maxdepth=0)
+    # Check the lost of taxids (plasmids typically) under some conditions
+    if debug and not excluding and not including:
+        vwrite(gray('  Checking taxid loss... '))
         lost: int = 0
         for taxid in abundances:
-            if not n_abund[taxid]:
+            if not out.counts[taxid]:
                 lost += 1
-                output.writelines(
-                    f'\033[93mWarning!\033[0m Lost '
-                    f'taxid={taxid}: {taxonomy.get_name(taxid)}\n')
+                vwrite(yellow('Warning!'), f'Lost taxid={taxid}: '
+                                           f'{taxonomy.get_name(taxid)}\n')
         if lost:
-            output.write(f'\033[93mWARNING!\033[0m Lost {lost} taxids'
-                         f' ({lost/len(abundances):.2%} of total)\n')
+            vwrite(yellow('WARNING!'), f'Lost {lost} taxids ('
+                                       f'{lost/len(abundances):.2%} of total)'
+                                       '\n')
         else:
-            output.write(green('OK!\n'))
+            vwrite(green('OK!\n'))
 
-    # Prune the tree
-    vwrite(gray('  Pruning taxonomy tree...'))
-    tree.prune(min_taxa=mintaxa, debug=debug)
-    vwrite(green('OK!'), '\n')
-
-    # Get the taxa with their abundances, scores and taxonomical levels
-    vwrite(gray('  Filtering taxa...'))
-    new_abund: Counter[TaxId] = col.Counter()
-    new_accs: Counter[TaxId] = col.Counter()
-    new_scores: Dict[TaxId, Score] = {}
-    ranks: Ranks = Ranks({})
-    tree.get_taxa(new_abund, new_accs, new_scores, ranks,
-                  mindepth=0, maxdepth=0,
-                  include=including,  # ('2759',),  # ('135613',),
-                  exclude=excluding)  # ('9606',))  # ('255526',))
-    new_abund = +new_abund  # remove zero and negative counts
-    if including or excluding:  # Recalculate accumulated counts
-        new_tree = TaxTree()
-        new_tree.grow(taxonomy=taxonomy,
-                      abundances=new_abund,
-                      scores=new_scores)  # Grow tree with new abund
-        new_tree.shape()
-        new_tree.prune(min_taxa=mintaxa, debug=debug)
-        new_abund = col.Counter()  # Reset abundances
-        new_accs = col.Counter()  # Reset accumulated
-        new_scores = {}  # Reset score
-        new_tree.get_taxa(new_abund, new_accs, new_scores)  # Get new values
-    taxlevels: TaxLevels = Rank.ranks_to_taxlevels(ranks)
-    vwrite(green('OK!'), '\n')
+    # Print last message and check if the sample is void
+    if out.counts:
+        output.write(sample + blue(' ctrl ' if is_ctrl else ' sample ')
+                     + green('OK!\n'))
+    elif is_ctrl:
+        output.write(sample + red(' ctrl VOID!\n'))
+        error = Err.VOID_CTRL
+    else:
+        output.write(sample + blue(' sample ') + yellow('VOID\n'))
+        error = Err.VOID_SAMPLE
     print(output.getvalue())
     sys.stdout.flush()
-    # Return
-    return sample, tree, taxlevels, new_abund, new_accs, new_scores
+    return sample, tree, out, error
 
 
 def analize_outputs(outputs: List[Filename]) -> None:

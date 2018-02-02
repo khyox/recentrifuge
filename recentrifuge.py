@@ -9,7 +9,7 @@ import multiprocessing as mp
 import os
 import platform
 import sys
-from typing import Counter, List, Dict, Set, Callable, Optional, Tuple
+from typing import Counter, List, Dict, Set, Callable, Tuple
 
 from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.centrifuge import select_centrifuge_inputs
@@ -17,7 +17,7 @@ from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
-from recentrifuge.config import STR_CONTROL_SHARED
+from recentrifuge.config import STR_CONTROL_SHARED, Err
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.core import process_rank, summarize_analysis
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
@@ -25,7 +25,7 @@ from recentrifuge.krona import KronaTree
 from recentrifuge.lmat import select_lmat_inputs
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.taxonomy import Taxonomy
-from recentrifuge.trees import TaxTree, MultiTree
+from recentrifuge.trees import TaxTree, MultiTree, SampleDataByTaxId
 
 # optional package pandas (to generate Excel output)
 _USE_PANDAS = True
@@ -35,7 +35,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.16.0'
+__version__ = '0.17.0_rc1'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Feb 2018'
 
@@ -310,18 +310,32 @@ def main():
                           True if num < args.controls else False],  # is ctrl?
                     kwds=kwargs
                 ) for num in range(len(input_files))]
-                for file, (sample, trees[sample],
-                           taxids[sample], abundances[sample],
-                           accs[sample], scores[sample]
-                           ) in zip(input_files,
-                                    [r.get() for r in async_results]):
-                    samples.append(sample)
+                for file, (sample, tree, out, err) in zip(
+                        input_files, [r.get() for r in async_results]):
+                    if err is Err.NO_ERROR:
+                        samples.append(sample)
+                        trees[sample] = tree
+                        taxids[sample] = out.get_taxlevels()
+                        abundances[sample] = out.counts
+                        accs[sample] = out.accs
+                        scores[sample] = out.scores
+                    elif err is Err.VOID_CTRL:
+                        print('There were void controls.', red('Aborting!'))
+                        exit(1)
         else:  # sequential processing of each sample
-            for file in input_files:
-                (sample, trees[sample],
-                 taxids[sample], abundances[sample],
-                 accs[sample], scores[sample]) = process(file, **kwargs)
-                samples.append(sample)
+            for num, file in enumerate(input_files):
+                (sample, tree, out, err) = process(
+                    file, True if num < args.controls else False, **kwargs)
+                if err is Err.NO_ERROR:
+                    samples.append(sample)
+                    trees[sample] = tree
+                    taxids[sample] = out.get_taxlevels()
+                    abundances[sample] = out.counts
+                    accs[sample] = out.accs
+                    scores[sample] = out.scores
+                elif err is Err.VOID_CTRL:
+                    print('There were void controls.', red('Aborting!'))
+                    exit(1)
         raw_samples.extend(samples)  # Store raw sample names
 
     def analyze_samples():
@@ -511,9 +525,7 @@ def main():
     check_debug()
 
     plasmidfile: Filename = None
-    process: Callable[..., Tuple[Sample, TaxTree, TaxLevels,
-                                 Counter[TaxId], Counter[TaxId],
-                                 Dict[TaxId, Optional[Score]]]]
+    process: Callable[..., Tuple[Sample, TaxTree, SampleDataByTaxId, Err]]
     select_inputs()
     check_controls()
     if not htmlfile:
@@ -552,10 +564,11 @@ def main():
     # The big stuff (done in parallel)
     read_samples()
     # Avoid cross analysis if just one report file or explicitly stated by flag
-    if len(input_files) > 1 and not args.avoidcross:
+    if len(raw_samples) > 1 and not args.avoidcross:
         analyze_samples()
         summarize_samples()
     # Final result generation is done in sequential mode
+
     polytree: MultiTree = MultiTree(samples=samples)
     generate_krona()
     if _USE_PANDAS:

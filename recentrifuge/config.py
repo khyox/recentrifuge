@@ -40,6 +40,7 @@ ADV_CTRL_MIN_SAMPLES: int = 2  # Min num of non-ctrl samples to enable advCtrl
 SEVR_CONTM_MIN_RELFREQ: float = 0.01  # Min rel frequency of severe contaminant
 MILD_CONTM_MIN_RELFREQ: float = 0.001  # Min rel frequency of mild contaminant
 
+
 class Scoring(Enum):
     """Enumeration with scoring options."""
     SHEL = 0  # Single Hit Equivalent Length (default)
@@ -59,6 +60,13 @@ class Excel(Enum):
 
     def __str__(self):
         return f'{str(self.name)}'
+
+
+class Err(Enum):
+    """Enumeration with error codes"""
+    NO_ERROR = 0  # No error
+    VOID_CTRL = 1  # A control sample is empty
+    VOID_SAMPLE = 2  # A (non-control) sample is empty
 
 
 def ansi(num: int):

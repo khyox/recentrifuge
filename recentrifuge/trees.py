@@ -10,9 +10,66 @@ from typing import Counter, Union, Dict, List, Iterable, Tuple, Set
 from recentrifuge.config import TaxId, Score, ROOT, NO_SCORE, Parents, Sample
 from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
 from recentrifuge.krona import KronaTree, Elm
+from recentrifuge.rank import Rank, Ranks, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
-from recentrifuge.rank import Rank, Ranks
 from recentrifuge.taxonomy import Taxonomy
+
+
+class SampleDataByTaxId(object):
+    """Typical data in a sample ordered by taxonomical id"""
+
+    def __init__(self, init: List[str] = None) -> None:
+        self.counts: Counter[TaxId] = None
+        self.ranks: Ranks = None
+        self.scores: Union[Dict[TaxId, Score], SharedCounter] = None
+        self.accs: Counter[TaxId] = None
+        if 'counts' in init or 'all' in init:
+            self.counts = Counter()
+        if 'ranks' in init or 'all' in init:
+            self.ranks = Ranks({})
+        if 'scores' in init or 'all' in init:
+            self.scores = {}
+        if 'accs' in init or 'all' in init:
+            self.accs = Counter()
+
+    def set(self,
+            counts: Counter[TaxId] = None,
+            ranks: Ranks = None,
+            scores: Union[Dict[TaxId, Score], SharedCounter] = None,
+            accs: Counter[TaxId] = None) -> None:
+        """Set the data fields"""
+        if counts is not None:
+            self.counts = counts
+        if ranks is not None:
+            self.ranks = ranks
+        if scores is not None:
+            self.scores = scores
+        if accs is not None:
+            self.accs = accs
+
+    def clear(self, fields: List[str] = None) -> None:
+        """Clear the data field"""
+        if 'counts' in fields or 'all' in fields and self.counts is not None:
+            self.counts.clear()
+        if 'ranks' in fields or 'all' in fields and self.ranks is not None:
+            self.ranks.clear()
+        if 'scores' in fields or 'all' in fields and self.scores is not None:
+            self.scores.clear()
+        if 'accs' in fields or 'all' in fields and self.accs is not None:
+            self.accs.clear()
+
+    def purge_counters(self) -> None:
+        """Purge elements with zero counts in counters"""
+        if isinstance(self.counts, Counter):
+            self.counts = +self.counts  # pylint: disable=E1130
+        if isinstance(self.accs, Counter):
+            self.accs = +self.accs  # pylint: disable=E1130
+
+    def get_taxlevels(self) -> TaxLevels:
+        """Get TaxLevels (taxids of ranks) from Ranks (rank of taxids)"""
+        if self.ranks:
+            return Rank.ranks_to_taxlevels(self.ranks)
+        return NotImplemented
 
 
 class TaxTree(dict):
@@ -21,14 +78,14 @@ class TaxTree(dict):
     def __init__(self, *args,
                  counts: int = 0,
                  rank: Rank = Rank.UNCLASSIFIED,
-                 score: float = 0
+                 score: float = 0,
+                 acc: int = 0,
                  ) -> None:
         super().__init__(args)
         self.counts: int = counts
         self.taxlevel: Rank = rank
         self.score: float = score
-        # Accumulated counts are optionally populated with self.accumulate()
-        self.acc: int = 0
+        self.acc: int = acc
 
     def __str__(self, num_min: int = 1) -> None:
         """Recursively print populated nodes of the taxonomy tree"""
@@ -79,6 +136,109 @@ class TaxTree(dict):
                                      scores=scores,
                                      taxid=child,
                                      _path=_path + [taxid])
+
+    def allin1(self,
+               taxonomy: Taxonomy,
+               abundances: Counter[TaxId] = None,
+               scores: Union[Dict[TaxId, Score], 'SharedCounter'] = None,
+               tid: TaxId = ROOT,
+               min_taxa: int = 1,
+               include: Union[Tuple, Set[TaxId]] = (),
+               exclude: Union[Tuple, Set[TaxId]] = (),
+               just_level: Rank = None,
+               out: SampleDataByTaxId = None,
+               _path: List[TaxId] = None) -> Union[int, None]:
+        """
+        Recursively build a taxonomy tree.
+
+        Args:
+            taxonomy: Taxonomy object.
+            abundances: counter for taxids with their abundances.
+            scores: optional dict with the score for each taxid.
+            tid: It's ROOT by default for the first/base method call
+            min_taxa: minimum taxa to avoid pruning/collapsing
+                one level to the parent one.
+            include: contains the root taxid of the subtrees to be
+                included. If it is empty (default) all the taxa is
+                included (except explicitly excluded).
+            exclude: contains the root taxid of the subtrees to be
+                excluded
+            just_level: If set, just taxa in this taxlevel will be
+                counted.
+            out: Optional I/O object, at 1st entry should be empty.
+            _path: list used by the recursive algorithm to avoid loops
+
+        Returns: Accumulated counts of new node (or None for no node)
+
+        """
+
+        def swmean(cnt1: int, sco1: Score, cnt2: int, sco2: Score) -> Score:
+            """Weighted mean of scores by counts"""
+            if sco1 == NO_SCORE:
+                return sco2
+            return Score((cnt1 * sco1 + cnt2 * sco2) / (cnt1 + cnt2))
+
+        def populate_output(taxid: TaxId, source: TaxTree) -> None:
+            """Populate the output structure"""
+            nonlocal out
+            if out.counts is not None:
+                out.counts[taxid] = source[taxid].counts
+            if out.ranks is not None:
+                out.ranks[taxid] = source[taxid].taxlevel
+            if out.scores is not None and source[taxid].score != NO_SCORE:
+                out.scores[taxid] = source[taxid].score
+            if out.accs is not None:
+                out.accs[taxid] = source[taxid].acc
+
+        if not _path:
+            _path = []
+        if not abundances:
+            abundances = col.Counter({ROOT: 1})
+        if not scores:
+            scores = {}
+        # Return if loops for repeated taxid (like root) or excluded taxa
+        if tid in _path or tid in exclude:
+            return None
+
+        rank: Rank = taxonomy.get_rank(tid)
+        abun: int = 0
+        # check just_level & if include, check if any include taxon is in path
+        if (just_level is None or rank is just_level) and (
+                not include or any([tid in include for tid in _path + [tid]])):
+            abun = abundances.get(tid, 0)
+        self[tid] = TaxTree(counts=abun,
+                            score=scores.get(tid, NO_SCORE),
+                            rank=rank,
+                            acc=abun)
+        if tid not in taxonomy.children:
+            return self[tid].acc
+        # Taxid has children (is a branch)
+        for chld in taxonomy.children[tid]:
+            child_acc = self[tid].allin1(  # Recursive call
+                taxonomy, abundances, scores, chld, min_taxa,
+                include, exclude, just_level, out, _path + [tid])
+            if child_acc is None:  # No child created, continue
+                continue
+            self[tid].acc += child_acc
+            if child_acc < min_taxa:  # Prune the leaf
+                if child_acc > 0:  # Populated leaf (save the data)
+                    self[tid].score = swmean(
+                        self[tid].counts, self[tid].score,
+                        self[tid][chld].counts, self[tid][chld].score)
+                    self[tid].counts += self[tid][chld].counts
+                self[tid].pop(chld)  # Prune the leaf
+                continue
+            if out:
+                populate_output(chld, self[tid])
+        # If not counts, calculate score from leafs
+        if not abun and self[tid].acc and self[tid]:
+            self[tid].score = sum([
+                self[tid][chld].score * self[tid][chld].acc
+                / self[tid].acc for chld in self[tid]])
+        # If ROOT, populate results
+        if tid == ROOT and out:
+            populate_output(ROOT, self)
+        return self[tid].acc
 
     def trace(self,
               target: TaxId,
