@@ -261,12 +261,8 @@ def process_output(*args,
     vwrite(gray('  Building taxonomy tree with all-in-1...'))
     tree = TaxTree()
     out = SampleDataByTaxId(['all'])
-    tree.allin1(taxonomy=taxonomy,
-                abundances=abundances,
-                scores=scores,
-                min_taxa=mintaxa,
-                include=including,
-                exclude=excluding,
+    tree.allin1(taxonomy=taxonomy, counts=abundances, scores=scores,
+                min_taxa=mintaxa, include=including, exclude=excluding,
                 out=out)
     out.purge_counters()
     vwrite(green('OK!'), '\n')

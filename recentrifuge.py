@@ -35,7 +35,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.17.0_rc1'
+__version__ = '0.17.0_rc2'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Feb 2018'
 
@@ -316,7 +316,7 @@ def main():
                         samples.append(sample)
                         trees[sample] = tree
                         taxids[sample] = out.get_taxlevels()
-                        abundances[sample] = out.counts
+                        counts[sample] = out.counts
                         accs[sample] = out.accs
                         scores[sample] = out.scores
                     elif err is Err.VOID_CTRL:
@@ -330,7 +330,7 @@ def main():
                     samples.append(sample)
                     trees[sample] = tree
                     taxids[sample] = out.get_taxlevels()
-                    abundances[sample] = out.counts
+                    counts[sample] = out.counts
                     accs[sample] = out.accs
                     scores[sample] = out.scores
                 elif err is Err.VOID_CTRL:
@@ -342,8 +342,9 @@ def main():
         """Cross analysis of samples in parallel by taxlevel"""
         print(gray('Please, wait. Performing cross analysis in parallel...\n'))
         # Update kwargs with more parameters for the followings func calls
-        kwargs.update({'trees': trees, 'taxids': taxids,
-                       'accs': accs, 'raw_samples': raw_samples})
+        kwargs.update({'trees': trees, 'taxids': taxids, 'counts': counts,
+                       'scores': scores, 'accs': accs,
+                       'raw_samples': raw_samples})
         if platform.system() and not args.sequential:  # Only for known systems
             mpctx = mp.get_context('spawn')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(), len(
@@ -357,7 +358,7 @@ def main():
                         Rank.selected_ranks,
                         [r.get() for r in async_results]):
                     samples.extend(smpls)
-                    abundances.update(abunds)
+                    counts.update(abunds)
                     accs.update(accumulators)
                     scores.update(score)
         else:  # sequential processing of each selected rank
@@ -365,7 +366,7 @@ def main():
                 (smpls, abunds,
                  accumulators, score) = process_rank(level, **kwargs)
                 samples.extend(smpls)
-                abundances.update(abunds)
+                counts.update(abunds)
                 accs.update(accumulators)
                 scores.update(score)
 
@@ -373,8 +374,7 @@ def main():
         """Summary of samples in parallel by type of cross-analysis"""
         print(gray('Please, wait. Generating summaries in parallel...'))
         # Update kwargs with more parameters for the followings func calls
-        kwargs.update({'abundances': abundances, 'scores': scores,
-                       'samples': samples})
+        kwargs.update({'samples': samples})
         # Get list of set of samples to summarize (note pylint bug #776)
         # pylint: disable=unsubscriptable-object
         target_analysis: col.OrderedDict[str, None] = col.OrderedDict({
@@ -403,7 +403,7 @@ def main():
                         target_analysis, [r.get() for r in async_results]):
                     if summary:  # Avoid adding empty samples
                         samples.append(summary)
-                        abundances[summary] = abund
+                        counts[summary] = abund
                         accs[summary] = acc
                         scores[summary] = score
         else:  # sequential processing of each selected rank
@@ -412,7 +412,7 @@ def main():
                  acc, score) = summarize_analysis(analysis, **kwargs)
                 if summary:  # Avoid adding empty samples
                     samples.append(summary)
-                    abundances[summary] = abund
+                    counts[summary] = abund
                     accs[summary] = acc
                     scores[summary] = score
 
@@ -434,7 +434,7 @@ def main():
                                      scoring=scoring,
                                      )
         polytree.grow(taxonomy=ncbi,
-                      abundances=abundances,
+                      abundances=counts,
                       accs=accs,
                       scores=scores)
         print(green('OK!'))
@@ -542,7 +542,7 @@ def main():
 
     # Declare variables that will hold results for the samples analyzed
     trees: Dict[Sample, TaxTree] = {}
-    abundances: Dict[Sample, Counter[TaxId]] = {}
+    counts: Dict[Sample, Counter[TaxId]] = {}
     accs: Dict[Sample, Counter[TaxId]] = {}
     taxids: Dict[Sample, TaxLevels] = {}
     scores: Dict[Sample, Dict[TaxId, Score]] = {}
@@ -566,7 +566,7 @@ def main():
     # Avoid cross analysis if just one report file or explicitly stated by flag
     if len(raw_samples) > 1 and not args.avoidcross:
         analyze_samples()
-        summarize_samples()
+        # TODO: summarize_samples()
     # Final result generation is done in sequential mode
 
     polytree: MultiTree = MultiTree(samples=samples)

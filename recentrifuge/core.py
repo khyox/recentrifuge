@@ -21,7 +21,7 @@ from recentrifuge.config import gray, red, yellow, blue, magenta, cyan, green
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
 from recentrifuge.taxonomy import Taxonomy
-from recentrifuge.trees import TaxTree
+from recentrifuge.trees import TaxTree, SampleDataByTaxId
 
 
 def process_rank(*args,
@@ -43,7 +43,9 @@ def process_rank(*args,
     excluding = taxonomy.excluding
     trees: Dict[Sample, TaxTree] = kwargs['trees']
     taxids: Dict[Sample, TaxLevels] = kwargs['taxids']
+    counts: Dict[Sample, Counter[TaxId]] = kwargs['counts']
     accs: Dict[Sample, Counter[TaxId]] = kwargs['accs']
+    scores: Dict[Sample, Dict[TaxId, Score]] = kwargs['scores']
     raws: List[Sample] = kwargs['raw_samples']
     output: io.StringIO = io.StringIO(newline='')
     kwargs['debug'] = True  # TODO: Unforce debugging in module
@@ -55,8 +57,6 @@ def process_rank(*args,
 
     # Declare/define variables
     samples: List[Sample] = []
-    abundances: Dict[Sample, Counter[TaxId]] = {}
-    scores: Dict[Sample, Dict[TaxId, Score]] = {}
     # pylint: disable = unused-variable
     shared_abundance: SharedCounter = SharedCounter()
     shared_score: SharedCounter = SharedCounter()
@@ -72,25 +72,25 @@ def process_rank(*args,
         nonlocal shared_abundance, shared_score
         nonlocal shared_ctrl_abundance, shared_ctrl_score
 
-        def generate_exclusive():
-            """Generate a new tree to recalculate accs (and scores)"""
-            nonlocal exclusive_score, sample
-            tree = TaxTree()
-            tree.grow(taxonomy=taxonomy,
-                      abundances=exclusive_abundance,
-                      scores=exclusive_score)
-            tree.shape()
-            exclusive_acc: Counter[TaxId] = col.Counter()
-            exclusive_score = {}
-            tree.get_taxa(accs=exclusive_acc,
-                          scores=exclusive_score,
-                          include=including,
-                          exclude=excluding)
-            sample = Sample(f'{raw}_{STR_EXCLUSIVE}_{rank.name.lower()}')
-            samples.append(sample)
-            abundances[sample] = exclusive_abundance
-            accs[sample] = exclusive_acc
-            scores[sample] = exclusive_score
+        # def generate_exclusive():
+        #     """Generate a new tree to recalculate accs (and scores)"""
+        #     nonlocal exclusive_score, sample
+        #     tree = TaxTree()
+        #     tree.grow(taxonomy=taxonomy,
+        #               abundances=exclusive_abundance,
+        #               scores=exclusive_score)
+        #     tree.shape()
+        #     exclusive_acc: Counter[TaxId] = col.Counter()
+        #     exclusive_score = {}
+        #     tree.get_taxa(accs=exclusive_acc,
+        #                   scores=exclusive_score,
+        #                   include=including,
+        #                   exclude=excluding)
+        #     sample = Sample(f'{raw}_{STR_EXCLUSIVE}_{rank.name.lower()}')
+        #     samples.append(sample)
+        #     abundances[sample] = exclusive_abundance
+        #     accs[sample] = exclusive_acc
+        #     scores[sample] = exclusive_score
 
         def partial_shared_update(i):
             """Perform shared and shared-control taxa partial evaluations"""
@@ -124,25 +124,48 @@ def process_rank(*args,
         output.write(f'  \033[90mExclusive: From \033[0m{raw}\033[90m '
                      f'excluding {len(exclude)} taxa. '
                      f'Generating sample...\033[0m')
-        leveled_tree = copy.deepcopy(trees[raw])
-        leveled_tree.prune(mintaxa, rank)  # Prune the copy to the desired rank
-        leveled_tree.shape()
-        # Get abundance for the exclusive analysis
-        exclusive_abundance: Counter[TaxId] = col.Counter()
-        exclusive_score: Dict[TaxId, Score] = {}
-        leveled_tree.get_taxa(abundance=exclusive_abundance,
-                              scores=exclusive_score,
-                              mindepth=0, maxdepth=0,
-                              include=including,
-                              exclude=exclude,  # Extended exclusion set
-                              just_level=rank,
-                              )
-        exclusive_abundance = +exclusive_abundance  # remove counts <= 0
-        if exclusive_abundance:  # Avoid adding empty samples
-            generate_exclusive()
+
+        leveled_tree = TaxTree()
+        out = SampleDataByTaxId(['counts', 'scores', 'accs'])
+        leveled_tree.allin1(taxonomy=taxonomy,
+                            counts=counts[raw],
+                            scores=scores[raw],
+                            min_taxa=mintaxa,
+                            min_rank=rank,
+                            just_min_rank=True,
+                            include=including,
+                            exclude=exclude,
+                            out=out)
+        out.purge_counters()
+        if out.counts:  # Avoid adding empty samples
+            sample = Sample(f'{raw}_{STR_EXCLUSIVE}_{rank.name.lower()}')
+            samples.append(sample)
+            counts[sample] = out.counts
+            accs[sample] = out.accs
+            scores[sample] = out.scores
             output.write('\033[92m OK! \033[0m\n')
         else:
             output.write('\033[93m VOID \033[0m\n')
+
+        # leveled_tree = copy.deepcopy(trees[raw])
+        # leveled_tree.prune(mintaxa, rank)  # Prune the copy to the desired rank
+        # leveled_tree.shape()
+        # # Get abundance for the exclusive analysis
+        # exclusive_abundance: Counter[TaxId] = col.Counter()
+        # exclusive_score: Dict[TaxId, Score] = {}
+        # leveled_tree.get_taxa(abundance=exclusive_abundance,
+        #                       scores=exclusive_score,
+        #                       mindepth=0, maxdepth=0,
+        #                       include=including,
+        #                       exclude=exclude,  # Extended exclusion set
+        #                       just_level=rank,
+        #                       )
+        # exclusive_abundance = +exclusive_abundance  # remove counts <= 0
+        # if exclusive_abundance:  # Avoid adding empty samples
+        #     generate_exclusive()
+        #     output.write('\033[92m OK! \033[0m\n')
+        # else:
+        #     output.write('\033[93m VOID \033[0m\n')
         # Get partial abundance and score for the shared analysis
         sub_shared_abundance: SharedCounter = SharedCounter()
         sub_shared_score: SharedCounter = SharedCounter()
@@ -181,7 +204,7 @@ def process_rank(*args,
                      f' shared taxa. Generating sample...\033[0m')
         sample = Sample(f'{STR_SHARED}_{rank.name.lower()}')
         samples.append(sample)
-        abundances[Sample(sample)] = new_abund
+        counts[Sample(sample)] = new_abund
         accs[Sample(sample)] = new_accs
         scores[sample] = new_score
         output.write('\033[92m OK! \033[0m\n')
@@ -206,7 +229,7 @@ def process_rank(*args,
                           exclude=excluding)
             sample = Sample(f'{raw}_{STR_CONTROL}_{rank.name.lower()}')
             samples.append(sample)
-            abundances[sample] = control_abundance
+            counts[sample] = control_abundance
             accs[sample] = control_acc
             scores[sample] = control_score
 
@@ -363,7 +386,7 @@ def process_rank(*args,
                               exclude=excluding)
                 sample = Sample(f'{STR_CONTROL_SHARED}_{rank.name.lower()}')
                 samples.append(sample)
-                abundances[sample] = new_shared_ctrl_abundance
+                counts[sample] = new_shared_ctrl_abundance
                 accs[sample] = new_shared_ctrl_acc
                 scores[sample] = new_shared_ctrl_score
                 output.write('\033[92m OK! \033[0m\n')
@@ -375,7 +398,7 @@ def process_rank(*args,
                          f'\033[93m VOID\033[90m sample.\033[0m \n')
 
     # Cross analysis iterating by output: exclusive and part of shared&ctrl
-    for num_file, raw_sample_name in zip(range(len(raws)), raws):
+    for num_file, raw_sample_name in enumerate(raws):
         cross_analysis(num_file, raw_sample_name)
 
     # Shared taxa final analysis
@@ -393,7 +416,7 @@ def process_rank(*args,
     # Print output and return
     print(output.getvalue())
     sys.stdout.flush()
-    return samples, abundances, accs, scores
+    return samples, counts, accs, scores
 
 
 def summarize_analysis(*args,
@@ -410,7 +433,7 @@ def summarize_analysis(*args,
     taxonomy: Taxonomy = kwargs['taxonomy']
     including = taxonomy.including
     excluding = taxonomy.excluding
-    abundances: Dict[Sample, Counter[TaxId]] = kwargs['abundances']
+    counts: Dict[Sample, Counter[TaxId]] = kwargs['counts']
     scores: Dict[Sample, Dict[TaxId, Score]] = kwargs['scores']
     samples: List[Sample] = kwargs['samples']
     output: io.StringIO = io.StringIO(newline='')
@@ -428,7 +451,7 @@ def summarize_analysis(*args,
     assert len(target_samples) >= 1, \
         red('ERROR! ') + analysis + gray(' has no samples to summarize!')
     for smpl in target_samples:
-        summary_abund += abundances[smpl]
+        summary_abund += counts[smpl]
         summary_score.update(scores[smpl])
 
     tree = TaxTree()

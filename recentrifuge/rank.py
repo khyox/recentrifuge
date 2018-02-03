@@ -44,6 +44,7 @@ class Rank(Enum):
 
     """
     # pylint: disable=invalid-name
+    ROOT = ()
     DOMAIN = ()
     D = 'DOMAIN'
     SUPERKINGDOM = ()
@@ -92,6 +93,8 @@ class Rank(Enum):
         """Ranks selected for deep analysis and comparisons"""
         _selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O,
                                              cls.C, cls.P, cls.K, cls.D]
+#        _selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O]
+
         return _selected_taxlevels
 
     @classmethod

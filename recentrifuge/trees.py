@@ -6,8 +6,8 @@ TaxTree and MultiTree classes.
 import collections as col
 import io
 from typing import Counter, Union, Dict, List, Iterable, Tuple, Set
-
-from recentrifuge.config import TaxId, Score, ROOT, NO_SCORE, Parents, Sample
+from recentrifuge.config import TaxId, Score, Parents, Sample
+from recentrifuge.config import ROOT, NO_SCORE
 from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
 from recentrifuge.krona import KronaTree, Elm
 from recentrifuge.rank import Rank, Ranks, TaxLevels
@@ -83,7 +83,7 @@ class TaxTree(dict):
                  ) -> None:
         super().__init__(args)
         self.counts: int = counts
-        self.taxlevel: Rank = rank
+        self.rank: Rank = rank
         self.score: float = score
         self.acc: int = acc
 
@@ -139,13 +139,14 @@ class TaxTree(dict):
 
     def allin1(self,
                taxonomy: Taxonomy,
-               abundances: Counter[TaxId] = None,
+               counts: Counter[TaxId] = None,
                scores: Union[Dict[TaxId, Score], 'SharedCounter'] = None,
                tid: TaxId = ROOT,
                min_taxa: int = 1,
+               min_rank: Rank = None,
+               just_min_rank: bool = False,
                include: Union[Tuple, Set[TaxId]] = (),
                exclude: Union[Tuple, Set[TaxId]] = (),
-               just_level: Rank = None,
                out: SampleDataByTaxId = None,
                _path: List[TaxId] = None) -> Union[int, None]:
         """
@@ -153,18 +154,17 @@ class TaxTree(dict):
 
         Args:
             taxonomy: Taxonomy object.
-            abundances: counter for taxids with their abundances.
+            counts: counter for taxids with their abundances.
             scores: optional dict with the score for each taxid.
             tid: It's ROOT by default for the first/base method call
             min_taxa: minimum taxa to avoid pruning/collapsing
                 one level to the parent one.
+            min_rank: if any, minimum Rank allowed in the TaxTree.
+            just_min_rank: If set, just min_rank taxa will be counted.
             include: contains the root taxid of the subtrees to be
                 included. If it is empty (default) all the taxa is
                 included (except explicitly excluded).
-            exclude: contains the root taxid of the subtrees to be
-                excluded
-            just_level: If set, just taxa in this taxlevel will be
-                counted.
+            exclude: root taxid of the subtrees to be excluded
             out: Optional I/O object, at 1st entry should be empty.
             _path: list used by the recursive algorithm to avoid loops
 
@@ -184,28 +184,43 @@ class TaxTree(dict):
             if out.counts is not None:
                 out.counts[taxid] = source[taxid].counts
             if out.ranks is not None:
-                out.ranks[taxid] = source[taxid].taxlevel
+                out.ranks[taxid] = source[taxid].rank
             if out.scores is not None and source[taxid].score != NO_SCORE:
                 out.scores[taxid] = source[taxid].score
             if out.accs is not None:
                 out.accs[taxid] = source[taxid].acc
 
+        # Checks in the first call to the function
         if not _path:
             _path = []
-        if not abundances:
-            abundances = col.Counter({ROOT: 1})
-        if not scores:
-            scores = {}
+            if not counts:
+                counts = col.Counter({ROOT: 1})
+            if not scores:
+                scores = {}
+            if min_rank is None and just_min_rank:
+                raise RuntimeError('allin1: just_min_rank without min_rank')
+
         # Return if loops for repeated taxid (like root) or excluded taxa
         if tid in _path or tid in exclude:
             return None
 
         rank: Rank = taxonomy.get_rank(tid)
+        parent_rank: Rank = None
+        if min_rank:  # Get parent rank (NO_RANK is not an option)
+            if tid == ROOT:
+                parent_rank = Rank.ROOT
+            else:
+                for taxid in reversed(_path):
+                    parent_rank = taxonomy.get_rank(taxid)
+                    if parent_rank is not Rank.NO_RANK:
+                        break
         abun: int = 0
-        # check just_level & if include, check if any include taxon is in path
-        if (just_level is None or rank is just_level) and (
-                not include or any([tid in include for tid in _path + [tid]])):
-            abun = abundances.get(tid, 0)
+        # For assigning counts, check just_min_rank conditions and,
+        #  if include list, check if any include taxon is in _path
+        if ((not just_min_rank or rank <= min_rank or parent_rank <= min_rank)
+                and (not include or any(
+                    [tid in include for tid in _path + [tid]]))):
+            abun = counts.get(tid, 0)
         self[tid] = TaxTree(counts=abun,
                             score=scores.get(tid, NO_SCORE),
                             rank=rank,
@@ -214,20 +229,44 @@ class TaxTree(dict):
             return self[tid].acc
         # Taxid has children (is a branch)
         for chld in taxonomy.children[tid]:
-            child_acc = self[tid].allin1(  # Recursive call
-                taxonomy, abundances, scores, chld, min_taxa,
-                include, exclude, just_level, out, _path + [tid])
+            child_acc = self[tid].allin1(
+                taxonomy=taxonomy, counts=counts, scores=scores, tid=chld,
+                min_taxa=min_taxa, min_rank=min_rank,
+                just_min_rank=just_min_rank, include=include, exclude=exclude,
+                out=out, _path=_path + [tid])
             if child_acc is None:  # No child created, continue
                 continue
-            self[tid].acc += child_acc
-            if child_acc < min_taxa:  # Prune the leaf
-                if child_acc > 0:  # Populated leaf (save the data)
-                    self[tid].score = swmean(
-                        self[tid].counts, self[tid].score,
-                        self[tid][chld].counts, self[tid][chld].score)
-                    self[tid].counts += self[tid][chld].counts
-                self[tid].pop(chld)  # Prune the leaf
+            rank_prune: bool = False
+            # Set min_rank pruning condition using a robust algorithm
+            #   suitable for multiple eukaryotic NO_RANK sublevels
+            if (min_rank and (self[tid][chld].rank < min_rank or
+                              rank <= min_rank or parent_rank <= min_rank)):
+                rank_prune = True
+            # Check conditions for pruning the leaf
+            if child_acc < min_taxa or rank_prune:
+                # Check conditions for saving the data of leaf in the parent
+                if child_acc > 0 and (
+                        not just_min_rank or (
+                        rank_prune and not (
+                        rank != min_rank and parent_rank > min_rank))):
+                    #(not just_min_rank or rank <= min_rank):
+                    #                    or parent_rank <= min_rank):
+                    collapsed_counts: int = (self[tid].counts
+                                             + self[tid][chld].counts)
+                    if collapsed_counts:  # Average the collapsed score
+                        self[tid].score = swmean(
+                            self[tid].counts, self[tid].score,
+                            self[tid][chld].counts, self[tid][chld].score)
+                        # Accumulate abundance in higher tax
+                        self[tid].counts += self[tid][chld].counts
+                        self[tid].acc += child_acc
+                    else:  # No collapse: update acc counts erasing leaf counts
+                        pass
+                        # self[tid].acc -= child_acc
+                pruned: TaxTree = self[tid].pop(chld)  # Prune the leaf
+                assert not pruned, f'{tid}-//->{chld}->{pruned}'
                 continue
+            self[tid].acc += child_acc
             if out:
                 populate_output(chld, self[tid])
         # If not counts, calculate score from leafs
@@ -360,7 +399,7 @@ class TaxTree(dict):
                 if (mindepth <= 0
                         and in_branch
                         and (just_level is None
-                             or self[tid].taxlevel is just_level)):
+                             or self[tid].rank is just_level)):
                     if abundance is not None:
                         abundance[tid] = self[tid].counts
                     if accs is not None:
@@ -368,7 +407,7 @@ class TaxTree(dict):
                     if scores is not None and self[tid].score != NO_SCORE:
                         scores[tid] = self[tid].score
                     if ranks is not None:
-                        ranks[tid] = self[tid].taxlevel
+                        ranks[tid] = self[tid].rank
                 if self[tid]:
                     self[tid].get_taxa(abundance, accs, scores, ranks,
                                        mindepth, maxdepth,
@@ -508,8 +547,8 @@ class TaxTree(dict):
             else:  # self[tid] is a leaf (after pruning its branches or not)
                 if (self[tid].counts < min_taxa  # Not enough counts, or check
                         or (min_rank  # if min_rank is set, then check if level
-                            and (self[tid].taxlevel < min_rank  # is lower or
-                                 or self.taxlevel <= min_rank))):  # other test
+                            and (self[tid].rank < min_rank  # is lower or
+                                 or self.rank <= min_rank))):  # other test
                     if collapse:
                         collapsed_counts: int = self.counts + self[tid].counts
                         if collapsed_counts:  # Average the collapsed score
