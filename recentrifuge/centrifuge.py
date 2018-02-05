@@ -7,6 +7,7 @@ import collections as col
 import io
 import os
 import sys
+import time
 from math import log10
 from statistics import mean
 from typing import Tuple, Counter, Set, Dict, List
@@ -225,15 +226,21 @@ def process_output(*args,
     """
     Process Centrifuge/LMAT output files (to be usually called in parallel!).
     """
+    # timing initialization
+    start_time: float = time.perf_counter()
     # Recover input and parameters
     target_file: Filename = args[0]
+    debug: bool = kwargs['debug']
     is_ctrl: bool = args[1]
+    if debug:
+        print(gray('Processing CFG'), blue('ctrl' if is_ctrl else 'sample'),
+              target_file, gray('...'))
+        sys.stdout.flush()
     taxonomy: Taxonomy = kwargs['taxonomy']
     mintaxa: int = kwargs['ctrlmintaxa'] if is_ctrl else kwargs['mintaxa']
     minscore: Score = kwargs['ctrlminscore'] if is_ctrl else kwargs['minscore']
     including: Set[TaxId] = taxonomy.including
     excluding: Set[TaxId] = taxonomy.excluding
-    debug: bool = kwargs['debug']
     scoring: Scoring = kwargs['scoring']
     lmat: bool = kwargs['lmat']
     output: io.StringIO = io.StringIO(newline='')
@@ -258,18 +265,36 @@ def process_output(*args,
     output.write(gray('Building from raw data... '))
 
     # Building taxonomy tree
-    vwrite(gray('  Building taxonomy tree with all-in-1...'))
+    vwrite(gray('\n  Building taxonomy tree with all-in-1...'))
     tree = TaxTree()
+    ancestors: Set[TaxId]
+    orphans: Set[TaxId]
+    ancestors, orphans = taxonomy.get_ancestors(abundances.keys())
     out = SampleDataByTaxId(['all'])
     tree.allin1(taxonomy=taxonomy, counts=abundances, scores=scores,
-                min_taxa=mintaxa, include=including, exclude=excluding,
-                out=out)
+                ancestors=ancestors, min_taxa=mintaxa,
+                include=including, exclude=excluding, out=out)
     out.purge_counters()
     vwrite(green('OK!'), '\n')
 
+    # Give stats about orphan taxid
+    if debug:
+        vwrite(gray('  Checking taxid loss (orphans)... '))
+        if orphans:
+            lost: int = 0
+            for orphan in orphans:
+                vwrite(yellow('Warning!'), f'Orphan taxid={orphan}\n')
+                lost += abundances[orphan]
+            vwrite(yellow('WARNING!'),
+                   f'{len(orphans)} orphan taxids ('
+                   f'{len(orphans)/len(abundances):.2%} of total)\n'
+                   f'{lost} orphan sequences ('
+                   f'{lost/sum(abundances):.2%} of total)\n')
+        else:
+            vwrite(green('OK!\n'))
     # Check the lost of taxids (plasmids typically) under some conditions
     if debug and not excluding and not including:
-        vwrite(gray('  Checking taxid loss... '))
+        vwrite(gray('  Additional checking of taxid loss... '))
         lost: int = 0
         for taxid in abundances:
             if not out.counts[taxid]:
@@ -293,6 +318,10 @@ def process_output(*args,
     else:
         output.write(sample + blue(' sample ') + yellow('VOID\n'))
         error = Err.VOID_SAMPLE
+
+    # Timing results
+    output.write(gray('Elapsed time: ') +
+                 f'{time.perf_counter() - start_time:.3}' + gray(' sec\n'))
     print(output.getvalue())
     sys.stdout.flush()
     return sample, tree, out, error

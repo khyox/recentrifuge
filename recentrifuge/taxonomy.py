@@ -4,7 +4,7 @@ Taxonomy class, currently representing the NCBI taxonomy.
 """
 import re
 import sys
-from typing import Set, Counter, Iterable
+from typing import Set, Counter, Iterable, Tuple
 
 from recentrifuge.config import Filename, TaxId, Parents, Names, Children
 from recentrifuge.config import ROOT, CELLULAR_ORGANISMS
@@ -188,12 +188,19 @@ class Taxonomy:
         """Retrieve the name for a TaxId."""
         return self.names.get(taxid, 'Unnamed')
 
-    def get_ancestors(self, leaves: Iterable[TaxId]) -> Set[TaxId]:
+    def get_ancestors(self, leaves: Iterable[TaxId]
+                      ) -> Tuple[Set[TaxId], Set[TaxId]]:
         """Return the taxids entered with all their ancestors"""
         ancestors: Set[TaxId] = set(leaves)
+        orphans: Set[TaxId] = set()
         for leaf in leaves:
             tid: TaxId = leaf
             while tid != ROOT:
-                tid = self.parents[tid]
-                ancestors.add(tid)
-        return ancestors
+                try:
+                    tid = self.parents[tid]
+                except KeyError:
+                    orphans.add(tid)
+                    break
+                else:
+                    ancestors.add(tid)
+        return ancestors, orphans
