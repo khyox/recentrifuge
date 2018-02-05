@@ -4,10 +4,10 @@ Taxonomy class, currently representing the NCBI taxonomy.
 """
 import re
 import sys
-from typing import Set, Counter
+from typing import Set, Counter, Iterable
 
-from recentrifuge.config import Filename, TaxId, Parents, Names, Children, \
-    ROOT, CELLULAR_ORGANISMS
+from recentrifuge.config import Filename, TaxId, Parents, Names, Children
+from recentrifuge.config import ROOT, CELLULAR_ORGANISMS
 from recentrifuge.rank import Ranks, Rank, UnsupportedTaxLevelError
 
 
@@ -187,3 +187,13 @@ class Taxonomy:
     def get_name(self, taxid: TaxId) -> str:
         """Retrieve the name for a TaxId."""
         return self.names.get(taxid, 'Unnamed')
+
+    def get_ancestors(self, leaves: Iterable[TaxId]) -> Set[TaxId]:
+        """Return the taxids entered with all their ancestors"""
+        ancestors: Set[TaxId] = set(leaves)
+        for leaf in leaves:
+            tid: TaxId = leaf
+            while tid != ROOT:
+                tid = self.parents[tid]
+                ancestors.add(tid)
+        return ancestors

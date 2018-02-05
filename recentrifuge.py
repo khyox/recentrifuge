@@ -9,6 +9,7 @@ import multiprocessing as mp
 import os
 import platform
 import sys
+import time
 from typing import Counter, List, Dict, Set, Callable, Tuple
 
 from recentrifuge.centrifuge import process_report, process_output
@@ -35,7 +36,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.17.0_rc2'
+__version__ = '0.17.0_rc3'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Feb 2018'
 
@@ -65,7 +66,7 @@ def _debug_dummy_plot(taxonomy: Taxonomy,
 
 
 def main():
-    """Main entry point to recentrifuge."""
+    """Main entry point to Recentrifuge."""
 
     def configure_parser():
         """Argument Parser Configuration"""
@@ -301,7 +302,7 @@ def main():
         print(gray('\nPlease, wait, processing files in parallel...\n'))
         # Enable parallelization with 'spawn' under known platforms
         if platform.system() and not args.sequential:  # Only for known systems
-            mpctx = mp.get_context('spawn')  # Important for OSX&Win
+            mpctx = mp.get_context('fork')
             with mpctx.Pool(processes=min(os.cpu_count(),
                                           len(input_files))) as pool:
                 async_results = [pool.apply_async(
@@ -346,7 +347,7 @@ def main():
                        'scores': scores, 'accs': accs,
                        'raw_samples': raw_samples})
         if platform.system() and not args.sequential:  # Only for known systems
-            mpctx = mp.get_context('spawn')  # Important for OSX&Win
+            mpctx = mp.get_context('fork')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(), len(
                     Rank.selected_ranks))) as pool:
                 async_results = [pool.apply_async(
@@ -391,7 +392,7 @@ def main():
                     break
 
         if platform.system() and not args.sequential:  # Only for known systems
-            mpctx = mp.get_context('spawn')  # Important for OSX&Win
+            mpctx = mp.get_context('fork')
             with mpctx.Pool(processes=min(os.cpu_count(),
                                           len(input_files))) as pool:
                 async_results = [pool.apply_async(
@@ -502,6 +503,8 @@ def main():
         xlsxwriter.save()
         print(green('OK!'))
 
+    # timing initialization
+    start_time: float = time.time()
     # Program header
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
     sys.stdout.flush()
@@ -576,6 +579,10 @@ def main():
     else:
         print(yellow('WARNING!'),
               'Pandas not installed: Excel cannot be created.')
+
+    # Timing results
+    print(gray('Elapsed time:'), time.strftime(
+        "%H:%M:%S", time.gmtime(time.time()-start_time)))
 
 
 if __name__ == '__main__':

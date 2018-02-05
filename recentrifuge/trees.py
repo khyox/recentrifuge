@@ -141,6 +141,7 @@ class TaxTree(dict):
                taxonomy: Taxonomy,
                counts: Counter[TaxId] = None,
                scores: Union[Dict[TaxId, Score], 'SharedCounter'] = None,
+               ancestors: Set[TaxId] = None,
                tid: TaxId = ROOT,
                min_taxa: int = 1,
                min_rank: Rank = None,
@@ -156,6 +157,7 @@ class TaxTree(dict):
             taxonomy: Taxonomy object.
             counts: counter for taxids with their abundances.
             scores: optional dict with the score for each taxid.
+            ancestors: optional set of ancestors.
             tid: It's ROOT by default for the first/base method call
             min_taxa: minimum taxa to avoid pruning/collapsing
                 one level to the parent one.
@@ -190,8 +192,9 @@ class TaxTree(dict):
             if out.accs is not None:
                 out.accs[taxid] = source[taxid].acc
 
-        # Checks in the first call to the function
+        # Checks and initializations in the first call to the function
         if not _path:
+
             _path = []
             if not counts:
                 counts = col.Counter({ROOT: 1})
@@ -199,9 +202,12 @@ class TaxTree(dict):
                 scores = {}
             if min_rank is None and just_min_rank:
                 raise RuntimeError('allin1: just_min_rank without min_rank')
+            if not ancestors:
+                ancestors = taxonomy.get_ancestors(counts.keys())
 
-        # Return if loops for repeated taxid (like root) or excluded taxa
-        if tid in _path or tid in exclude:
+        # Return if not an ancestor, or excluded taxa or loops for
+        #  repeated taxid (like root); conditions ordered by prob
+        if tid not in ancestors or tid in exclude or tid in _path:
             return None
 
         rank: Rank = taxonomy.get_rank(tid)
@@ -230,7 +236,8 @@ class TaxTree(dict):
         # Taxid has children (is a branch)
         for chld in taxonomy.children[tid]:
             child_acc = self[tid].allin1(
-                taxonomy=taxonomy, counts=counts, scores=scores, tid=chld,
+                taxonomy=taxonomy, counts=counts, scores=scores,
+                ancestors=ancestors, tid=chld,
                 min_taxa=min_taxa, min_rank=min_rank,
                 just_min_rank=just_min_rank, include=include, exclude=exclude,
                 out=out, _path=_path + [tid])
@@ -247,10 +254,9 @@ class TaxTree(dict):
                 # Check conditions for saving the data of leaf in the parent
                 if child_acc > 0 and (
                         not just_min_rank or (
-                        rank_prune and not (
-                        rank != min_rank and parent_rank > min_rank))):
-                    #(not just_min_rank or rank <= min_rank):
-                    #                    or parent_rank <= min_rank):
+                        rank_prune and (
+                        rank == min_rank or parent_rank <= min_rank))):
+                    #  and not (rank != min_rank and parent_rank > min_rank))):
                     collapsed_counts: int = (self[tid].counts
                                              + self[tid][chld].counts)
                     if collapsed_counts:  # Average the collapsed score
