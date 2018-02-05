@@ -280,8 +280,8 @@ def process_output(*args,
     # Give stats about orphan taxid
     if debug:
         vwrite(gray('  Checking taxid loss (orphans)... '))
+        lost: int = 0
         if orphans:
-            lost: int = 0
             for orphan in orphans:
                 vwrite(yellow('Warning!'), f'Orphan taxid={orphan}\n')
                 lost += abundances[orphan]
@@ -289,13 +289,13 @@ def process_output(*args,
                    f'{len(orphans)} orphan taxids ('
                    f'{len(orphans)/len(abundances):.2%} of total)\n'
                    f'{lost} orphan sequences ('
-                   f'{lost/sum(abundances):.2%} of total)\n')
+                   f'{lost/sum(abundances.values()):.2%} of total)\n')
         else:
             vwrite(green('OK!\n'))
     # Check the lost of taxids (plasmids typically) under some conditions
     if debug and not excluding and not including:
         vwrite(gray('  Additional checking of taxid loss... '))
-        lost: int = 0
+        lost = 0
         for taxid in abundances:
             if not out.counts[taxid]:
                 lost += 1

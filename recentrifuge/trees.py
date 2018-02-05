@@ -203,7 +203,7 @@ class TaxTree(dict):
             if min_rank is None and just_min_rank:
                 raise RuntimeError('allin1: just_min_rank without min_rank')
             if not ancestors:
-                ancestors = taxonomy.get_ancestors(counts.keys())
+                ancestors, _ = taxonomy.get_ancestors(counts.keys())
 
         # Return if not an ancestor, or excluded taxa or loops for
         #  repeated taxid (like root); conditions ordered by prob
