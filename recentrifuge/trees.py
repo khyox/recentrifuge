@@ -6,7 +6,7 @@ TaxTree and MultiTree classes.
 import collections as col
 import io
 from typing import Counter, Union, Dict, List, Iterable, Tuple, Set
-from recentrifuge.config import TaxId, Score, Parents, Sample
+from recentrifuge.config import TaxId, Parents, Sample, Score, Scores
 from recentrifuge.config import ROOT, NO_SCORE
 from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
 from recentrifuge.krona import KronaTree, Elm
@@ -19,23 +19,27 @@ class SampleDataByTaxId(object):
     """Typical data in a sample ordered by taxonomical id"""
 
     def __init__(self, init: List[str] = None) -> None:
-        self.counts: Counter[TaxId] = None
+        self.counts: Union[Counter[TaxId], SharedCounter] = None
         self.ranks: Ranks = None
-        self.scores: Union[Dict[TaxId, Score], SharedCounter] = None
+        self.scores: Union[Scores, SharedCounter] = None
         self.accs: Counter[TaxId] = None
         if 'counts' in init or 'all' in init:
             self.counts = Counter()
         if 'ranks' in init or 'all' in init:
             self.ranks = Ranks({})
         if 'scores' in init or 'all' in init:
-            self.scores = {}
+            self.scores = Scores({})
         if 'accs' in init or 'all' in init:
             self.accs = Counter()
+        if 'shared_counts' in init or 'shared' in init:
+            self.counts = SharedCounter()
+        if 'shared_scores' in init or 'shared' in init:
+            self.scores = SharedCounter()
 
     def set(self,
-            counts: Counter[TaxId] = None,
+            counts: Union[Counter[TaxId], SharedCounter] = None,
             ranks: Ranks = None,
-            scores: Union[Dict[TaxId, Score], SharedCounter] = None,
+            scores: Union[Scores, SharedCounter] = None,
             accs: Counter[TaxId] = None) -> None:
         """Set the data fields"""
         if counts is not None:
@@ -46,6 +50,36 @@ class SampleDataByTaxId(object):
             self.scores = scores
         if accs is not None:
             self.accs = accs
+
+    def get_counts(self) -> Counter[TaxId]:
+        """Get (non shared) counts"""
+        if isinstance(self.counts, Counter):
+            return self.counts
+        return NotImplemented
+
+    def get_shared_counts(self) -> SharedCounter:
+        """Get shared counts"""
+        if isinstance(self.counts, SharedCounter):
+            return self.counts
+        return NotImplemented
+
+    def get_scores(self) -> Scores:
+        """Get (non shared) scores"""
+        if isinstance(self.scores, dict):
+            return self.scores  # type: ignore
+        return NotImplemented
+
+    def get_shared_scores(self) -> SharedCounter:
+        """Get shared scores"""
+        if isinstance(self.scores, SharedCounter):
+            return self.scores
+        return NotImplemented
+
+    def get_accs(self) -> Counter[TaxId]:
+        """Get accumulated counter"""
+        if isinstance(self.accs, Counter):
+            return self.accs
+        return NotImplemented
 
     def clear(self, fields: List[str] = None) -> None:
         """Clear the data field"""
@@ -102,7 +136,7 @@ class TaxTree(dict):
     def grow(self,
              taxonomy: Taxonomy,
              abundances: Counter[TaxId] = None,
-             scores: Union[Dict[TaxId, Score], 'SharedCounter'] = None,
+             scores: Union[Dict[TaxId, Score], SharedCounter] = None,
              taxid: TaxId = ROOT,
              _path: List[TaxId] = None,
              ) -> None:
@@ -275,7 +309,7 @@ class TaxTree(dict):
             self[tid].acc += child_acc
             if out:
                 populate_output(chld, self[tid])
-        # If not counts, calculate score from leafs
+        # If not counts, calculate score from leaves
         if not abun and self[tid].acc and self[tid]:
             self[tid].score = sum([
                 self[tid][chld].score * self[tid][chld].acc
@@ -487,7 +521,7 @@ class TaxTree(dict):
         From bottom to top, accumulate counts in higher taxonomical
         levels, so populate self.acc of the tree. Also calculate
         score for levels that have no reads directly assigned
-        (unassigned = 0). It eliminates leafs with no accumulated
+        (unassigned = 0). It eliminates leaves with no accumulated
         counts. With all, it shapes the tree to the most useful form.
 
         """
@@ -500,15 +534,16 @@ class TaxTree(dict):
                 self.acc += self[tid].acc  # Acc lower tax acc in this node
         if not self.counts:
             # If not unassigned (no reads directly assigned to the level),
-            #  calculate score from leafs, trying different approaches.
+            #  calculate score from leaves, trying different approaches.
             if self.acc:  # Leafs (at least 1) have accum.
                 self.score = sum([self[tid].score * self[tid].acc
                                   / self.acc for tid in self])
             else:  # No leaf with unassigned counts nor accumulated
-                # Just get the averaged score by number of leafs
+                # Currently, do nothing, but another choice is
+                #   just get the averaged score by number of leaves
                 # self.score = sum([self[tid].score
                 #                   for tid in list(self)])/len(self)
-                pass  # TODO: recheck this change and remove else
+                pass
 
     def subtract(self) -> None:
         """

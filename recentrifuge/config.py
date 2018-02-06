@@ -14,6 +14,7 @@ Children = NewType('Children', Dict[TaxId, Dict[TaxId, int]])
 Names = NewType('Names', Dict[TaxId, str])
 Parents = NewType('Parents', Dict[TaxId, TaxId])
 Score = NewType('Score', float)
+Scores = NewType('Scores', Dict[TaxId, Score])
 # pylint: enable=invalid-name
 
 # Predefined internal constants

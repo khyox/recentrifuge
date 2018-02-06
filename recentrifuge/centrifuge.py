@@ -233,7 +233,7 @@ def process_output(*args,
     debug: bool = kwargs['debug']
     is_ctrl: bool = args[1]
     if debug:
-        print(gray('Processing CFG'), blue('ctrl' if is_ctrl else 'sample'),
+        print(gray('Processing'), blue('ctrl' if is_ctrl else 'sample'),
               target_file, gray('...'))
         sys.stdout.flush()
     taxonomy: Taxonomy = kwargs['taxonomy']
@@ -289,7 +289,7 @@ def process_output(*args,
                    f'{len(orphans)} orphan taxids ('
                    f'{len(orphans)/len(abundances):.2%} of total)\n'
                    f'{lost} orphan sequences ('
-                   f'{lost/sum(abundances.values()):.2%} of total)\n')
+                   f'{lost/sum(abundances.values()):.3%} of total)\n')
         else:
             vwrite(green('OK!\n'))
     # Check the lost of taxids (plasmids typically) under some conditions

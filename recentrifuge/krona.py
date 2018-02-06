@@ -132,7 +132,7 @@ class KronaTree(ETree.ElementTree):
         self.datasets: Elm
 
         # Set root of KronaTree
-        self.krona = ETree.Element('krona',
+        self.krona = ETree.Element('krona',  # type: ignore
                                    attrib={'collapse': 'true', 'key': 'true'})
 
         # Set attributes
@@ -254,10 +254,10 @@ class KronaTree(ETree.ElementTree):
             script = file.read()
 
         # Set root of HTML doc
-        html_root = ETree.Element('html', attrib={'xmlns':
-                                                      'http://www.w3.org/1999/xhtml',
-                                                  'xml:lang': 'en',
-                                                  'lang': 'en'})
+        html_root = ETree.Element(  # type: ignore
+            'html', attrib={'xmlns': 'http://www.w3.org/1999/xhtml',
+                            'xml:lang': 'en',
+                            'lang': 'en'})
         # Prepare HTML file
         head = self.sub(html_root, 'head')
         self.sub(head, 'meta', {'charset': 'utf-8'})
