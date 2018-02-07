@@ -2,8 +2,6 @@
 Recentrifuge core functions.
 
 """
-import collections as col
-import copy
 import csv
 import io
 import statistics
@@ -16,7 +14,8 @@ from recentrifuge.config import Filename, Sample, TaxId, Parents, Score, Scores
 from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT, EPS
 from recentrifuge.config import SEVR_CONTM_MIN_RELFREQ, MILD_CONTM_MIN_RELFREQ
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
-from recentrifuge.config import STR_CONTROL_SHARED, STR_SUMMARY
+from recentrifuge.config import STR_SUMMARY, STR_CONTROL_SHARED
+from recentrifuge.config import UnionCounter, UnionScores
 from recentrifuge.config import gray, red, yellow, blue, magenta, cyan, green
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
@@ -27,9 +26,9 @@ from recentrifuge.trees import TaxTree, SampleDataByTaxId
 def process_rank(*args,
                  **kwargs
                  ) -> Tuple[List[Sample],
+                            Dict[Sample, UnionCounter],
                             Dict[Sample, Counter[TaxId]],
-                            Dict[Sample, Counter[TaxId]],
-                            Dict[Sample, Dict[TaxId, Score]]]:
+                            Dict[Sample, UnionScores]]:
     """
     Process results for a taxlevel (to be usually called in parallel!).
     """
@@ -41,11 +40,10 @@ def process_rank(*args,
     taxonomy: Taxonomy = kwargs['taxonomy']
     including = taxonomy.including
     excluding = taxonomy.excluding
-    trees: Dict[Sample, TaxTree] = kwargs['trees']
     taxids: Dict[Sample, TaxLevels] = kwargs['taxids']
-    counts: Dict[Sample, Counter[TaxId]] = kwargs['counts']
+    counts: Dict[Sample, UnionCounter] = kwargs['counts']
     accs: Dict[Sample, Counter[TaxId]] = kwargs['accs']
-    scores: Dict[Sample, Dict[TaxId, Score]] = kwargs['scores']
+    scores: Dict[Sample, UnionScores] = kwargs['scores']
     raws: List[Sample] = kwargs['raw_samples']
     output: io.StringIO = io.StringIO(newline='')
 
@@ -57,9 +55,9 @@ def process_rank(*args,
     # Declare/define variables
     samples: List[Sample] = []
     # pylint: disable = unused-variable
-    shared_abundance: SharedCounter = SharedCounter()
+    shared_counts: SharedCounter = SharedCounter()
     shared_score: SharedCounter = SharedCounter()
-    shared_ctrl_abundance: SharedCounter = SharedCounter()
+    shared_ctrl_counts: SharedCounter = SharedCounter()
     shared_ctrl_score: SharedCounter = SharedCounter()
     # pylint: enable = unused-variable
 
@@ -68,31 +66,31 @@ def process_rank(*args,
 
     def cross_analysis(iteration, raw):
         """Cross analysis: exclusive and part of shared&ctrl"""
-        nonlocal shared_abundance, shared_score
-        nonlocal shared_ctrl_abundance, shared_ctrl_score
+        nonlocal shared_counts, shared_score
+        nonlocal shared_ctrl_counts, shared_ctrl_score
 
         def partial_shared_update(i):
             """Perform shared and shared-control taxa partial evaluations"""
-            nonlocal shared_abundance, shared_score
-            nonlocal shared_ctrl_abundance, shared_ctrl_score
+            nonlocal shared_counts, shared_score
+            nonlocal shared_ctrl_counts, shared_ctrl_score
             if i == 0:  # 1st iteration: Initialize shared abundance and score
-                shared_abundance.update(sub_shared_counts)
+                shared_counts.update(sub_shared_counts)
                 shared_score.update(sub_shared_score)
             elif i < controls:  # Just update shared abundance and score
-                shared_abundance &= sub_shared_counts
+                shared_counts &= sub_shared_counts
                 shared_score &= sub_shared_score
             elif i == controls:  # Initialize shared-control counters
-                shared_abundance &= sub_shared_counts
+                shared_counts &= sub_shared_counts
                 shared_score &= sub_shared_score
-                shared_ctrl_abundance.update(sub_shared_counts)
+                shared_ctrl_counts.update(sub_shared_counts)
                 shared_ctrl_score.update(sub_shared_score)
             elif controls:  # Both: Accumulate shared abundance and score
-                shared_abundance &= sub_shared_counts
+                shared_counts &= sub_shared_counts
                 shared_score &= sub_shared_score
-                shared_ctrl_abundance &= sub_shared_counts
+                shared_ctrl_counts &= sub_shared_counts
                 shared_ctrl_score &= sub_shared_score
             else:  # Both: Accumulate shared abundance and score (no controls)
-                shared_abundance &= sub_shared_counts
+                shared_counts &= sub_shared_counts
                 shared_score &= sub_shared_score
 
         exclude: Set[TaxId] = set()
@@ -147,56 +145,32 @@ def process_rank(*args,
 
     def shared_analysis():
         """Perform last steps of shared taxa analysis"""
-        nonlocal shared_abundance, shared_score
-        # Normalize scaled scores by total abundance (after eliminating zeros)
-        shared_score /= (+shared_abundance)
-        # Get averaged abundance by number of samples
-        shared_abundance //= len(raws)
-        tree = TaxTree()
-        tree.grow(taxonomy=taxonomy,
-                  abundances=shared_abundance,
-                  scores=shared_score)
-        tree.shape()
-        new_abund: Counter[TaxId] = col.Counter()
-        new_accs: Counter[TaxId] = col.Counter()
-        new_score: Scores = Scores({})
-        tree.get_taxa(new_abund, new_accs, new_score,
-                      mindepth=0, maxdepth=0,
-                      include=including,
-                      exclude=excluding)
-        new_abund = +new_abund
-        output.write(f'  \033[90mShared: Including {len(new_abund)}'
-                     f' shared taxa. Generating sample...\033[0m')
-        sample = Sample(f'{STR_SHARED}_{rank.name.lower()}')
-        samples.append(sample)
-        counts[Sample(sample)] = new_abund
-        accs[Sample(sample)] = new_accs
-        scores[sample] = new_score
-        output.write('\033[92m OK! \033[0m\n')
+        shared_tree: TaxTree = TaxTree()
+        shared_out: SampleDataByTaxId = SampleDataByTaxId(['shared', 'accs'])
+        shared_tree.allin1(taxonomy=taxonomy,
+                           counts=shared_counts,
+                           scores=shared_score,
+                           min_taxa=mintaxa,
+                           include=including,
+                           exclude=excluding,
+                           out=shared_out)
+        shared_out.purge_counters()
+        out_counts: SharedCounter = shared_out.get_shared_counts()
+        output.write(gray(f'  Shared: Including {len(out_counts)}'
+                          ' shared taxa. Generating sample... '))
+        if out_counts:
+            sample = Sample(f'{STR_SHARED}_{rank.name.lower()}')
+            samples.append(sample)
+            counts[Sample(sample)] = out_counts
+            accs[Sample(sample)] = shared_out.get_accs()
+            scores[sample] = shared_out.get_shared_scores()
+            output.write(green('OK!\n'))
+        else:
+            output.write(yellow('VOID\n'))
 
     def control_analysis():
         """Perform last steps of control and shared controls analysis"""
-        nonlocal shared_ctrl_abundance, shared_ctrl_score
-
-        def generate_control(raw):
-            """Generate a new tree to be able to calculate accs and scores"""
-            nonlocal tree, sample, control_score
-            tree = TaxTree()
-            tree.grow(taxonomy=taxonomy,
-                      abundances=control_abundance,
-                      scores=control_score)
-            tree.shape()
-            control_acc: Counter[TaxId] = col.Counter()
-            control_score.clear()
-            tree.get_taxa(accs=control_acc,
-                          scores=control_score,
-                          include=including,
-                          exclude=excluding)
-            sample = Sample(f'{raw}_{STR_CONTROL}_{rank.name.lower()}')
-            samples.append(sample)
-            counts[sample] = control_abundance
-            accs[sample] = control_acc
-            scores[sample] = control_score
+        nonlocal shared_ctrl_counts, shared_ctrl_score
 
         def advanced_control_removal():
             """Implement advanced control removal"""
@@ -289,90 +263,84 @@ def process_rank(*args,
             exclude_set.update(excluding)
         exclude_candidates.update(excluding)
         # Process each sample excluding control taxa
-        for smpl in raws[controls:]:
-            output.write(f'  \033[90mCtrl: From \033[0m{smpl}\033[90m '
-                         f'excluding {len(exclude_sets[smpl])} ctrl taxa. '
-                         f'Generating sample...\033[0m')
-            leveled_tree = copy.deepcopy(trees[smpl])
-            leveled_tree.prune(mintaxa, rank)
-            leveled_tree.shape()
-            control_abundance: Counter[TaxId] = col.Counter()
-            control_score: Scores = Scores({})
-            leveled_tree.get_taxa(abundance=control_abundance,
-                                  scores=control_score,
-                                  include=including,
-                                  exclude=exclude_sets[smpl],
-                                  just_level=rank,
-                                  )
-            control_abundance = +control_abundance  # remove counts <= 0
-            if control_abundance:  # Avoid adding empty samples
-                generate_control(smpl)
-                output.write('\033[92m OK! \033[0m\n')
+        for raw in raws[controls:]:
+            output.write(gray('  Ctrl: From') + f' {raw} ' +
+                         gray(f'excluding {len(exclude_sets[raw])} ctrl taxa. '
+                              f'Generating sample... '))
+            ctrl_tree = TaxTree()
+            ctrl_out = SampleDataByTaxId(['counts', 'scores', 'accs'])
+            ctrl_tree.allin1(taxonomy=taxonomy,
+                             counts=counts[raw],
+                             scores=scores[raw],
+                             min_taxa=mintaxa,
+                             min_rank=rank,
+                             just_min_rank=True,
+                             include=including,
+                             exclude=exclude_sets[raw],
+                             out=ctrl_out)
+            ctrl_out.purge_counters()
+            if ctrl_out.counts:  # Avoid adding empty samples
+                sample = Sample(f'{raw}_{STR_CONTROL}_{rank.name.lower()}')
+                samples.append(sample)
+                counts[sample] = ctrl_out.get_counts()
+                accs[sample] = ctrl_out.get_accs()
+                scores[sample] = ctrl_out.get_scores()
+                output.write(green('OK!\n'))
             else:
-                output.write('\033[93m VOID \033[0m\n')
-        # Shared-control taxa final analysis
-        output.write('  \033[90mShared-ctrl:\033[0m ')
-        if shared_ctrl_abundance:
-            # Normalize scaled scores by total abundance
-            shared_ctrl_score /= (+shared_ctrl_abundance)
-            # Get averaged abundance by number of samples minus ctrl samples
-            shared_ctrl_abundance //= (len(raws) - controls)
-            tree = TaxTree()
-            tree.grow(taxonomy=taxonomy,
-                      abundances=shared_ctrl_abundance,
-                      scores=shared_ctrl_score)
-            tree.shape()
-            new_shared_ctrl_abundance: Counter[TaxId] = col.Counter()
-            new_shared_ctrl_score: Scores = Scores({})
-            tree.get_taxa(abundance=new_shared_ctrl_abundance,
-                          scores=new_shared_ctrl_score,
-                          include=including,
-                          exclude=exclude_candidates,  # Extended exclusion set
-                          just_level=rank,
-                          )
-            new_shared_ctrl_abundance = +new_shared_ctrl_abundance
-            if new_shared_ctrl_abundance:  # Avoid adding empty samples
-                output.write(
-                    f'\033[90mIncluding '
-                    f'{len(new_shared_ctrl_abundance)} shared taxa. '
-                    f'Generating sample...\033[0m')
+                output.write(yellow('VOID\n'))
 
-                # Generate a new tree to be able to calculate accs and scores
-                tree = TaxTree()
-                tree.grow(taxonomy=taxonomy,
-                          abundances=new_shared_ctrl_abundance,
-                          scores=new_shared_ctrl_score)
-                tree.shape()
-                new_shared_ctrl_acc: Counter[TaxId] = col.Counter()
-                new_shared_ctrl_score = Scores({})
-                tree.get_taxa(accs=new_shared_ctrl_acc,
-                              scores=new_shared_ctrl_score,
-                              include=including,
-                              exclude=excluding)
+        def shared_ctrl_analysis():
+            """Perform last steps of shared taxa analysis"""
+            shared_ctrl_tree: TaxTree = TaxTree()
+            shared_ctrl_out: SampleDataByTaxId = SampleDataByTaxId(
+                ['shared', 'accs'])
+            shared_ctrl_tree.allin1(taxonomy=taxonomy,
+                                    counts=shared_ctrl_counts,
+                                    scores=shared_ctrl_score,
+                                    min_taxa=mintaxa,
+                                    include=including,
+                                    exclude=exclude_candidates,
+                                    out=shared_ctrl_out)
+            shared_ctrl_out.purge_counters()
+            out_counts: SharedCounter = shared_ctrl_out.get_shared_counts()
+            output.write(gray(f'  Ctrl-shared: Including {len(out_counts)}'
+                              ' shared taxa. Generating sample... '))
+            if out_counts:
                 sample = Sample(f'{STR_CONTROL_SHARED}_{rank.name.lower()}')
                 samples.append(sample)
-                counts[sample] = new_shared_ctrl_abundance
-                accs[sample] = new_shared_ctrl_acc
-                scores[sample] = new_shared_ctrl_score
-                output.write('\033[92m OK! \033[0m\n')
+                counts[Sample(sample)] = out_counts
+                accs[Sample(sample)] = shared_ctrl_out.get_accs()
+                scores[sample] = shared_ctrl_out.get_shared_scores()
+                output.write(green('OK!\n'))
             else:
-                output.write(f'\033[90mNo final shared-ctrl taxa!'
-                             f'\033[93m VOID\033[90m sample.\033[0m \n')
+                output.write(yellow('VOID\n'))
+
+        # Shared-control taxa final analysis
+        if shared_ctrl_counts:
+            # Normalize scaled scores by total abundance
+            shared_ctrl_score /= (+shared_ctrl_counts)
+            # Get averaged abundance by number of samples minus ctrl samples
+            shared_ctrl_counts //= (len(raws) - controls)
+            shared_ctrl_analysis()
         else:
-            output.write(f'\033[90mNo shared-ctrl taxa!'
-                         f'\033[93m VOID\033[90m sample.\033[0m \n')
+            output.write(gray('  Ctrl-shared: No taxa! ') +
+                         yellow('VOID') + gray(' sample.\n'))
 
     # Cross analysis iterating by output: exclusive and part of shared&ctrl
     for num_file, raw_sample_name in enumerate(raws):
         cross_analysis(num_file, raw_sample_name)
 
     # Shared taxa final analysis
-    shared_abundance = +shared_abundance  # remove counts <= 0
-    if shared_abundance:
+    shared_counts = +shared_counts  # remove counts <= 0
+    if shared_counts:
+        # Normalize scaled scores by total abundance (after eliminating zeros)
+        shared_score /= (+shared_counts)
+        # Get averaged abundance by number of samples
+        shared_counts //= len(raws)
         shared_analysis()
     else:
-        output.write(f'  \033[90mShared: No shared taxa!'
-                     f'\033[93m VOID\033[90m sample.\033[0m \n')
+        output.write(gray('  Shared: No shared taxa! ') +
+                     yellow('VOID') + gray(' sample.\n'))
 
     # Control sample subtraction
     if controls:

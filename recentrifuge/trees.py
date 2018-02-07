@@ -7,7 +7,7 @@ import collections as col
 import io
 from typing import Counter, Union, Dict, List, Iterable, Tuple, Set
 from recentrifuge.config import TaxId, Parents, Sample, Score, Scores
-from recentrifuge.config import ROOT, NO_SCORE
+from recentrifuge.config import ROOT, NO_SCORE, UnionCounter, UnionScores
 from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
 from recentrifuge.krona import KronaTree, Elm
 from recentrifuge.rank import Rank, Ranks, TaxLevels
@@ -19,9 +19,16 @@ class SampleDataByTaxId(object):
     """Typical data in a sample ordered by taxonomical id"""
 
     def __init__(self, init: List[str] = None) -> None:
-        self.counts: Union[Counter[TaxId], SharedCounter] = None
+        """Initialize data structures
+
+        Individual options: 'counts', 'ranks', 'scores', 'accs',
+          'shared_counts', 'shared_scores'
+        Group options: 'all' initialize all non-shared, and
+           'shared' initializes both counts and scores with
+            SharedCounter."""
+        self.counts: UnionCounter = None
         self.ranks: Ranks = None
-        self.scores: Union[Scores, SharedCounter] = None
+        self.scores: UnionScores = None
         self.accs: Counter[TaxId] = None
         if 'counts' in init or 'all' in init:
             self.counts = Counter()
@@ -37,9 +44,9 @@ class SampleDataByTaxId(object):
             self.scores = SharedCounter()
 
     def set(self,
-            counts: Union[Counter[TaxId], SharedCounter] = None,
+            counts: UnionCounter = None,
             ranks: Ranks = None,
-            scores: Union[Scores, SharedCounter] = None,
+            scores: UnionScores = None,
             accs: Counter[TaxId] = None) -> None:
         """Set the data fields"""
         if counts is not None:
@@ -55,31 +62,31 @@ class SampleDataByTaxId(object):
         """Get (non shared) counts"""
         if isinstance(self.counts, Counter):
             return self.counts
-        return NotImplemented
+        raise TypeError
 
     def get_shared_counts(self) -> SharedCounter:
         """Get shared counts"""
         if isinstance(self.counts, SharedCounter):
             return self.counts
-        return NotImplemented
+        raise TypeError
 
     def get_scores(self) -> Scores:
         """Get (non shared) scores"""
         if isinstance(self.scores, dict):
             return self.scores  # type: ignore
-        return NotImplemented
+        raise TypeError
 
     def get_shared_scores(self) -> SharedCounter:
         """Get shared scores"""
         if isinstance(self.scores, SharedCounter):
             return self.scores
-        return NotImplemented
+        raise TypeError
 
     def get_accs(self) -> Counter[TaxId]:
         """Get accumulated counter"""
         if isinstance(self.accs, Counter):
             return self.accs
-        return NotImplemented
+        raise TypeError
 
     def clear(self, fields: List[str] = None) -> None:
         """Clear the data field"""

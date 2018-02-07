@@ -57,7 +57,7 @@ class SharedCounter(col.Counter):
             result: SharedCounter = SharedCounter()
             for item in self:
                 if item in other:
-                    result[item] = self[item] / other[item]
+                    result[item] = self[item] / other[item]  # type: ignore
             return result
         return NotImplemented
 

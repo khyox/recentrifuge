@@ -3,7 +3,8 @@ This module provides constants and other package-wide stuff.
 
 """
 from enum import Enum
-from typing import Dict, NewType
+from typing import Dict, Counter, NewType, Union
+from recentrifuge.shared_counter import SharedCounter
 
 # Type annotations
 # pylint: disable=invalid-name
@@ -15,6 +16,8 @@ Names = NewType('Names', Dict[TaxId, str])
 Parents = NewType('Parents', Dict[TaxId, TaxId])
 Score = NewType('Score', float)
 Scores = NewType('Scores', Dict[TaxId, Score])
+UnionCounter = Union[Counter[TaxId], SharedCounter]
+UnionScores = Union[Scores, SharedCounter]
 # pylint: enable=invalid-name
 
 # Predefined internal constants

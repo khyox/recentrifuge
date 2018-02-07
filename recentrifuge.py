@@ -36,7 +36,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.17.0_rc5'
+__version__ = '0.17.0_rc6'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Feb 2018'
 
@@ -343,9 +343,8 @@ def main():
         """Cross analysis of samples in parallel by taxlevel"""
         print(gray('Please, wait. Performing cross analysis in parallel...\n'))
         # Update kwargs with more parameters for the followings func calls
-        kwargs.update({'trees': trees, 'taxids': taxids, 'counts': counts,
-                       'scores': scores, 'accs': accs,
-                       'raw_samples': raw_samples})
+        kwargs.update({'taxids': taxids, 'counts': counts, 'scores': scores,
+                       'accs': accs, 'raw_samples': raw_samples})
         if platform.system() and not args.sequential:  # Only for known systems
             mpctx = mp.get_context('fork')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(), len(
@@ -420,7 +419,7 @@ def main():
     def generate_krona():
         """Generate Krona plot with all the results via Krona 2.0 XML spec"""
 
-        print(gray('\nBuilding the taxonomy multiple tree... '), end='')
+        print(gray('Building the taxonomy multiple tree... '), end='')
         sys.stdout.flush()
         krona: KronaTree = KronaTree(samples,
                                      num_raw_samples=len(raw_samples),
