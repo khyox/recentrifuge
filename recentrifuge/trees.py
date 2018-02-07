@@ -142,8 +142,9 @@ class TaxTree(dict):
 
     def grow(self,
              taxonomy: Taxonomy,
-             abundances: Counter[TaxId] = None,
+             counts: Counter[TaxId] = None,
              scores: Union[Dict[TaxId, Score], SharedCounter] = None,
+             ancestors: Set[TaxId] = None,
              taxid: TaxId = ROOT,
              _path: List[TaxId] = None,
              ) -> None:
@@ -152,29 +153,36 @@ class TaxTree(dict):
 
         Args:
             taxonomy: Taxonomy object.
-            abundances: counter for taxids with their abundances.
+            counts: counter for taxids with their abundances.
             scores: optional dict with the score for each taxid.
+            ancestors: optional set of ancestors.
             taxid: It's ROOT by default for the first/base method call
             _path: list used by the recursive algorithm to avoid loops
 
         Returns: None
 
         """
+        # Checks and initializations in the first call to the function
         if not _path:
             _path = []
-        if not abundances:
-            abundances = col.Counter({ROOT: 1})
-        if not scores:
-            scores = {}
-        if taxid not in _path:  # Avoid loops for repeated taxid (like root)
-            self[taxid] = TaxTree(counts=abundances.get(taxid, 0),
+            if not counts:
+                abundances = col.Counter({ROOT: 1})
+            if not scores:
+                scores = {}
+            if not ancestors:
+                ancestors, _ = taxonomy.get_ancestors(counts.keys())
+
+        # Go ahead if there is an ancestor or not repeated taxid (like root)
+        if taxid in ancestors and taxid not in _path:
+            self[taxid] = TaxTree(counts=counts.get(taxid, 0),
                                   score=scores.get(taxid, NO_SCORE),
                                   rank=taxonomy.get_rank(taxid))
             if taxid in taxonomy.children:  # taxid has children
                 for child in taxonomy.children[taxid]:
                     self[taxid].grow(taxonomy=taxonomy,
-                                     abundances=abundances,
+                                     counts=counts,
                                      scores=scores,
+                                     ancestors=ancestors,
                                      taxid=child,
                                      _path=_path + [taxid])
 
@@ -235,7 +243,6 @@ class TaxTree(dict):
 
         # Checks and initializations in the first call to the function
         if not _path:
-
             _path = []
             if not counts:
                 counts = col.Counter({ROOT: 1})
@@ -461,6 +468,105 @@ class TaxTree(dict):
                                        include, exclude,
                                        just_level, in_branch)
 
+    def shape(self) -> None:
+        """
+        Recursively populate accumulated counts and score.
+
+        From bottom to top, accumulate counts in higher taxonomical
+        levels, so populate self.acc of the tree. Also calculate
+        score for levels that have no reads directly assigned
+        (unassigned = 0). It eliminates leaves with no accumulated
+        counts. With all, it shapes the tree to the most useful form.
+
+        """
+        self.acc = self.counts  # Initialize accumulated with unassigned counts
+        for tid in list(self):  # Loop if this node has subtrees
+            self[tid].shape()  # Accumulate for each branch/leaf
+            if not self[tid].acc:
+                self.pop(tid)  # Prune empty leaf
+            else:
+                self.acc += self[tid].acc  # Acc lower tax acc in this node
+        if not self.counts:
+            # If not unassigned (no reads directly assigned to the level),
+            #  calculate score from leaves, trying different approaches.
+            if self.acc:  # Leafs (at least 1) have accum.
+                self.score = sum([self[tid].score * self[tid].acc
+                                  / self.acc for tid in self])
+            else:  # No leaf with unassigned counts nor accumulated
+                # Currently, do nothing, but another choice is
+                #   just get the averaged score by number of leaves
+                # self.score = sum([self[tid].score
+                #                   for tid in list(self)])/len(self)
+                pass
+
+    def subtract(self) -> None:
+        """
+        Recursively subtract counts of lower levels from higher ones.
+
+        From bottom to top, subtract counts from higher taxonomical
+        levels, under the assumption than they were accumulated before.
+
+        """
+        for tid in list(self):  # Loop if this node has subtrees
+            self.counts -= self[tid].acc  # Subtract lower taxa acc
+            self[tid].subtract()  # Subtract for each branch/leaf
+            if self.counts < 0:
+                self.counts = 0  # Avoid negative counts
+
+    def prune(self,
+              min_taxa: int = 1,
+              min_rank: Rank = None,
+              collapse: bool = True,
+              debug: bool = False) -> bool:
+        """
+        Recursively prune/collapse low abundant taxa of the TaxTree.
+
+        Args:
+            min_taxa: minimum taxa to avoid pruning/collapsing
+                one level to the parent one.
+            min_rank: if any, minimum Rank allowed in the TaxTree.
+            collapse: selects if a lower level should be accumulated in
+                the higher one before pruning a node (do so by default).
+            debug: increase output verbosity (just for debug)
+
+        Returns: True if this node is a leaf
+
+        """
+        for tid in list(self):  # Loop if this node has subtrees
+            if (self[tid]  # If the subtree has branches,
+                    and self[tid].prune(min_taxa, min_rank, collapse, debug)):
+                # The pruned subtree keeps having branches (still not a leaf!)
+                if debug:
+                    print(f'[NOT pruning branch {tid}, '
+                          f'counts={self[tid].counts}]', end='')
+            else:  # self[tid] is a leaf (after pruning its branches or not)
+                if (self[tid].counts < min_taxa  # Not enough counts, or check
+                        or (min_rank  # if min_rank is set, then check if level
+                            and (self[tid].rank < min_rank  # is lower or
+                                 or self.rank <= min_rank))):  # other test
+                    if collapse:
+                        collapsed_counts: int = self.counts + self[tid].counts
+                        if collapsed_counts:  # Average the collapsed score
+                            self.score = ((self.score * self.counts
+                                           + self[tid].score * self[
+                                               tid].counts)
+                                          / collapsed_counts)
+                            # Accumulate abundance in higher tax
+                            self.counts = collapsed_counts
+                    else:  # No collapse: update acc counts erasing leaf counts
+                        if self.acc > self[tid].counts:
+                            self.acc -= self[tid].counts
+                        else:
+                            self.acc = 0
+                    if debug and self[tid].counts:
+                        print(f'[Pruning branch {tid}, '
+                              f'counts={self[tid].counts}]', end='')
+                    self.pop(tid)  # Prune leaf
+                elif debug:
+                    print(f'[NOT pruning leaf {tid}, '
+                          f'counts={self[tid].counts}]', end='')
+        return bool(self)  # True if this node has branches (is not a leaf)
+
     def toxml(self,
               taxonomy: Taxonomy,
               krona: KronaTree,
@@ -520,105 +626,6 @@ class TaxTree(dict):
                                     mindepth, maxdepth,
                                     include, exclude,
                                     in_branch)
-
-    def shape(self) -> None:
-        """
-        Recursively populate accumulated counts and score.
-
-        From bottom to top, accumulate counts in higher taxonomical
-        levels, so populate self.acc of the tree. Also calculate
-        score for levels that have no reads directly assigned
-        (unassigned = 0). It eliminates leaves with no accumulated
-        counts. With all, it shapes the tree to the most useful form.
-
-        """
-        self.acc = self.counts  # Initialize accumulated with unassigned counts
-        for tid in list(self):  # Loop if this node has subtrees
-            self[tid].shape()  # Accumulate for each branch/leaf
-            if not self[tid].acc:
-                self.pop(tid)  # Prune empty leaf
-            else:
-                self.acc += self[tid].acc  # Acc lower tax acc in this node
-        if not self.counts:
-            # If not unassigned (no reads directly assigned to the level),
-            #  calculate score from leaves, trying different approaches.
-            if self.acc:  # Leafs (at least 1) have accum.
-                self.score = sum([self[tid].score * self[tid].acc
-                                  / self.acc for tid in self])
-            else:  # No leaf with unassigned counts nor accumulated
-                # Currently, do nothing, but another choice is
-                #   just get the averaged score by number of leaves
-                # self.score = sum([self[tid].score
-                #                   for tid in list(self)])/len(self)
-                pass
-
-    def subtract(self) -> None:
-        """
-        Recursively subtract counts of lower levels from higher ones.
-
-        From bottom to top, subtract counts from higher taxonomical
-        levels, under the assumption than they were accumulated before.
-
-        """
-        for tid in list(self):  # Loop if this node has subtrees
-            self[tid].subtract()  # Subtract for each branch/leaf
-            self.counts -= self[tid].counts  # Subtract lower taxa counts
-            if self.counts < 0:
-                self.counts = 0  # Avoid negative counts
-
-    def prune(self,
-              min_taxa: int = 1,
-              min_rank: Rank = None,
-              collapse: bool = True,
-              debug: bool = False) -> bool:
-        """
-        Recursively prune/collapse low abundant taxa of the TaxTree.
-
-        Args:
-            min_taxa: minimum taxa to avoid pruning/collapsing
-                one level to the parent one.
-            min_rank: if any, minimum Rank allowed in the TaxTree.
-            collapse: selects if a lower level should be accumulated in
-                the higher one before pruning a node (do so by default).
-            debug: increase output verbosity (just for debug)
-
-        Returns: True if this node is a leaf
-
-        """
-        for tid in list(self):  # Loop if this node has subtrees
-            if (self[tid]  # If the subtree has branches,
-                    and self[tid].prune(min_taxa, min_rank, collapse, debug)):
-                # The pruned subtree keeps having branches (still not a leaf!)
-                if debug:
-                    print(f'[NOT pruning branch {tid}, '
-                          f'counts={self[tid].counts}]', end='')
-            else:  # self[tid] is a leaf (after pruning its branches or not)
-                if (self[tid].counts < min_taxa  # Not enough counts, or check
-                        or (min_rank  # if min_rank is set, then check if level
-                            and (self[tid].rank < min_rank  # is lower or
-                                 or self.rank <= min_rank))):  # other test
-                    if collapse:
-                        collapsed_counts: int = self.counts + self[tid].counts
-                        if collapsed_counts:  # Average the collapsed score
-                            self.score = ((self.score * self.counts
-                                           + self[tid].score * self[
-                                               tid].counts)
-                                          / collapsed_counts)
-                            # Accumulate abundance in higher tax
-                            self.counts = collapsed_counts
-                    else:  # No collapse: update acc counts erasing leaf counts
-                        if self.acc > self[tid].counts:
-                            self.acc -= self[tid].counts
-                        else:
-                            self.acc = 0
-                    if debug and self[tid].counts:
-                        print(f'[Pruning branch {tid}, '
-                              f'counts={self[tid].counts}]', end='')
-                    self.pop(tid)  # Prune leaf
-                elif debug:
-                    print(f'[NOT pruning leaf {tid}, '
-                          f'counts={self[tid].counts}]', end='')
-        return bool(self)  # True if this node has branches (is not a leaf)
 
 
 class MultiTree(dict):
@@ -696,17 +703,17 @@ class MultiTree(dict):
         Returns: None
 
         """
-        # Create dummy variables in case they are None
+        # Create dummy variables in case they are None in the 1st call
         if not _path:
             _path = []
-        if not abundances:
-            abundances = {sample: col.Counter({ROOT: 1})
-                          for sample in self.samples}
-        if not accs:
-            accs = {sample: col.Counter({ROOT: 1})
-                    for sample in self.samples}
-        if not scores:
-            scores = {sample: {} for sample in self.samples}
+            if not abundances:
+                abundances = {sample: col.Counter({ROOT: 1})
+                              for sample in self.samples}
+            if not accs:
+                accs = {sample: col.Counter({ROOT: 1})
+                        for sample in self.samples}
+            if not scores:
+                scores = {sample: {} for sample in self.samples}
         if taxid not in _path:  # Avoid loops for repeated taxid (like root)
             multi_count: Dict[Sample, int] = {
                 sample: abundances[sample].get(taxid, 0)

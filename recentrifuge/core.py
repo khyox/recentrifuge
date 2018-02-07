@@ -357,7 +357,7 @@ def summarize_analysis(*args,
                        ) -> Tuple[Sample,
                                   Counter[TaxId],
                                   Counter[TaxId],
-                                  Dict[TaxId, Score]]:
+                                  Scores]:
     """
     Summarize for a cross-analysis (to be usually called in parallel!).
     """
@@ -372,7 +372,7 @@ def summarize_analysis(*args,
     output: io.StringIO = io.StringIO(newline='')
 
     # Declare/define variables
-    summary_abund: Counter[TaxId] = Counter()
+    summary_counts: Counter[TaxId] = Counter()
     summary_acc: Counter[TaxId] = Counter()
     summary_score: Scores = Scores({})
     summary: Sample = None
@@ -384,24 +384,25 @@ def summarize_analysis(*args,
     assert len(target_samples) >= 1, \
         red('ERROR! ') + analysis + gray(' has no samples to summarize!')
     for smpl in target_samples:
-        summary_abund += counts[smpl]
+        summary_counts += counts[smpl]
         summary_score.update(scores[smpl])
 
     tree = TaxTree()
     tree.grow(taxonomy=taxonomy,
-              abundances=summary_abund,
+              counts=summary_counts,
               scores=summary_score)
+    tree.shape()
     tree.subtract()
     tree.shape()
-    summary_abund.clear()
+    summary_counts.clear()
     summary_score.clear()
-    tree.get_taxa(abundance=summary_abund,
+    tree.get_taxa(abundance=summary_counts,
                   accs=summary_acc,
                   scores=summary_score,
                   include=including,
                   exclude=excluding)
-    summary_abund = +summary_abund  # remove counts <= 0
-    if summary_abund:  # Avoid returning empty sample (summary would be None)
+    summary_counts = +summary_counts  # remove counts <= 0
+    if summary_counts:  # Avoid returning empty sample (summary would be None)
         summary = Sample(f'{analysis}_{STR_SUMMARY}')
         output.write(gray('(') + cyan(f'{len(target_samples)}') +
                      gray(' samples)') + green(' OK!\n'))
@@ -410,7 +411,7 @@ def summarize_analysis(*args,
     # Print output and return
     print(output.getvalue(), end='')
     sys.stdout.flush()
-    return summary, summary_abund, summary_acc, summary_score
+    return summary, summary_counts, summary_acc, summary_score
 
 
 def write_lineage(parents: Parents,

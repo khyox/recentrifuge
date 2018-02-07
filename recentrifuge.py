@@ -36,7 +36,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.17.0_rc6'
+__version__ = '0.17.0_rc7'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Feb 2018'
 
@@ -419,7 +419,7 @@ def main():
     def generate_krona():
         """Generate Krona plot with all the results via Krona 2.0 XML spec"""
 
-        print(gray('Building the taxonomy multiple tree... '), end='')
+        print(gray('\nBuilding the taxonomy multiple tree... '), end='')
         sys.stdout.flush()
         krona: KronaTree = KronaTree(samples,
                                      num_raw_samples=len(raw_samples),
@@ -568,7 +568,7 @@ def main():
     # Avoid cross analysis if just one report file or explicitly stated by flag
     if len(raw_samples) > 1 and not args.avoidcross:
         analyze_samples()
-        # TODO: summarize_samples()
+        summarize_samples()
     # Final result generation is done in sequential mode
 
     polytree: MultiTree = MultiTree(samples=samples)

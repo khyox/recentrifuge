@@ -81,7 +81,7 @@ def process_report(*args, **kwargs
     output.write('  \033[90mBuilding taxonomy tree...\033[0m')
     tree = TaxTree()
     tree.grow(taxonomy=taxonomy,
-              abundances=abundances)  # Grow tax tree from root node
+              counts=abundances)  # Grow tax tree from root node
     output.write('\033[92m OK! \033[0m\n')
 
     # Prune the tree
