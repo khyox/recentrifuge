@@ -391,7 +391,6 @@ def summarize_analysis(*args,
     tree.grow(taxonomy=taxonomy,
               counts=summary_counts,
               scores=summary_score)
-    tree.shape()
     tree.subtract()
     tree.shape()
     summary_counts.clear()

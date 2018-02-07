@@ -166,7 +166,7 @@ class TaxTree(dict):
         if not _path:
             _path = []
             if not counts:
-                abundances = col.Counter({ROOT: 1})
+                counts = col.Counter({ROOT: 1})
             if not scores:
                 scores = {}
             if not ancestors:
@@ -499,7 +499,7 @@ class TaxTree(dict):
                 #                   for tid in list(self)])/len(self)
                 pass
 
-    def subtract(self) -> None:
+    def subtract(self) -> int:
         """
         Recursively subtract counts of lower levels from higher ones.
 
@@ -507,11 +507,16 @@ class TaxTree(dict):
         levels, under the assumption than they were accumulated before.
 
         """
+        below: int = 0
+        output: int = 0
         for tid in list(self):  # Loop if this node has subtrees
-            self.counts -= self[tid].acc  # Subtract lower taxa acc
-            self[tid].subtract()  # Subtract for each branch/leaf
-            if self.counts < 0:
-                self.counts = 0  # Avoid negative counts
+            below += self[tid].subtract()  # Subtract for each branch/leaf
+        if self.counts >= below:
+            output = self.counts
+            self.counts -= below  # Subtract lower taxa counts
+        else:
+            output = self.counts + below
+        return output
 
     def prune(self,
               min_taxa: int = 1,
