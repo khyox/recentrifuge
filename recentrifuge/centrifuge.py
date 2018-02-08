@@ -320,8 +320,8 @@ def process_output(*args,
         error = Err.VOID_SAMPLE
 
     # Timing results
-    output.write(gray('Elapsed time: ') +
-                 f'{time.perf_counter() - start_time:.3}' + gray(' sec\n'))
+    output.write(gray('Load elapsed time: ') +
+                 f'{time.perf_counter() - start_time:.3g}' + gray(' sec\n'))
     print(output.getvalue())
     sys.stdout.flush()
     return sample, tree, out, error

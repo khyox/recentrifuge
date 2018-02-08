@@ -5072,31 +5072,43 @@ function mouseClick(e) {
                     && nodes[testIndex].isLeaf()) nodesIndex = testIndex;
             }
 
+            function lookForNode(testIndex, reverse) {
+                // Look for nodes with counts
+                for(;testIndex >= 0 && testIndex <= nodes.length - 1;
+                     reverse ? testIndex-- : testIndex++) {}
+                if (testIndex >= 0 && testIndex <= nodes.length - 1)
+                    nodesIndex = testIndex;
+            }
+
             switch (button.name) {
                 case 'mostScore':
                     nodesIndex = 0;
                     if (collapseCheckBox.checked) {
                         lookForLeaf(nodesIndex, false);
+                    } else {
+                        lookForNode(nodesIndex, false);
                     }
                     break;
                 case 'moreScore':
                     if (collapseCheckBox.checked) {
                         lookForLeaf(nodesIndex - 1, true);
                     } else {
-                        if (nodesIndex > 0) nodesIndex--;
+                        lookForNode(nodesIndex - 1, true);
                     }
                     break;
                 case 'lessScore':
                     if (collapseCheckBox.checked) {
                         lookForLeaf(nodesIndex + 1, false);
                     } else {
-                        if (nodesIndex < nodes.length - 1) nodesIndex++;
+                        lookForNode(nodesIndex + 1, false);
                     }
                     break;
                 case 'lestScore':
                     nodesIndex = nodes.length - 1;
                     if (collapseCheckBox.checked) {
                         lookForLeaf(nodesIndex, true);
+                    } else {
+                        lookForNode(nodesIndex, true);
                     }
                     break;
                 default:

@@ -36,7 +36,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.17.0_rc8'
+__version__ = '0.17.0_rc9'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Feb 2018'
 
@@ -372,6 +372,8 @@ def main():
 
     def summarize_samples():
         """Summary of samples in parallel by type of cross-analysis"""
+        # timing initialization
+        summ_start_time: float = time.perf_counter()
         print(gray('Please, wait. Generating summaries in parallel...'))
         # Update kwargs with more parameters for the followings func calls
         kwargs.update({'samples': samples})
@@ -415,6 +417,9 @@ def main():
                     counts[summary] = abund
                     accs[summary] = acc
                     scores[summary] = score
+        # Timing results
+        print(gray('Summary elapsed time:'),
+              f'{time.perf_counter() - summ_start_time:.3g}', gray('sec'))
 
     def generate_krona():
         """Generate Krona plot with all the results via Krona 2.0 XML spec"""

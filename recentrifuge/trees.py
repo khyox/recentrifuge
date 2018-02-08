@@ -6,8 +6,9 @@ TaxTree and MultiTree classes.
 import collections as col
 import io
 from typing import Counter, Union, Dict, List, Iterable, Tuple, Set
-from recentrifuge.config import TaxId, Parents, Sample, Score, Scores
+
 from recentrifuge.config import ROOT, NO_SCORE, UnionCounter, UnionScores
+from recentrifuge.config import TaxId, Parents, Sample, Score, Scores
 from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
 from recentrifuge.krona import KronaTree, Elm
 from recentrifuge.rank import Rank, Ranks, TaxLevels
@@ -140,52 +141,6 @@ class TaxTree(dict):
                 print('', end=',')
         print(')', end='')
 
-    def grow(self,
-             taxonomy: Taxonomy,
-             counts: Counter[TaxId] = None,
-             scores: Union[Dict[TaxId, Score], SharedCounter] = None,
-             ancestors: Set[TaxId] = None,
-             taxid: TaxId = ROOT,
-             _path: List[TaxId] = None,
-             ) -> None:
-        """
-        Recursively build a taxonomy tree.
-
-        Args:
-            taxonomy: Taxonomy object.
-            counts: counter for taxids with their abundances.
-            scores: optional dict with the score for each taxid.
-            ancestors: optional set of ancestors.
-            taxid: It's ROOT by default for the first/base method call
-            _path: list used by the recursive algorithm to avoid loops
-
-        Returns: None
-
-        """
-        # Checks and initializations in the first call to the function
-        if not _path:
-            _path = []
-            if not counts:
-                counts = col.Counter({ROOT: 1})
-            if not scores:
-                scores = {}
-            if not ancestors:
-                ancestors, _ = taxonomy.get_ancestors(counts.keys())
-
-        # Go ahead if there is an ancestor or not repeated taxid (like root)
-        if taxid in ancestors and taxid not in _path:
-            self[taxid] = TaxTree(counts=counts.get(taxid, 0),
-                                  score=scores.get(taxid, NO_SCORE),
-                                  rank=taxonomy.get_rank(taxid))
-            if taxid in taxonomy.children:  # taxid has children
-                for child in taxonomy.children[taxid]:
-                    self[taxid].grow(taxonomy=taxonomy,
-                                     counts=counts,
-                                     scores=scores,
-                                     ancestors=ancestors,
-                                     taxid=child,
-                                     _path=_path + [taxid])
-
     def allin1(self,
                taxonomy: Taxonomy,
                counts: Counter[TaxId] = None,
@@ -227,6 +182,8 @@ class TaxTree(dict):
             """Weighted mean of scores by counts"""
             if sco1 == NO_SCORE:
                 return sco2
+            elif sco2 == NO_SCORE:
+                return sco1
             return Score((cnt1 * sco1 + cnt2 * sco2) / (cnt1 + cnt2))
 
         def populate_output(taxid: TaxId, source: TaxTree) -> None:
@@ -253,9 +210,7 @@ class TaxTree(dict):
             if not ancestors:
                 ancestors, _ = taxonomy.get_ancestors(counts.keys())
 
-        # Return if not an ancestor, or excluded taxa or loops for
-        #  repeated taxid (like root); conditions ordered by prob
-        if tid not in ancestors or tid in exclude or tid in _path:
+        if tid in _path:  # Return if loop for repeated taxid (like root)
             return None
 
         rank: Rank = taxonomy.get_rank(tid)
@@ -283,6 +238,9 @@ class TaxTree(dict):
             return self[tid].acc
         # Taxid has children (is a branch)
         for chld in taxonomy.children[tid]:
+            # If not an ancestor or excluded taxa, do not create child
+            if chld not in ancestors or chld in exclude:
+                continue  # Don't create child and continue
             child_acc = self[tid].allin1(
                 taxonomy=taxonomy, counts=counts, scores=scores,
                 ancestors=ancestors, tid=chld,
@@ -304,11 +262,8 @@ class TaxTree(dict):
                         not just_min_rank or (
                         rank_prune and (
                         rank == min_rank or parent_rank <= min_rank))):
-                    #  and not (rank != min_rank and parent_rank > min_rank))):
-                    collapsed_counts: int = (self[tid].counts
-                                             + self[tid][chld].counts)
-                    if collapsed_counts:  # Average the collapsed score
-                        self[tid].score = swmean(
+                    if self[tid].counts + self[tid][chld].counts:
+                        self[tid].score = swmean(  # Average collapsed score
                             self[tid].counts, self[tid].score,
                             self[tid][chld].counts, self[tid][chld].score)
                         # Accumulate abundance in higher tax
@@ -320,49 +275,22 @@ class TaxTree(dict):
                 pruned: TaxTree = self[tid].pop(chld)  # Prune the leaf
                 assert not pruned, f'{tid}-//->{chld}->{pruned}'
                 continue
+            if self[tid].acc + child_acc:
+                self[tid].score = swmean(
+                    self[tid].acc, self[tid].score,
+                    child_acc, self[tid][chld].score)
             self[tid].acc += child_acc
             if out:
                 populate_output(chld, self[tid])
         # If not counts, calculate score from leaves
-        if not abun and self[tid].acc and self[tid]:
-            self[tid].score = sum([
-                self[tid][chld].score * self[tid][chld].acc
-                / self[tid].acc for chld in self[tid]])
+        # if not abun and self[tid].acc and self[tid]:
+        #    self[tid].score = sum([
+        #        self[tid][chld].score * self[tid][chld].acc
+        #        / self[tid].acc for chld in self[tid]])
         # If ROOT, populate results
         if tid == ROOT and out:
             populate_output(ROOT, self)
         return self[tid].acc
-
-    def trace(self,
-              target: TaxId,
-              nodes: List[TaxId],
-              ) -> bool:
-        """
-        Recursively get a list of nodes from self to target taxid.
-
-        Args:
-            target: TaxId of the node to trace
-            nodes: Input/output list of TaxIds: at 1st entry is empty.
-
-        Returns:
-            Boolean about the success of the tracing.
-
-        """
-        target_found: bool = False
-        for tid in self:
-            if self[tid]:
-                nodes.append(tid)
-                if target in self[tid] and target != ROOT:
-                    # Avoid to append more than once the root node
-                    nodes.append(target)
-                    target_found = True
-                    break
-                if self[tid].trace(target, nodes):
-                    target_found = True
-                    break
-                else:
-                    nodes.pop()
-        return target_found
 
     def get_lineage(self,
                     parents: Parents,
@@ -468,55 +396,51 @@ class TaxTree(dict):
                                        include, exclude,
                                        just_level, in_branch)
 
-    def shape(self) -> None:
+    def grow(self,
+             taxonomy: Taxonomy,
+             counts: Counter[TaxId] = None,
+             scores: Union[Dict[TaxId, Score], SharedCounter] = None,
+             ancestors: Set[TaxId] = None,
+             taxid: TaxId = ROOT,
+             _path: List[TaxId] = None,
+             ) -> None:
         """
-        Recursively populate accumulated counts and score.
+        Recursively build a taxonomy tree.
 
-        From bottom to top, accumulate counts in higher taxonomical
-        levels, so populate self.acc of the tree. Also calculate
-        score for levels that have no reads directly assigned
-        (unassigned = 0). It eliminates leaves with no accumulated
-        counts. With all, it shapes the tree to the most useful form.
+        Args:
+            taxonomy: Taxonomy object.
+            counts: counter for taxids with their abundances.
+            scores: optional dict with the score for each taxid.
+            ancestors: optional set of ancestors.
+            taxid: It's ROOT by default for the first/base method call
+            _path: list used by the recursive algorithm to avoid loops
 
-        """
-        self.acc = self.counts  # Initialize accumulated with unassigned counts
-        for tid in list(self):  # Loop if this node has subtrees
-            self[tid].shape()  # Accumulate for each branch/leaf
-            if not self[tid].acc:
-                self.pop(tid)  # Prune empty leaf
-            else:
-                self.acc += self[tid].acc  # Acc lower tax acc in this node
-        if not self.counts:
-            # If not unassigned (no reads directly assigned to the level),
-            #  calculate score from leaves, trying different approaches.
-            if self.acc:  # Leafs (at least 1) have accum.
-                self.score = sum([self[tid].score * self[tid].acc
-                                  / self.acc for tid in self])
-            else:  # No leaf with unassigned counts nor accumulated
-                # Currently, do nothing, but another choice is
-                #   just get the averaged score by number of leaves
-                # self.score = sum([self[tid].score
-                #                   for tid in list(self)])/len(self)
-                pass
-
-    def subtract(self) -> int:
-        """
-        Recursively subtract counts of lower levels from higher ones.
-
-        From bottom to top, subtract counts from higher taxonomical
-        levels, under the assumption than they were accumulated before.
+        Returns: None
 
         """
-        below: int = 0
-        output: int = 0
-        for tid in list(self):  # Loop if this node has subtrees
-            below += self[tid].subtract()  # Subtract for each branch/leaf
-        if self.counts >= below:
-            output = self.counts
-            self.counts -= below  # Subtract lower taxa counts
-        else:
-            output = self.counts + below
-        return output
+        # Checks and initializations in the first call to the function
+        if not _path:
+            _path = []
+            if not counts:
+                counts = col.Counter({ROOT: 1})
+            if not scores:
+                scores = {}
+            if not ancestors:
+                ancestors, _ = taxonomy.get_ancestors(counts.keys())
+
+        # Go ahead if there is an ancestor or not repeated taxid (like root)
+        if taxid in ancestors and taxid not in _path:
+            self[taxid] = TaxTree(counts=counts.get(taxid, 0),
+                                  score=scores.get(taxid, NO_SCORE),
+                                  rank=taxonomy.get_rank(taxid))
+            if taxid in taxonomy.children:  # taxid has children
+                for child in taxonomy.children[taxid]:
+                    self[taxid].grow(taxonomy=taxonomy,
+                                     counts=counts,
+                                     scores=scores,
+                                     ancestors=ancestors,
+                                     taxid=child,
+                                     _path=_path + [taxid])
 
     def prune(self,
               min_taxa: int = 1,
@@ -571,6 +495,56 @@ class TaxTree(dict):
                     print(f'[NOT pruning leaf {tid}, '
                           f'counts={self[tid].counts}]', end='')
         return bool(self)  # True if this node has branches (is not a leaf)
+
+    def shape(self) -> None:
+        """
+        Recursively populate accumulated counts and score.
+
+        From bottom to top, accumulate counts in higher taxonomical
+        levels, so populate self.acc of the tree. Also calculate
+        score for levels that have no reads directly assigned
+        (unassigned = 0). It eliminates leaves with no accumulated
+        counts. With all, it shapes the tree to the most useful form.
+
+        """
+        self.acc = self.counts  # Initialize accumulated with unassigned counts
+        for tid in list(self):  # Loop if this node has subtrees
+            self[tid].shape()  # Accumulate for each branch/leaf
+            if not self[tid].acc:
+                self.pop(tid)  # Prune empty leaf
+            else:
+                self.acc += self[tid].acc  # Acc lower tax acc in this node
+        if not self.counts:
+            # If not unassigned (no reads directly assigned to the level),
+            #  calculate score from leaves, trying different approaches.
+            if self.acc:  # Leafs (at least 1) have accum.
+                self.score = sum([self[tid].score * self[tid].acc
+                                  / self.acc for tid in self])
+            else:  # No leaf with unassigned counts nor accumulated
+                # Currently, do nothing, but another choice is
+                #   just get the averaged score by number of leaves
+                # self.score = sum([self[tid].score
+                #                   for tid in list(self)])/len(self)
+                pass
+
+    def subtract(self) -> int:
+        """
+        Recursively subtract counts of lower levels from higher ones.
+
+        From bottom to top, subtract counts from higher taxonomical
+        levels, under the assumption than they were accumulated before.
+
+        """
+        below: int = 0
+        output: int = 0
+        for tid in list(self):  # Loop if this node has subtrees
+            below += self[tid].subtract()  # Subtract for each branch/leaf
+        if self.counts >= below:
+            output = self.counts
+            self.counts -= below  # Subtract lower taxa counts
+        else:
+            output = self.counts + below
+        return output
 
     def toxml(self,
               taxonomy: Taxonomy,
@@ -631,6 +605,37 @@ class TaxTree(dict):
                                     mindepth, maxdepth,
                                     include, exclude,
                                     in_branch)
+
+    def trace(self,
+              target: TaxId,
+              nodes: List[TaxId],
+              ) -> bool:
+        """
+        Recursively get a list of nodes from self to target taxid.
+
+        Args:
+            target: TaxId of the node to trace
+            nodes: Input/output list of TaxIds: at 1st entry is empty.
+
+        Returns:
+            Boolean about the success of the tracing.
+
+        """
+        target_found: bool = False
+        for tid in self:
+            if self[tid]:
+                nodes.append(tid)
+                if target in self[tid] and target != ROOT:
+                    # Avoid to append more than once the root node
+                    nodes.append(target)
+                    target_found = True
+                    break
+                if self[tid].trace(target, nodes):
+                    target_found = True
+                    break
+                else:
+                    nodes.pop()
+        return target_found
 
 
 class MultiTree(dict):
