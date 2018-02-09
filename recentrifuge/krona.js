@@ -298,7 +298,7 @@ var hueStopText;
 
 // multiple datasets
 //
-const DEFAULT_RANK = 'species';
+const DEFAULT_RANK = 'SUMMARY';
 const NO_RANK = 'NONE';
 var currentRank = DEFAULT_RANK;
 var currentDataset = 0;
@@ -3372,9 +3372,9 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
     position = addOptionElement
     (
         position,
-        '<a style="margin:2px" target="_blank" href="https://github.com/khyox/recentrifuge/wiki"><img style="vertical-align:middle;width:108px;height:30px;" src="' + logoImage + '"/></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+        '<a style="margin:2px" target="_blank" href="https://github.com/khyox/recentrifuge/wiki"><img style="vertical-align:middle;width:136px;height:32px;padding:8px 10px 6px 10px" src="' + logoImage + '"/></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
 <input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
-&nbsp;Search: <input type="text" id="search"/>\
+&nbsp;&nbsp;&nbsp;Search: <input type="text" placeholder="Taxon scientific name, complete or partial name..." size="45" id="search"/>\
 <input id="searchClear" type="button" value="x" onclick="clearSearch()"/> \
 <span id="searchResults"></span>'
     );
@@ -3383,21 +3383,21 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
         var size = datasets < DATASET_MAX_SIZE ? datasets : DATASET_MAX_SIZE;
 
         var select =
-            '<table style="border-collapse:collapse;padding:0px"><tr><td style="padding:0px">' +
+            '<table style="border-collapse:collapse;margin-left:10px"><tr><td style="padding:0px">' +
             '<select id="datasets" style="min-width:100px" size="' + size + '" onchange="onDatasetChange()">';
 
         for (var i = 0; i < datasetNames.length; i++) {
             select += '<option>' + datasetNames[i] + '</option>';
         }
         select +=
-            '</select></td><td style="vertical-align:top;padding:1px;">' +
+            '</select></td><td style="vertical-align:top;padding:2px;">' +
             '<input style="display:block" title="Previous dataset ' +
             '(Shortcut: &uarr;)" id="prevDataset" type="button"' +
             ' value="&uarr;" onclick="prevDataset()" disabled="true"/>' +
             '<input title="Next dataset (Shortcut: &darr;)" ' +
             'id="nextDataset" type="button" value="&darr;" ' +
             'onclick="nextDataset()"/><br/></td>' +
-            '<td style="vertical-align:top;padding:1px;">' +
+            '<td style="vertical-align:top;padding:2px;">' +
             '<input style="display:block" ' +
             'title="Switch to the prior dataset that was viewed ' +
             '(Shortcut: TAB)" id="lastDataset" type="button" ' +
@@ -3432,9 +3432,9 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
     position = addOptionElement
     (
         position + 5,
-        '<input type="button" id="maxAbsoluteDepthDecrease" value="-"/>\
+        '<input type="button" id="maxAbsoluteDepthDecrease" style="margin:1px 4px 0 10px" value="-"/>\
 <span id="maxAbsoluteDepth"></span>\
-&nbsp;<input type="button" id="maxAbsoluteDepthIncrease" value="+"/> Max depth',
+&nbsp;<input type="button" id="maxAbsoluteDepthIncrease" style="margin:2px 1px 0 2px" value="+"/> Max depth',
         'Maximum depth to display, counted from the top level \
 and including collapsed wedges.'
     );
@@ -3442,23 +3442,23 @@ and including collapsed wedges.'
     position = addOptionElement
     (
         position,
-        '<input type="button" id="fontSizeDecrease" value="-"/>\
+        '<input type="button" id="fontSizeDecrease" style="margin:0 4px 0 10px" value="-"/>\
 <span id="fontSize"></span>\
-&nbsp;<input type="button" id="fontSizeIncrease" value="+"/> Font size'
+&nbsp;<input type="button" id="fontSizeIncrease" style="margin:0 2px 0 2px" value="+"/> Font size'
     );
 
     position = addOptionElement
     (
         position,
-        '<input type="button" id="radiusDecrease" value="-"/>\
-<input type="button" id="radiusIncrease" value="+"/> Chart size'
+        '<input type="button" id="radiusDecrease" style="margin:0 4px 0 10px" value="-"/>\
+<input type="button" id="radiusIncrease" style="margin:0 2px 0 1px" value="+"/> Chart size'
     );
 
     position = addOptionElement
     (
         position,
-        '<input type="button" id="bkgBrightDecrease" value="-"/>\
-<input type="button" id="bkgBrightIncrease" value="+"/> Bkg bright'
+        '<input type="button" id="bkgBrightDecrease" style="margin:0 4px 5px 10px" value="-"/>\
+<input type="button" id="bkgBrightIncrease" style="margin:0 2px 5px 1px" value="+"/> Bkg bright'
     );
 
     if (hueName) {
@@ -3467,9 +3467,9 @@ and including collapsed wedges.'
         position = addOptionElement
         (
             position + 5,
-            '<input type="checkbox" id="useHue" style="float:left" ' +
-            '/><div>Color by<br/>' + hueDisplayName + '</div>'
-
+            '<input type="checkbox" id="useHue" style="float:left; ' +
+            'margin:1px 4px 0 12px"/><div>Color by<br/>' + hueDisplayName +
+            '</div>'
         );
 
         useHueCheckBox = document.getElementById('useHue');
@@ -3482,7 +3482,7 @@ and including collapsed wedges.'
             position,
             '<input type="checkbox" id="sortByScore"/> Use to sort',
             'Activates sorting the taxa by this magnitude',
-            '0px 2px 2px 20px'
+            '0px 2px 2px 25px'
         );
 
         sortByScoreCheckBox = document.getElementById('sortByScore');
@@ -3493,7 +3493,8 @@ and including collapsed wedges.'
     position = addOptionElement
     (
         position,
-        '<input type="checkbox" id="collapse" checked="checked"/>Collapse',
+        '<input type="checkbox" id="collapse" style="margin:4px 4px 0 12px" ' +
+        'checked="checked"/>Collapse',
         'Collapse wedges that are redundant (entirely composed of another ' +
         'wedge). Also affects score navigation, restricting to lowest level.'
     );
@@ -3517,7 +3518,7 @@ and including collapsed wedges.'
     position = addOptionElement
     (
         position,
-        '<input type="button" id="snapshot" value="Snapshot" title="Render the current view as SVG (Scalable Vector Graphics), a publication-\
+        '<input type="button" id="snapshot" style="margin:5px 2px 0 10px" value="Snapshot" title="Render the current view as SVG (Scalable Vector Graphics), a publication-\
 quality format that can be printed and saved (see Help for browser\
     compatibility)"/> <input type="button" id="help" value="?"\
     onclick="window.open(\'https://github.com/khyox/recentrifuge/wiki\',\
@@ -3526,7 +3527,7 @@ quality format that can be printed and saved (see Help for browser\
     position = addOptionElement
     (
         position + 5,
-        '<input type="button" id="linkButton" value="Link"/>\
+        '<input type="button" id="linkButton" style="margin:5px 2px 0 10px"  value="Link"/>\
 <input type="text" size="30" id="linkText"/>',
         'Show a link to this view that can be copied for bookmarking or sharing'
     );
@@ -3956,7 +3957,7 @@ function drawHistory() {
 function drawLegend() {
     var width = imageHeight * .0265;
     var side = width * 0.9
-    var left_buttons = imageWidth * .005;
+    var left_buttons = imageWidth * .008;
     var left = left_buttons + side + fontSize;
     var height = imageHeight * .15;
     var top = imageHeight - fontSize * 3.5 - height;
@@ -5074,9 +5075,11 @@ function mouseClick(e) {
 
             function lookForNode(testIndex, reverse) {
                 // Look for nodes with counts
-                for(;testIndex >= 0 && testIndex <= nodes.length - 1;
+                for(;testIndex >= 0 && testIndex <= nodes.length - 1
+                    && nodes[testIndex].getHue() <= 0;
                      reverse ? testIndex-- : testIndex++) {}
-                if (testIndex >= 0 && testIndex <= nodes.length - 1)
+                if (testIndex >= 0 && testIndex <= nodes.length - 1
+                    && nodes[testIndex].getHue() > 0)
                     nodesIndex = testIndex;
             }
 

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:osb="http://www.openswatchbook.org/uri/2009/osb"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="136"
+   height="32"
+   viewBox="0 0 136 32.000001"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.91+devel+osxmenu r12922"
+   sodipodi:docname="recentrifuge_scaled.svg"
+   inkscape:export-filename="/Users/martijm/local/recentrifuge/recentrifuge/img/recentrifuge.png"
+   inkscape:export-xdpi="58.836082"
+   inkscape:export-ydpi="58.836082">
+  <defs
+     id="defs4">
+    <linearGradient
+       id="linearGradient4870"
+       osb:paint="solid">
+      <stop
+         style="stop-color:#ff7209;stop-opacity:1;"
+         offset="0"
+         id="stop4872" />
+    </linearGradient>
+    <radialGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient4870"
+       id="radialGradient4884"
+       cx="-322.43674"
+       cy="136.7271"
+       fx="-322.43674"
+       fy="136.7271"
+       r="29.906219"
+       gradientTransform="matrix(1,0,0,1.0940427,0,-12.858184)"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="1.5831051"
+     inkscape:cx="34.923508"
+     inkscape:cy="-66.621343"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0"
+     units="px"
+     inkscape:showpageshadow="true"
+     borderlayer="false"
+     inkscape:window-width="1920"
+     inkscape:window-height="1035"
+     inkscape:window-x="-4"
+     inkscape:window-y="23"
+     inkscape:window-maximized="0" />
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-310.9179,-122.1341)">
+    <path
+       sodipodi:type="spiral"
+       style="opacity:1;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:url(#radialGradient4884);stroke-width:5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       id="path4802"
+       sodipodi:cx="-325.24875"
+       sodipodi:cy="133.91403"
+       sodipodi:expansion="1"
+       sodipodi:revolution="3.0191586"
+       sodipodi:radius="34.115463"
+       sodipodi:argument="-16.815111"
+       sodipodi:t0="0"
+       d="m -325.24875,133.91403 c -0.7601,1.52021 -2.42421,-0.27459 -2.52668,-1.26334 -0.27768,-2.67946 2.78419,-4.1457 5.05337,-3.79002 4.05902,0.63623 6.0143,5.15008 5.05335,8.84339 -1.41024,5.42007 -7.54286,7.92389 -12.63341,6.31669 -6.7849,-2.14214 -9.85006,-9.9445 -7.58003,-16.42343 2.85661,-8.15307 12.35021,-11.78464 20.21346,-8.84337 9.52344,3.56228 13.72405,14.75816 10.1067,24.00348 -4.26293,10.89529 -17.16751,15.6665 -27.7935,11.37004 -12.26813,-4.96044 -17.61097,-19.57779 -12.63337,-31.58352 5.65586,-13.64167 21.98872,-19.55686 35.37354,-13.89671 15.01573,6.34983 21.50377,24.40015 15.16005,39.16356 -7.04274,16.39018 -26.81194,23.45146 -42.95359,16.42339 -1.25287,-0.54551 -2.47264,-1.16694 -3.6507,-1.85934"
+       transform="matrix(-0.35317884,0,0,0.35392714,244.7687,89.890781)" />
+    <flowRoot
+       xml:space="preserve"
+       id="flowRoot4804"
+       style="font-style:normal;font-weight:normal;font-size:40px;line-height:125%;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"><flowRegion
+         id="flowRegion4806"><rect
+           id="rect4808"
+           width="150.07713"
+           height="76.825195"
+           x="138.46402"
+           y="107.23359" /></flowRegion><flowPara
+         id="flowPara4810" /></flowRoot>    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:24.74869537px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.35355279px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="309.71976"
+       y="146.65851"
+       id="text4812"
+       sodipodi:linespacing="125%"
+       transform="scale(0.99894231,1.0010588)"><tspan
+         sodipodi:role="line"
+         id="tspan4816"
+         x="309.71976"
+         y="146.65851"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:condensed;font-size:31.81975174px;line-height:125%;font-family:'DIN Condensed';-inkscape-font-specification:'DIN Condensed, Bold Condensed';text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.35355279px">Rec</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:24.74869537px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.35355279px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       x="370.22498"
+       y="147.25711"
+       id="text4812-8"
+       sodipodi:linespacing="125%"
+       transform="scale(0.99894231,1.0010588)"><tspan
+         sodipodi:role="line"
+         id="tspan4816-5"
+         x="370.22498"
+         y="147.25711"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:condensed;font-size:31.81975174px;line-height:125%;font-family:'DIN Condensed';-inkscape-font-specification:'DIN Condensed, Bold Condensed';text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.35355279px">ntrifuge</tspan></text>
+  </g>
+</svg>
