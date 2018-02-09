@@ -36,7 +36,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.17.0_rc9'
+__version__ = '0.17.0'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Feb 2018'
 
@@ -202,6 +202,15 @@ def main():
             default=str(Scoring(0)),
             help=(f'type of scoring to be applied, and can be one of '
                   f'{[str(scoring) for scoring in Scoring]}')
+        )
+        parser_tuning.add_argument(
+            '-u', '--summary',
+            action='store',
+            metavar='OPTION',
+            choices=['add', 'only', 'avoid'],
+            default='add',
+            help=('select to "add" summary samples to other samples, or to '
+                  '"only" show summary samples or to "avoid" summaries at all')
         )
         parser_tuning.add_argument(
             '-w', '--ctrlmintaxa',
@@ -404,7 +413,7 @@ def main():
                 for analysis, (summary, abund, acc, score) in zip(
                         target_analysis, [r.get() for r in async_results]):
                     if summary:  # Avoid adding empty samples
-                        samples.append(summary)
+                        summaries.append(summary)
                         counts[summary] = abund
                         accs[summary] = acc
                         scores[summary] = score
@@ -413,7 +422,7 @@ def main():
                 (summary, abund,
                  acc, score) = summarize_analysis(analysis, **kwargs)
                 if summary:  # Avoid adding empty samples
-                    samples.append(summary)
+                    summaries.append(summary)
                     counts[summary] = abund
                     accs[summary] = acc
                     scores[summary] = score
@@ -573,7 +582,13 @@ def main():
     # Avoid cross analysis if just one report file or explicitly stated by flag
     if len(raw_samples) > 1 and not args.avoidcross:
         analyze_samples()
-        summarize_samples()
+        if args.summary != 'avoid':
+            summaries: List[Sample] = []
+            summarize_samples()
+            if args.summary == 'only':
+                samples = raw_samples + summaries
+            else:
+                samples.extend(summaries)
     # Final result generation is done in sequential mode
 
     polytree: MultiTree = MultiTree(samples=samples)
