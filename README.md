@@ -14,3 +14,9 @@ ____
 For usage and documentation, please, see [the Recentrifuge wiki](https://github.com/khyox/recentrifuge/wiki).
 ____
 Further details in the [bioRxiv pre-print](https://doi.org/10.1101/190934).
+____
+<p align="center">
+  <img src="https://raw.githubusercontent.com/khyox/rcf-aux/master/RCF_0.17.1_screenshot_750.png" alt="Recentrifuge 0.17.1 screenshot" width="750px"/></p>
+<p align="center">Recentrifuge screenshot<p align="center">
+
+____
