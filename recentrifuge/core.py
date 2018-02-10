@@ -47,10 +47,19 @@ def process_rank(*args,
     raws: List[Sample] = kwargs['raw_samples']
     output: io.StringIO = io.StringIO(newline='')
 
-    def vwrite(*args):
+    def vwrite(*args) -> None:
         """Print only if verbose/debug mode is enabled"""
         if kwargs['debug']:
             output.write(' '.join(str(item) for item in args))
+
+    def fltlst2str(list: List[float]) -> str:
+        """Convert a list of floats into a nice string"""
+        return '[' + gray((', '.join(f'{elm:.1g}' for elm in list))) + ']'
+
+    def blst2str(list: List[bool]) -> str:
+        """Convert a list of booleans into a nice string"""
+        return ('[' + (', '.join(magenta('T') if elm else 'F' for elm in list))
+                + ']')
 
     # Declare/define variables
     samples: List[Sample] = []
@@ -190,26 +199,30 @@ def process_rank(*args,
                 # Just-controls contamination check
                 if mdn_smpl < EPS:
                     vwrite(cyan('just-ctrl:\t'), tid, taxonomy.get_name(tid),
-                           gray('relfreq:'), relfreq, '\n')
+                           gray('relfreq:'), fltlst2str(relfreq_ctrl) +
+                           fltlst2str(relfreq_smpl), '\n')
                     continue  # Go for next candidate
                 # Critical contamination check
                 if all([rf > SEVR_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
                     vwrite(red('critical:\t'), tid, taxonomy.get_name(tid),
-                           gray('relfreq:'), relfreq, '\n')
+                           gray('relfreq:'), fltlst2str(relfreq_ctrl) +
+                           fltlst2str(relfreq_smpl), '\n')
                     for exclude_set in exclude_sets.values():
                         exclude_set.add(tid)
                     continue  # Go for next candidate
                 # Severe contamination check
                 if any([rf > SEVR_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
                     vwrite(yellow('severe: \t'), tid, taxonomy.get_name(tid),
-                           gray('relfreq:'), relfreq, '\n')
+                           gray('relfreq:'), fltlst2str(relfreq_ctrl) +
+                           fltlst2str(relfreq_smpl), '\n')
                     for exclude_set in exclude_sets.values():
                         exclude_set.add(tid)
                     continue  # Go for next candidate
                 # Mild contamination check
                 if all([rf > MILD_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
                     vwrite(blue('mild cont:\t'), tid, taxonomy.get_name(tid),
-                           relfreq_ctrl, '\n')
+                           gray('relfreq:'), fltlst2str(relfreq_ctrl) +
+                           fltlst2str(relfreq_smpl), '\n')
                     for exclude_set in exclude_sets.values():
                         exclude_set.add(tid)
                     continue  # Go for next candidate
@@ -219,7 +232,7 @@ def process_rank(*args,
                 if mad < EPS:  # Warn in case there is zero variation
                     vwrite(yellow('Warning! No MAD mean!'), tid,
                            taxonomy.get_name(tid),
-                           gray('relfreq:'), relfreq_smpl, '\n')
+                           gray('relfreq:'), fltlst2str(relfreq_smpl), '\n')
                 # Calculate crossover in samples
                 stat_limit: float = mdn + 5 * mad
                 relfreq_limit: float = max(relfreq_ctrl) * 10
@@ -229,9 +242,10 @@ def process_rank(*args,
                 if any(crossover):
                     vwrite(magenta('crossover:\t'), tid,
                            taxonomy.get_name(tid), green(
-                            f'lims: {stat_limit:.2g} {relfreq_limit:.2g}'),
-                           gray(' relfreq_smpl:'), relfreq_smpl,
-                           gray('crossover:'), crossover, '\n')
+                            f'lims: [{stat_limit:.1g}][{relfreq_limit:.1g}]'),
+                           gray('relfreq:'), fltlst2str(relfreq_ctrl) +
+                           fltlst2str(relfreq_smpl),
+                           gray('crossover:'), blst2str(crossover), '\n')
                     # Exclude just for contaminated samples (not the source)
                     vwrite(magenta('\t->'), gray(f'Exclude {tid} in:'))
                     for i in range(len(raws[controls:])):
@@ -242,9 +256,10 @@ def process_rank(*args,
                     continue
                 # Other contamination: remove from all samples
                 vwrite(gray('other cont:\t'), tid, taxonomy.get_name(tid),
-                       green(f'lims: {stat_limit:.2g} {relfreq_limit:.2g}'),
-                       gray(' relfreq_smpl:'), relfreq_smpl,
-                       gray('crossover:'), crossover, '\n')
+                       green(f'lims: [{stat_limit:.1g}][{relfreq_limit:.1g}]'),
+                       gray('relfreq:'), fltlst2str(relfreq_ctrl) +
+                           fltlst2str(relfreq_smpl),
+                       gray('crossover:'), blst2str(crossover), '\n')
                 for exclude_set in exclude_sets.values():
                     exclude_set.add(tid)
 
