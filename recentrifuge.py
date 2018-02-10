@@ -36,7 +36,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.17.1'
+__version__ = '0.17.2'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Feb 2018'
 
@@ -164,11 +164,6 @@ def main():
             help='increase output verbosity and perform additional checks'
         )
         parser_mode.add_argument(
-            '-k', '--nokollapse',
-            action='store_true',
-            help='show the "cellular organisms" taxon'
-        )
-        parser_mode.add_argument(
             '--sequential',
             action='store_true',
             help='deactivate parallel processing'
@@ -187,6 +182,11 @@ def main():
                   'by default all the taxa is considered for inclusion')
         )
         parser_tuning.add_argument(
+            '-k', '--nokollapse',
+            action='store_true',
+            help='show the "cellular organisms" taxon'
+        )
+        parser_tuning.add_argument(
             '-m', '--mintaxa',
             action='store',
             metavar='INT',
@@ -202,6 +202,11 @@ def main():
             default=str(Scoring(0)),
             help=(f'type of scoring to be applied, and can be one of '
                   f'{[str(scoring) for scoring in Scoring]}')
+        )
+        parser_tuning.add_argument(
+            '-t', '--takeoutroot',
+            action='store_true',
+            help='remove counts directly assigned to the "root" level'
         )
         parser_tuning.add_argument(
             '-u', '--summary',
@@ -573,7 +578,7 @@ def main():
               'ctrlmintaxa': (
                   args.ctrlmintaxa
                   if args.ctrlmintaxa is not None else args.mintaxa),
-              'debug': args.debug,
+              'debug': args.debug, 'root':args.takeoutroot,
               'lmat': bool(lmats), 'minscore': args.minscore,
               'mintaxa': args.mintaxa, 'scoring': scoring, 'taxonomy': ncbi,
               }

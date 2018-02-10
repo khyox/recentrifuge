@@ -15,7 +15,7 @@ from typing import Tuple, Counter, Set, Dict, List
 from Bio import SeqIO
 
 from recentrifuge.config import Filename, TaxId, Score, Scoring, Sample
-from recentrifuge.config import UNCLASSIFIED, nucleotides, Err
+from recentrifuge.config import UNCLASSIFIED, ROOT, NO_SCORE, nucleotides, Err
 from recentrifuge.config import gray, red, green, yellow, blue
 from recentrifuge.lmat import read_lmat_output
 from recentrifuge.rank import Rank, Ranks
@@ -69,6 +69,11 @@ def process_report(*args, **kwargs
     debug: bool = kwargs['debug']
     output: io.StringIO = io.StringIO(newline='')
 
+    def vwrite(*args):
+        """Print only if verbose/debug mode is enabled"""
+        if kwargs['debug']:
+            output.write(' '.join(str(item) for item in args))
+
     sample: Sample = Sample(filerep)
 
     # Read Centrifuge/Kraken report file to get abundances
@@ -76,6 +81,11 @@ def process_report(*args, **kwargs
     abundances: Counter[TaxId]
     log, abundances, _ = read_report(filerep)
     output.write(log)
+    # Remove root counts, in case
+    if kwargs['root']:
+        vwrite(gray('Removing'), abundances[ROOT], gray('"ROOT" reads... '))
+        abundances[ROOT] = 0
+        vwrite(green('OK!'), '\n')
 
     # Build taxonomy tree
     output.write('  \033[90mBuilding taxonomy tree...\033[0m')
@@ -262,10 +272,16 @@ def process_output(*args,
     scores: Dict[TaxId, Score]
     log, abundances, scores = read_method(target_file, scoring, minscore)
     output.write(log)
-    output.write(gray('Building from raw data... '))
+    # Remove root counts, in case
+    if kwargs['root']:
+        vwrite(gray('Removing'), abundances[ROOT], gray('"ROOT" reads... '))
+        abundances[ROOT] = 0
+        scores[ROOT] = NO_SCORE
+        vwrite(green('OK!'), '\n')
 
     # Building taxonomy tree
-    vwrite(gray('\n  Building taxonomy tree with all-in-1...'))
+    output.write(gray('Building from raw data... '))
+    vwrite(gray('\n  Building taxonomy tree with all-in-1... '))
     tree = TaxTree()
     ancestors: Set[TaxId]
     orphans: Set[TaxId]
