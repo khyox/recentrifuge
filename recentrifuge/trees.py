@@ -178,14 +178,6 @@ class TaxTree(dict):
 
         """
 
-        def swmean(cnt1: int, sco1: Score, cnt2: int, sco2: Score) -> Score:
-            """Weighted mean of scores by counts"""
-            if sco1 == NO_SCORE:
-                return sco2
-            elif sco2 == NO_SCORE:
-                return sco1
-            return Score((cnt1 * sco1 + cnt2 * sco2) / (cnt1 + cnt2))
-
         def populate_output(taxid: TaxId, source: TaxTree) -> None:
             """Populate the output structure"""
             nonlocal out
@@ -236,12 +228,32 @@ class TaxTree(dict):
                             acc=abun)
         if tid not in taxonomy.children:
             return self[tid].acc
+
         # Taxid has children (is a branch)
         for chld in taxonomy.children[tid]:
+
+            def update_score_and_acc(chld: TaxId, child_acc: int) -> None:
+                """Update score and then accumulated counts of self[tid]"""
+
+                def swmean(cnt1: int, sco1: Score, cnt2: int,
+                           sco2: Score) -> Score:
+                    """Weighted mean of scores by counts"""
+                    if sco1 == NO_SCORE:
+                        return sco2
+                    elif sco2 == NO_SCORE:
+                        return sco1
+                    return Score((cnt1 * sco1 + cnt2 * sco2) / (cnt1 + cnt2))
+
+                if self[tid].acc + child_acc:
+                    self[tid].score = swmean(
+                        self[tid].acc, self[tid].score,
+                        child_acc, self[tid][chld].score)
+                self[tid].acc += child_acc
+
             # If not an ancestor or excluded taxa, do not create child
             if chld not in ancestors or chld in exclude:
                 continue  # Don't create child and continue
-            child_acc = self[tid].allin1(
+            child_acc: Union[int, None] = self[tid].allin1(
                 taxonomy=taxonomy, counts=counts, scores=scores,
                 ancestors=ancestors, tid=chld,
                 min_taxa=min_taxa, min_rank=min_rank,
@@ -262,24 +274,14 @@ class TaxTree(dict):
                         not just_min_rank or (
                         rank_prune and (
                         rank == min_rank or parent_rank <= min_rank))):
-                    if self[tid].counts + self[tid][chld].counts:
-                        self[tid].score = swmean(  # Average collapsed score
-                            self[tid].counts, self[tid].score,
-                            self[tid][chld].counts, self[tid][chld].score)
-                        # Accumulate abundance in higher tax
-                        self[tid].counts += self[tid][chld].counts
-                        self[tid].acc += child_acc
-                    else:  # No collapse: update acc counts erasing leaf counts
-                        pass
-                        # self[tid].acc -= child_acc
+                    update_score_and_acc(chld, child_acc)
+                    # Accumulate abundance in higher tax before pruning
+                    self[tid].counts += self[tid][chld].counts
                 pruned: TaxTree = self[tid].pop(chld)  # Prune the leaf
                 assert not pruned, f'{tid}-//->{chld}->{pruned}'
                 continue
-            if self[tid].acc + child_acc:
-                self[tid].score = swmean(
-                    self[tid].acc, self[tid].score,
-                    child_acc, self[tid][chld].score)
-            self[tid].acc += child_acc
+            # Do for non-pruned leafs
+            update_score_and_acc(chld, child_acc)
             if out:
                 populate_output(chld, self[tid])
         # If not counts, calculate score from leaves
