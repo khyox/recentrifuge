@@ -195,9 +195,8 @@ def process_rank(*args,
                                              for smpl in raws[controls:]]
                 relfreq: List[float] = relfreq_ctrl + relfreq_smpl
                 crossover: List[bool] = None  # Crossover source (yes/no)
-                mdn_smpl: float = statistics.median(relfreq_smpl)
                 # Just-controls contamination check
-                if mdn_smpl < EPS:
+                if all([rf < EPS for rf in relfreq_smpl]):
                     vwrite(cyan('just-ctrl:\t'), tid, taxonomy.get_name(tid),
                            gray('relfreq:'), fltlst2str(relfreq_ctrl) +
                            fltlst2str(relfreq_smpl), '\n')
