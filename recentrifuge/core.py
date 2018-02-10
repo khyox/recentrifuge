@@ -9,7 +9,8 @@ import subprocess
 import sys
 from typing import List, Set, Counter, Tuple, Union, Dict
 
-from recentrifuge.config import ADV_CTRL_MIN_SAMPLES
+from recentrifuge.config import ADVCTRL_MIN_SAMPLES
+from recentrifuge.config import ADVCTRL_XOVER_FACTOR, ADVCTRL_XOVER_SIGMA
 from recentrifuge.config import Filename, Sample, TaxId, Parents, Score, Scores
 from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT, EPS
 from recentrifuge.config import SEVR_CONTM_MIN_RELFREQ, MILD_CONTM_MIN_RELFREQ
@@ -233,8 +234,8 @@ def process_rank(*args,
                            taxonomy.get_name(tid),
                            gray('relfreq:'), fltlst2str(relfreq_smpl), '\n')
                 # Calculate crossover in samples
-                stat_limit: float = mdn + 5 * mad
-                relfreq_limit: float = max(relfreq_ctrl) * 10
+                stat_limit: float = mdn + ADVCTRL_XOVER_SIGMA * mad
+                relfreq_limit: float = max(relfreq_ctrl) * ADVCTRL_XOVER_FACTOR
                 crossover = [rf > stat_limit and rf > relfreq_limit
                              for rf in relfreq[controls:]]
                 # Crossover contamination check
@@ -257,8 +258,7 @@ def process_rank(*args,
                 vwrite(gray('other cont:\t'), tid, taxonomy.get_name(tid),
                        green(f'lims: [{stat_limit:.1g}][{relfreq_limit:.1g}]'),
                        gray('relfreq:'), fltlst2str(relfreq_ctrl) +
-                           fltlst2str(relfreq_smpl),
-                       gray('crossover:'), blst2str(crossover), '\n')
+                           fltlst2str(relfreq_smpl), '\n')
                 for exclude_set in exclude_sets.values():
                     exclude_set.add(tid)
 
@@ -267,7 +267,7 @@ def process_rank(*args,
         for i in range(controls):
             exclude_candidates.update(taxids[raws[i]][rank])
         exclude_sets: Dict[Sample, Set[TaxId]]
-        if controls and (len(raws) - controls >= ADV_CTRL_MIN_SAMPLES):
+        if controls and (len(raws) - controls >= ADVCTRL_MIN_SAMPLES):
             advanced_control_removal()
         else:  # If this case, just apply strict control
             exclude_sets = {file: exclude_candidates
