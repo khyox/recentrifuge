@@ -208,6 +208,7 @@ def read_output(output_file: Filename,
     output.write(f'\033[90m  Length: min =\033[0m {int(min_length)},'
                  f'\033[90m max =\033[0m {int(max_length)},'
                  f'\033[90m avr =\033[0m {mean_length:.1f}\n')
+    output.write(f'  {len(abundances)}' + gray(f' taxa with assigned reads\n'))
     # Select score output
     out_scores: Dict[TaxId, Score]
     if scoring is Scoring.SHEL:
