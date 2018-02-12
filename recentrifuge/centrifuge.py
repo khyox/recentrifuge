@@ -171,9 +171,8 @@ def read_output(output_file: Filename,
                 if tid == UNCLASSIFIED:  # Just count unclassified reads
                     num_uncl += 1
                     continue
-                elif minscore is not None:
-                    if shel < minscore:  # Ignore read if low confidence
-                        continue
+                elif minscore is not None and shel < minscore:
+                        continue  # Ignore read if low confidence
                 try:
                     all_scores[tid].append(shel)
                 except KeyError:

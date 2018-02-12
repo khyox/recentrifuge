@@ -403,6 +403,7 @@ class TaxTree(dict):
              counts: Counter[TaxId] = None,
              scores: Union[Dict[TaxId, Score], SharedCounter] = None,
              ancestors: Set[TaxId] = None,
+             look_ancestors: bool = True,
              taxid: TaxId = ROOT,
              _path: List[TaxId] = None,
              ) -> None:
@@ -414,6 +415,7 @@ class TaxTree(dict):
             counts: counter for taxids with their abundances.
             scores: optional dict with the score for each taxid.
             ancestors: optional set of ancestors.
+            look_ancestors: flag to (dis/en)able looking for ancestors
             taxid: It's ROOT by default for the first/base method call
             _path: list used by the recursive algorithm to avoid loops
 
@@ -427,11 +429,11 @@ class TaxTree(dict):
                 counts = col.Counter({ROOT: 1})
             if not scores:
                 scores = {}
-            if not ancestors:
+            if look_ancestors and not ancestors:
                 ancestors, _ = taxonomy.get_ancestors(counts.keys())
 
         # Go ahead if there is an ancestor or not repeated taxid (like root)
-        if taxid in ancestors and taxid not in _path:
+        if (not look_ancestors or taxid in ancestors) and taxid not in _path:
             self[taxid] = TaxTree(counts=counts.get(taxid, 0),
                                   score=scores.get(taxid, NO_SCORE),
                                   rank=taxonomy.get_rank(taxid))
@@ -441,6 +443,7 @@ class TaxTree(dict):
                                      counts=counts,
                                      scores=scores,
                                      ancestors=ancestors,
+                                     look_ancestors=look_ancestors,
                                      taxid=child,
                                      _path=_path + [taxid])
 

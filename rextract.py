@@ -11,15 +11,16 @@ from typing import List, Set
 
 from Bio import SeqIO, SeqRecord
 
-from recentrifuge.config import Filename, TaxId
+from recentrifuge.config import Filename, TaxId, Score
 from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
+from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.rank import Rank, Ranks, TaxLevels
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree
 
-__version__ = '0.1.2'
+__version__ = '0.2.0'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Jan 2018'
+__date__ = 'Feb 2018'
 
 MAX_LENGTH_TAXID_LIST = 32
 
@@ -70,6 +71,15 @@ def main():
         help=('NCBI taxid code to exclude a taxon and all underneath ' +
               '(multiple -x is available to exclude several taxid)')
     )
+    parser.add_argument(
+        '-y', '--minscore',
+        action='store',
+        metavar='NUMBER',
+        type=lambda txt: Score(float(txt)),
+        default=None,
+        help=('minimum score/confidence of the classification of a read '
+              'to pass the quality filter; all pass by default')
+    )
     filein = parser.add_mutually_exclusive_group(required=True)
     filein.add_argument(
         '-q', '--fastq',
@@ -119,30 +129,31 @@ def main():
                               False, excluding, including)
 
     # Build taxonomy tree
-    print('\033[90mBuilding taxonomy tree...\033[0m', end='')
+    print(gray('Building taxonomy tree...'), end='')
     sys.stdout.flush()
     tree = TaxTree()
-    tree.grow(taxonomy=ncbi)
-    print('\033[92m OK! \033[0m')
+    tree.grow(taxonomy=ncbi, look_ancestors=False)
+    print(green(' OK!'))
 
     # Get the taxa
-    print('\033[90mFiltering taxa...\033[0m', end='')
+    print(gray('Filtering taxa...'), end='')
     sys.stdout.flush()
     ranks: Ranks = Ranks({})
     tree.get_taxa(ranks=ranks,
                   include=including,
                   exclude=excluding)
-    print('\033[92m OK! \033[0m')
+    print(green(' OK!'))
     taxids: Set[TaxId] = set(ranks)
     taxlevels: TaxLevels = Rank.ranks_to_taxlevels(ranks)
     num_taxlevels = Counter({rank: len(taxlevels[rank]) for rank in taxlevels})
     num_taxlevels = +num_taxlevels
 
     # Statistics about including taxa
-    print(f'  {len(ranks)}\033[90m taxid selected in \033[0m', end='')
+    print(f'  {len(taxids)}\033[90m taxid selected in \033[0m', end='')
     print(f'{len(num_taxlevels)}\033[90m different taxonomical levels:\033[0m')
     for rank in num_taxlevels:
         print(f'  Number of different {rank}: {num_taxlevels[rank]}')
+    assert len(taxids), red('ERROR! No taxids to search for!')
 
     # Get the records
     records: List[SeqRecord] = []
@@ -155,13 +166,15 @@ def main():
             for num_seqs, record in enumerate(SeqIO.parse(file, 'centrifuge')):
                 tid: TaxId = record.annotations['taxID']
                 if tid not in taxids:
+                    continue  # Ignore read if low confidence
+                score: Score = Score(record.annotations['score'])
+                if args.minscore is not None and score < args.minscore:
                     continue
-                # score: Score = record.annotations['score']
                 records.append(record)
     except FileNotFoundError:
-        raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
+        raise Exception(red('ERROR!') + 'Cannot read "' +
                         output_file + '"')
-    print('\033[92m OK! \033[0m')
+    print(green(' OK!'))
 
     # Basic records statistics
     print(f'  \033[90mMatching reads: \033[0m{len(records):_d} \033[90m\t'
