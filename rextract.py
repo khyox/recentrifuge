@@ -6,6 +6,7 @@ Extract reads following Centrifuge/Kraken output.
 import argparse
 import os
 import sys
+import time
 from collections import Counter
 from typing import List, Set
 
@@ -13,12 +14,12 @@ from Bio import SeqIO, SeqRecord
 
 from recentrifuge.config import Filename, TaxId, Score
 from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
-from recentrifuge.config import gray, red, green, yellow, blue, magenta
+from recentrifuge.config import gray, red, green, cyan, magenta
 from recentrifuge.rank import Rank, Ranks, TaxLevels
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Feb 2018'
 
@@ -43,6 +44,24 @@ def main():
         metavar='FILE',
         required=True,
         help='Centrifuge output file.'
+    )
+    parser.add_argument(
+        '-l', '--limit',
+        action='store',
+        metavar='NUMBER',
+        type=int,
+        default=None,
+        help=('Limit of FASTQ reads to extract. '
+              'Default: no limit')
+    )
+    parser.add_argument(
+        '-m', '--maxreads',
+        action='store',
+        metavar='NUMBER',
+        type=int,
+        default=None,
+        help=('Maximum number of FASTQ reads to search for the taxa. '
+              'Default: no maximum')
     )
     parser.add_argument(
         '-n', '--nodespath',
@@ -105,6 +124,12 @@ def main():
              '(filename usually includes _2)'
     )
 
+    # timing initialization
+    start_time: float = time.time()
+    # Program header
+    print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
+    sys.stdout.flush()
+
     # Parse arguments
     args = parser.parse_args()
     output_file = args.file
@@ -118,10 +143,6 @@ def main():
         fastq_1 = args.fastq
     else:
         fastq_1 = args.mate1
-
-    # Program header
-    print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
-    sys.stdout.flush()
 
     # Load NCBI nodes, names and build children
     plasmidfile: Filename = None
@@ -153,12 +174,14 @@ def main():
     print(f'{len(num_taxlevels)}\033[90m different taxonomical levels:\033[0m')
     for rank in num_taxlevels:
         print(f'  Number of different {rank}: {num_taxlevels[rank]}')
-    assert len(taxids), red('ERROR! No taxids to search for!')
+    assert taxids, red('ERROR! No taxids to search for!')
 
     # Get the records
     records: List[SeqRecord] = []
     num_seqs: int = 0
-    print(f'\033[90mLoading output file {output_file}...\033[0m', end='')
+    # timing initialization
+    start_time_load: float = time.perf_counter()
+    print(gray(f'Loading output file {output_file}...'), end='')
     sys.stdout.flush()
     try:
         with open(output_file, 'rU') as file:
@@ -177,13 +200,19 @@ def main():
     print(green(' OK!'))
 
     # Basic records statistics
+    print(gray('  Load elapsed time: ') +
+          f'{time.perf_counter() - start_time_load:.3g}' + gray(' sec'))
     print(f'  \033[90mMatching reads: \033[0m{len(records):_d} \033[90m\t'
           f'(\033[0m{len(records)/num_seqs:.4%}\033[90m of sample)')
+    sys.stdout.flush()
 
     # FASTQ sequence dealing
-    records_ids: List[SeqRecord] = [record.id for record in records]
+    # records_ids: List[SeqRecord] = [record.id for record in records]
+    records_ids: Set[SeqRecord] = {record.id for record in records}
     seqs1: List[SeqRecord] = []
     seqs2: List[SeqRecord] = []
+    extracted: int = 0
+    i: int = 0
     if fastq_2:
         print(f'\033[90mLoading FASTQ files {fastq_1} and {fastq_2}...\n'
               f'Mseqs: \033[0m', end='')
@@ -194,7 +223,11 @@ def main():
                                                                  'fastq'),
                                                      SeqIO.parse(file2,
                                                                  'fastq'))):
-                    if not i % 1000000:
+                    if not records_ids or (
+                            args.maxreads and i >= args.maxreads) or (
+                            args.limit and extracted >= args.limit):
+                        break
+                    elif not i % 1000000:
                         print(f'{i//1000000:_d}', end='')
                         sys.stdout.flush()
                     elif not i % 100000:
@@ -202,11 +235,13 @@ def main():
                         sys.stdout.flush()
                     try:
                         records_ids.remove(rec1.id)
-                    except ValueError:
+                    except KeyError:
                         pass
                     else:
                         seqs1.append(rec1)
                         seqs2.append(rec2)
+                        extracted += 1
+
         except FileNotFoundError:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read FASTQ files')
     else:
@@ -216,7 +251,11 @@ def main():
         try:
             with open(fastq_1, 'rU') as file1:
                 for i, rec1 in enumerate(SeqIO.parse(file1, 'fastq')):
-                    if not i % 1000000:
+                    if not records_ids or (
+                            args.maxreads and i >= args.maxreads) or (
+                            args.limit and extracted >= args.limit):
+                        break
+                    elif not i % 1000000:
                         print(f'{i//1000000:_d}', end='')
                         sys.stdout.flush()
                     elif not i % 100000:
@@ -224,13 +263,14 @@ def main():
                         sys.stdout.flush()
                     try:
                         records_ids.remove(rec1.id)
-                    except ValueError:
+                    except KeyError:
                         pass
                     else:
                         seqs1.append(rec1)
+                        extracted += 1
         except FileNotFoundError:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read FASTQ file')
-    print('\033[92m OK! \033[0m')
+    print(cyan(f' {i/1e+6:.3g} Mseqs'), green('OK! '))
 
     def format_filename(fastq: Filename) -> Filename:
         """Auxiliary function to properly format the output filenames.
@@ -253,12 +293,16 @@ def main():
 
     filename1: Filename = format_filename(fastq_1)
     SeqIO.write(seqs1, filename1, 'fastq')
-    print(f'\033[90mWrote \033[0m{len(seqs1)}\033[90m reads in {filename1}')
+    print(gray('Wrote'), magenta(f'{len(seqs1)}'), gray('reads in'), filename1)
     if fastq_2:
         filename2: Filename = format_filename(fastq_2)
         SeqIO.write(seqs2, filename2, 'fastq')
-        print(f'\033[90mWrote \033[0m{len(seqs2)}\033[90m reads'
-              f' in {filename2}')
+        print(gray('Wrote'), magenta(f'{len(seqs1)}'), gray('reads in'),
+              filename2)
+
+    # Timing results
+    print(gray('Total elapsed time:'), time.strftime(
+        "%H:%M:%S", time.gmtime(time.time() - start_time)))
 
 
 if __name__ == '__main__':
