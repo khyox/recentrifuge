@@ -247,10 +247,11 @@ def process_rank(*args,
                            fltlst2str(relfreq_smpl),
                            gray('crossover:'), blst2str(crossover), '\n')
                     # Exclude just for contaminated samples (not the source)
-                    vwrite(magenta('\t->'), gray(f'Exclude {tid} in:'))
+                    vwrite(magenta('\t->'), gray(f'Include {tid} just in:'))
                     for i in range(len(raws[controls:])):
                         if not crossover[i]:
                             exclude_sets[raws[i + controls]].add(tid)
+                        else:
                             vwrite(f' {raws[i + controls]}')
                     vwrite('\n')
                     continue
