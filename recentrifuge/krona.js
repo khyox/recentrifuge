@@ -312,6 +312,7 @@ var datasetWidths = [];
 var datasetChanged;
 var datasetSelectWidth = 50;
 var numRawSamples;
+var stats;
 
 window.onload = load;
 
@@ -375,6 +376,22 @@ function handleResize() {
 }
 
 function Attribute() {
+}
+
+function SampleStats(sample, sread, sclas, sfilt, scmin, scavg, scmax,
+                     lnmin, lnavg, lnmax, taxas) {
+    // Class to store the statistics of a sample
+    this.sample = sample;
+    this.sread = sread;
+    this.sclas = sclas;
+    this.sfilt = sfilt;
+    this.scmin = scmin;
+    this.scavg = scavg;
+    this.scmax = scmax;
+    this.lnmin = lnmin;
+    this.lnavg = lnavg;
+    this.lnmax = lnmax;
+    this.taxas = taxas;
 }
 
 function CanvasButton(name, x, y, w, h, fill) {
@@ -881,7 +898,7 @@ function Node() {
                 if
                 (
                     this == selectedNode ||
-//					true
+                    //					true
                     //(canDisplayLabelCurrent) &&
                     this != highlightedNode &&
                     this != focusNode
@@ -1095,7 +1112,7 @@ function Node() {
             //
             for (var i = 0; i < this.children.length; i++) {
                 if (this.drawHiddenChildren(i, selected, labelMode,
-                        searchHighlighted)) {
+                    searchHighlighted)) {
                     var childHiddenEnd = this.children[i].hiddenEnd;
                     if (childHiddenEnd > i) {  // Avoid infinite loop
                         i = childHiddenEnd;
@@ -2143,7 +2160,7 @@ function Node() {
         // Param _recursing is an internal auxiliar variable not to be used
         var leaves = 0;
         if (this.children.length) {  // Node has children -> recurse
-            for(var i=0; i<this.children.length; i++) {
+            for (var i = 0; i < this.children.length; i++) {
                 leaves += this.children[i].isLeaf(true);
             }
             if (_recursing) {
@@ -2156,7 +2173,7 @@ function Node() {
         } else {  // Node has not children
             if (!this.magnitude) {
                 return 0;  // Fake leaf (empty)
-            }  else {
+            } else {
                 return 1;  // This is true leaf
             }
         }
@@ -2185,11 +2202,11 @@ function Node() {
             for (var i = 0; i < this.children.length; i++) {
                 if
                 (//true ||
-                this.children[i].magnitude *
-                angleFactor *
-                (childInnerRadius + 1) *
-                gRadius >=
-                minWidth()
+                    this.children[i].magnitude *
+                    angleFactor *
+                    (childInnerRadius + 1) *
+                    gRadius >=
+                    minWidth()
                 ) {
                     var childMaxDepth
                         = this.children[i].maxVisibleDepth(maxDepth);
@@ -2270,7 +2287,7 @@ function Node() {
         if
         (
             this.children.length === 1 &&
-//			this.magnitude > 0 &&
+            //			this.magnitude > 0 &&
             this.children[0].magnitude === this.magnitude &&
             (head.children.length > 1 || this.children[0].children.length)
         ) {
@@ -2920,7 +2937,7 @@ function Node() {
 
         for (var i = 0; true; i++) {
             if (!this.hideAlone && !hide && (i == this.children.length
-                    || !this.children[i].hide)) {
+                || !this.children[i].hide)) {
                 // reached a non-hidden child or the end; set targets for
                 // previous group of hidden children (if any) using their
                 // average hue
@@ -3335,6 +3352,36 @@ function addOptionElements(hueName, hueDefault) {
 
     document.body.style.font = '11px Ubuntu';
     var position = 5;
+
+    function logLoaded(fontFace) {
+        console.log(fontFace.family, 'loaded successfully.');
+    }
+
+// Loading FontFaces via JavaScript is alternative to using CSS's @font-face rule.
+    var ubuntuMonoFontFace = new FontFace('Ubuntu Mono', 'url(https://fonts.gstatic.com/s/ubuntumono/v7/KFOjCneDtsqEr0keqCMhbCc6CsTYl4BO.woff2)');
+    document.fonts.add(ubuntuMonoFontFace);
+    ubuntuMonoFontFace.loaded.then(logLoaded);
+    var oxygenFontFace = new FontFace('Oxygen', 'url(https://fonts.gstatic.com/s/oxygen/v5/qBSyz106i5ud7wkBU-FrPevvDin1pK8aKteLpeZ5c0A.woff2)');
+    document.fonts.add(oxygenFontFace);
+    oxygenFontFace.loaded.then(logLoaded);
+    var oxygenMonoFontFace = new FontFace('Oxygen Mono', 'url(https://fonts.gstatic.com/s/oxygenmono/v5/h0GsssGg9FxgDgCjLeAd7hjYx-6tPUUv.woff2)');
+    document.fonts.add(oxygenMonoFontFace);
+    oxygenMonoFontFace.loaded.then(logLoaded);
+
+// The .ready promise resolves when all fonts that have been previously requested
+// are loaded and layout operations are complete.
+    document.fonts.ready.then(function () {
+        console.log('There are', document.fonts.size, 'FontFaces loaded.\n');
+
+        // document.fonts has a Set-like interface. Here, we're iterating over its values.
+        for (var fontFace of document.fonts.values()) {
+            console.log('FontFace:');
+            for (var property in fontFace) {
+                console.log('  ' + property + ': ' + fontFace[property]);
+            }
+            console.log('\n');
+        }
+    });
 
     details = document.createElement('div');
     details.style.position = 'absolute';
@@ -4006,6 +4053,59 @@ function drawLegend() {
     context.fillRect(left, top, width, height);
     context.lineWidth = thinLineWidth;
     context.strokeRect(left, top, width, height);
+
+    // Sample statistics
+    if (currentDataset < numRawSamples) {
+        // Define aux position variables
+        var statsX = textLeft + 2 * width;
+        var statsY = top;
+        var rad = width;
+        context.font = "Bold 11px Ubuntu"
+        context.fillStyle = 'rgba(200, 50, 50, 1)';
+        context.fillText('Sample statistics', statsX,
+            imageHeight - fontSize * 1.5);
+        // Get the set of strings
+        var oldFont = context.font;
+        context.font = "10.5px monospace";  // In case the next line fails
+        context.font = "10.5px Oxygen Mono";
+        var stat = stats[currentDataset];
+        var statsStrs = [
+            'Sequences read: ' + stat.sread,
+            '  those classified: ' + (
+                stat.sclas / stat.sread * 100).toPrecision(3) + '%',
+            '    those accepted: '
+            + (stat.sfilt / stat.sclas * 100).toPrecision(3) + '%',
+            'Score minimum: ' + parseFloat(stat.scmin).toFixed(1),
+            '      average: ' + parseFloat(stat.scavg).toFixed(1),
+            '      maximum: ' + parseFloat(stat.scmax).toFixed(1),
+            'Length minimum: ' + stat.lnmin,
+            '       average: ' + stat.lnavg,
+            '       maximum: ' + stat.lnmax,
+            'Assigned taxa: ' + stat.taxas
+        ];
+        var maxTextWidth = Math.max.apply(null, statsStrs.map(function (text) {
+            return context.measureText(text).width
+        }));
+        // Draw the rounded rectangle
+        context.lineWidth = 3;
+        context.strokeStyle = '#CC3333';
+        context.fillStyle = 'rgba(255, 255, 0, 0.2)';
+        var box = new roundedRectangle(
+            statsX, statsY, 1.2 * maxTextWidth, height, {tr: rad, bl: rad});
+        context.stroke();
+        context.fill();
+        context.fillStyle = context.strokeStyle = '#222222';
+        // Write the stats inside
+        var statsNum = statsStrs.length;
+        var statsLeft = statsX + maxTextWidth * 0.1;
+        var statsDelta = height / (statsNum + 1);
+        for (i = 0; i < statsNum; i++) {
+            context.fillText(statsStrs[i],
+                statsLeft, top + i * statsDelta + fontSize);
+        }
+        // Restore font
+        context.font = oldFont;
+    }
 }
 
 function drawLegendSVG() {
@@ -4760,10 +4860,27 @@ function load() {
 
             case 'datasets':
                 datasetNames = [];
+                stats = [];
                 numRawSamples = element.getAttribute('rawSamples');
+                var i = 0;
                 for (var j = getFirstChild(element); j; j = getNextSibling(j)) {
                     var datasetName = j.firstChild.nodeValue;
                     datasetNames.push(datasetName);
+                    if (i < numRawSamples) {  // Get stats of raw samples
+                        var stat = new SampleStats(
+                            datasetName,
+                            j.getAttribute('sread'),
+                            j.getAttribute('sclas'),
+                            j.getAttribute('sfilt'),
+                            j.getAttribute('scmin'),
+                            j.getAttribute('scavg'),
+                            j.getAttribute('scmax'),
+                            j.getAttribute('lnmin'),
+                            j.getAttribute('lnavg'),
+                            j.getAttribute('lnmax'),
+                            j.getAttribute('taxas'));
+                        stats.push(stat)
+                    }
                 }
                 datasets = datasetNames.length;
                 break;
@@ -5055,10 +5172,10 @@ function mouseClick(e) {
         if (button) {
             // Reorder the array of nodes only when needed
             if (nodesIndex === undefined || !nodes.reduce(
-                    function (acc, current, index) {
-                        // Calculate deviation from id == index for every node
-                        return acc + Math.abs(current.id - index)
-                    }, 0)) {
+                function (acc, current, index) {
+                    // Calculate deviation from id == index for every node
+                    return acc + Math.abs(current.id - index)
+                }, 0)) {
                 nodes.sort(function (a, b) {
                     return b.getHue() - a.getHue()
                 });
@@ -5066,18 +5183,20 @@ function mouseClick(e) {
 
             function lookForLeaf(testIndex, reverse) {
                 // Look for nodes without children but with counts
-                for(;testIndex >= 0 && testIndex <= nodes.length - 1
-                     && !nodes[testIndex].isLeaf();
-                     reverse ? testIndex-- : testIndex++) {}
+                for (; testIndex >= 0 && testIndex <= nodes.length - 1
+                       && !nodes[testIndex].isLeaf();
+                       reverse ? testIndex-- : testIndex++) {
+                }
                 if (testIndex >= 0 && testIndex <= nodes.length - 1
                     && nodes[testIndex].isLeaf()) nodesIndex = testIndex;
             }
 
             function lookForNode(testIndex, reverse) {
                 // Look for nodes with counts
-                for(;testIndex >= 0 && testIndex <= nodes.length - 1
-                    && nodes[testIndex].getHue() <= 0;
-                     reverse ? testIndex-- : testIndex++) {}
+                for (; testIndex >= 0 && testIndex <= nodes.length - 1
+                       && nodes[testIndex].getHue() <= 0;
+                       reverse ? testIndex-- : testIndex++) {
+                }
                 if (testIndex >= 0 && testIndex <= nodes.length - 1
                     && nodes[testIndex].getHue() > 0)
                     nodesIndex = testIndex;
@@ -5410,28 +5529,48 @@ function round(number) {
     }
 }
 
-function roundedRectangle(x, y, width, height, radius) {
-    if (radius * 2 > width) {
-        radius = width / 2;
+function roundedRectangle(x, y, width, height, radius, fill, stroke) {
+    // Optionals: radius, stroke, fill
+    if (typeof stroke === 'undefined') {
+        stroke = true;
     }
-
-    if (radius * 2 > height) {
-        radius = height / 2;
+    if (typeof radius === 'undefined') {
+        radius = 5;
+    } else if (typeof radius === 'number') {
+        if (radius * 2 > width) {
+            radius = width / 2;
+        }
+        if (radius * 2 > height) {
+            radius = height / 2;
+        }
+        radius = {tl: radius, tr: radius, br: radius, bl: radius};
+    } else {
+        var defaultRadius = {tl: 0, tr: 0, br: 0, bl: 0};
+        for (var side in defaultRadius) {
+            radius[side] = radius[side] || defaultRadius[side];
+        }
     }
 
     context.beginPath();
-    context.arc(x + radius, y + radius, radius, Math.PI,
-        Math.PI * 3 / 2, false);
-    context.lineTo(x + width - radius, y);
-    context.arc(x + width - radius, y + radius, radius, Math.PI * 3 / 2,
-        Math.PI * 2, false);
-    context.lineTo(x + width, y + height - radius);
-    context.arc(x + width - radius, y + height - radius, radius, 0,
-        Math.PI / 2, false);
-    context.lineTo(x + radius, y + height);
-    context.arc(x + radius, y + height - radius, radius, Math.PI / 2,
-        Math.PI, false);
-    context.lineTo(x, y + radius);
+    context.arc(x + radius.tl, y + radius.tl, radius.tl,
+        Math.PI, Math.PI * 3 / 2, false);
+    context.lineTo(x + width - radius.tr, y);
+    context.arc(x + width - radius.tr, y + radius.tr, radius.tr,
+        Math.PI * 3 / 2, Math.PI * 2, false);
+    context.lineTo(x + width, y + height - radius.br);
+    context.arc(x + width - radius.br, y + height - radius.br, radius.br,
+        0, Math.PI / 2, false);
+    context.lineTo(x + radius.bl, y + height);
+    context.arc(x + radius.bl, y + height - radius.bl, radius.bl,
+        Math.PI / 2, Math.PI, false);
+    context.lineTo(x, y + radius.tl);
+
+    if (fill) {
+        context.fill();
+    }
+    if (stroke) {
+        context.stroke();
+    }
 }
 
 function passClick(e) {

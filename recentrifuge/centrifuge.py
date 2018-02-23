@@ -10,12 +10,12 @@ import sys
 import time
 from math import log10
 from statistics import mean
-from typing import Tuple, Counter, Set, Dict, List
+from typing import Tuple, Counter, Callable, Optional, Set, Dict, List
 
 from Bio import SeqIO
 
 from recentrifuge.config import Filename, TaxId, Score, Scoring, Sample
-from recentrifuge.config import UNCLASSIFIED, ROOT, NO_SCORE, nucleotides, Err
+from recentrifuge.config import UNCLASSIFIED, ROOT, NO_SCORE, Err, SampleStats
 from recentrifuge.config import gray, red, green, yellow, blue
 from recentrifuge.lmat import read_lmat_output
 from recentrifuge.rank import Rank, Ranks
@@ -55,10 +55,12 @@ def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
 
 
 def process_report(*args, **kwargs
-                   ) -> Tuple[Sample, TaxTree, SampleDataByTaxId, Err]:
+                   ) -> Tuple[Sample, TaxTree, SampleDataByTaxId,
+                              SampleStats, Err]:
     """
     Process Centrifuge/Kraken report files (to be usually called in parallel!).
     """
+    # TODO: Full review to report support
     # Recover input and parameters
     filerep: Filename = args[0]
     taxonomy: Taxonomy = kwargs['taxonomy']
@@ -124,14 +126,14 @@ def process_report(*args, **kwargs
     output.write('\033[92m OK! \033[0m\n')
     print(output.getvalue())
     sys.stdout.flush()
-    return sample, tree, out, Err.NO_ERROR
+    return sample, tree, out, SampleStats(), Err.NO_ERROR
 
 
 def read_output(output_file: Filename,
                 scoring: Scoring = Scoring.SHEL,
                 minscore: Score = None,
-                ) -> Tuple[str, Counter[TaxId],
-                           Dict[TaxId, Score]]:
+                ) -> Tuple[str, SampleStats,
+                           Counter[TaxId], Dict[TaxId, Score]]:
     """
     Read Centrifuge output file
 
@@ -141,7 +143,7 @@ def read_output(output_file: Filename,
         minscore: minimum confidence level for the classification
 
     Returns:
-        log string, abundances counter, scores dict
+        log string, statistics, abundances counter, scores dict
 
     """
     output: io.StringIO = io.StringIO(newline='')
@@ -172,7 +174,7 @@ def read_output(output_file: Filename,
                     num_uncl += 1
                     continue
                 elif minscore is not None and shel < minscore:
-                        continue  # Ignore read if low confidence
+                    continue  # Ignore read if low confidence
                 try:
                     all_scores[tid].append(shel)
                 except KeyError:
@@ -183,31 +185,30 @@ def read_output(output_file: Filename,
                     all_length[tid] = [length, ]
     except FileNotFoundError:
         raise Exception(red('\nERROR!'), f'Cannot read "{output_file}"')
-    abundances: Counter[TaxId] = Counter({tid: len(all_scores[tid])
-                                          for tid in all_scores})
+    counts: Counter[TaxId] = Counter({tid: len(all_scores[tid])
+                                      for tid in all_scores})
     output.write(green('OK!\n'))
-    # Basic output statistics
-    num_clas: int = num_read - num_uncl
-    num_seqs: int = sum([len(scores) for scores in all_scores.values()])
-    output.write(gray('  Seqs read: ') + f'{num_read:_d}\t' + gray('[') +
-                 nucleotides(nt_read) + gray(']\n'))
-    output.write(gray('  Seqs clas: ') + f'{num_clas:_d}\t' + gray('(') +
-                 f'{num_uncl/num_read:.2%}' + gray(' unclassified)\n'))
-    output.write(gray('  Seqs pass: ') + f'{num_seqs:_d}\t' + gray('(') +
-                 f'{1-(num_seqs/num_clas):.2%}' + gray(' filtered)\n'))
-    max_score = max([max(s) for s in all_scores.values()])
-    min_score = min([min(s) for s in all_scores.values()])
-    mean_score = mean([mean(s) for s in all_scores.values()])
-    output.write(f'\033[90m  Scores: min =\033[0m {min_score:.1f},'
-                 f'\033[90m max =\033[0m {max_score:.1f},'
-                 f'\033[90m avr =\033[0m {mean_score:.1f}\n')
-    max_length = max([max(l) for l in all_length.values()])
-    min_length = min([min(l) for l in all_length.values()])
-    mean_length = mean([mean(l) for l in all_length.values()])
-    output.write(f'\033[90m  Length: min =\033[0m {int(min_length)},'
-                 f'\033[90m max =\033[0m {int(max_length)},'
-                 f'\033[90m avr =\033[0m {mean_length:.1f}\n')
-    output.write(f'  {len(abundances)}' + gray(f' taxa with assigned reads\n'))
+    # Get statistics
+    stat: SampleStats = SampleStats(
+        minscore=minscore, nt_read=nt_read, scores=all_scores, lens=all_length,
+        seq_read=num_read, seq_unclas=num_uncl,
+        seq_filt=sum([len(scores) for scores in all_scores.values()]),
+    )
+    # Output statistics
+    output.write(gray('  Seqs read: ') + f'{stat.seq.read:_d}\t' + gray('[')
+                 + f'{stat.nt_read}' + gray(']\n'))
+    output.write(gray('  Seqs clas: ') + f'{stat.seq.clas:_d}\t' + gray('(') +
+                 f'{stat.get_unclas_ratio():.2%}' + gray(' unclassified)\n'))
+    output.write(gray('  Seqs pass: ') + f'{stat.seq.filt:_d}\t' + gray('(') +
+                 f'{stat.get_reject_ratio():.2%}' + gray(' rejected)\n'))
+    output.write(gray('  Scores: min = ') + f'{stat.sco.mini:.1f},' +
+                 gray(' max = ') + f'{stat.sco.maxi:.1f},' +
+                 gray(' avr = ') + f'{stat.sco.mean:.1f}\n')
+
+    output.write(gray('  Length: min = ') + f'{stat.len.mini},' +
+                 gray(' max = ') + f'{stat.len.maxi},' +
+                 gray(' avr = ') + f'{stat.len.mean}\n')
+    output.write(f'  {stat.num_taxa}' + gray(f' taxa with assigned reads\n'))
     # Select score output
     out_scores: Dict[TaxId, Score]
     if scoring is Scoring.SHEL:
@@ -227,12 +228,12 @@ def read_output(output_file: Filename,
     else:
         raise Exception(f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
     # Return
-    return output.getvalue(), abundances, out_scores
+    return output.getvalue(), stat, counts, out_scores
 
 
-def process_output(*args,
-                   **kwargs
-                   ) -> Tuple[Sample, TaxTree, SampleDataByTaxId, Err]:
+def process_output(*args, **kwargs
+                   ) -> Tuple[Sample, TaxTree, SampleDataByTaxId,
+                              SampleStats, Err]:
     """
     Process Centrifuge/LMAT output files (to be usually called in parallel!).
     """
@@ -263,19 +264,23 @@ def process_output(*args,
     sample: Sample = Sample(os.path.splitext(target_file)[0])
     error: Err = Err.NO_ERROR
     # Read Centrifuge/LMAT output files to get abundances
+    read_method: Callable[
+        [Filename, Scoring, Optional[Score]],  # Input
+        Tuple[str, SampleStats, Counter[TaxId], Dict[TaxId, Score]]  # Output
+    ]
     if lmat:
         read_method = read_lmat_output
     else:
         read_method = read_output
     log: str
-    abundances: Counter[TaxId]
+    counts: Counter[TaxId]
     scores: Dict[TaxId, Score]
-    log, abundances, scores = read_method(target_file, scoring, minscore)
+    log, stat, counts, scores = read_method(target_file, scoring, minscore)
     output.write(log)
     # Remove root counts, in case
     if kwargs['root']:
-        vwrite(gray('Removing'), abundances[ROOT], gray('"ROOT" reads... '))
-        abundances[ROOT] = 0
+        vwrite(gray('Removing'), counts[ROOT], gray('"ROOT" reads... '))
+        counts[ROOT] = 0
         scores[ROOT] = NO_SCORE
         vwrite(green('OK!'), '\n')
 
@@ -285,9 +290,9 @@ def process_output(*args,
     tree = TaxTree()
     ancestors: Set[TaxId]
     orphans: Set[TaxId]
-    ancestors, orphans = taxonomy.get_ancestors(abundances.keys())
+    ancestors, orphans = taxonomy.get_ancestors(counts.keys())
     out = SampleDataByTaxId(['all'])
-    tree.allin1(taxonomy=taxonomy, counts=abundances, scores=scores,
+    tree.allin1(taxonomy=taxonomy, counts=counts, scores=scores,
                 ancestors=ancestors, min_taxa=mintaxa,
                 include=including, exclude=excluding, out=out)
     out.purge_counters()
@@ -300,26 +305,26 @@ def process_output(*args,
         if orphans:
             for orphan in orphans:
                 vwrite(yellow('Warning!'), f'Orphan taxid={orphan}\n')
-                lost += abundances[orphan]
+                lost += counts[orphan]
             vwrite(yellow('WARNING!'),
                    f'{len(orphans)} orphan taxids ('
-                   f'{len(orphans)/len(abundances):.2%} of total)\n'
+                   f'{len(orphans)/len(counts):.2%} of total)\n'
                    f'{lost} orphan sequences ('
-                   f'{lost/sum(abundances.values()):.3%} of total)\n')
+                   f'{lost/sum(counts.values()):.3%} of total)\n')
         else:
             vwrite(green('OK!\n'))
     # Check the lost of taxids (plasmids typically) under some conditions
     if debug and not excluding and not including:
         vwrite(gray('  Additional checking of taxid loss... '))
         lost = 0
-        for taxid in abundances:
+        for taxid in counts:
             if not out.counts[taxid]:
                 lost += 1
                 vwrite(yellow('Warning!'), f'Lost taxid={taxid}: '
                                            f'{taxonomy.get_name(taxid)}\n')
         if lost:
             vwrite(yellow('WARNING!'), f'Lost {lost} taxids ('
-                                       f'{lost/len(abundances):.2%} of total)'
+                                       f'{lost/len(counts):.2%} of total)'
                                        '\n')
         else:
             vwrite(green('OK!\n'))
@@ -340,7 +345,7 @@ def process_output(*args,
                  f'{time.perf_counter() - start_time:.3g}' + gray(' sec\n'))
     print(output.getvalue())
     sys.stdout.flush()
-    return sample, tree, out, error
+    return sample, tree, out, stat, error
 
 
 def analize_outputs(outputs: List[Filename]) -> None:

@@ -53,13 +53,13 @@ def process_rank(*args,
         if kwargs['debug']:
             output.write(' '.join(str(item) for item in args))
 
-    def fltlst2str(list: List[float]) -> str:
+    def fltlst2str(lst: List[float]) -> str:
         """Convert a list of floats into a nice string"""
-        return '[' + gray((', '.join(f'{elm:.1g}' for elm in list))) + ']'
+        return '[' + gray((', '.join(f'{elm:.1g}' for elm in lst))) + ']'
 
-    def blst2str(list: List[bool]) -> str:
+    def blst2str(lst: List[bool]) -> str:
         """Convert a list of booleans into a nice string"""
-        return ('[' + (', '.join(magenta('T') if elm else 'F' for elm in list))
+        return ('[' + (', '.join(magenta('T') if elm else 'F' for elm in lst))
                 + ']')
 
     # Declare/define variables

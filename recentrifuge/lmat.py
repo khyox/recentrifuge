@@ -12,7 +12,7 @@ from typing import Tuple, Counter, Dict, List
 
 from Bio import SeqIO
 
-from recentrifuge.config import TaxId, Score, Scoring, Filename
+from recentrifuge.config import TaxId, Score, Scoring, Filename, SampleStats
 from recentrifuge.config import TAXDUMP_PATH, gray
 
 
@@ -68,8 +68,8 @@ class Match(Enum):
 def read_lmat_output(output_file: Filename,
                      scoring: Scoring = Scoring.LMAT,
                      minscore: Score = None,
-                     ) -> Tuple[str, Counter[TaxId],
-                                Dict[TaxId, Score]]:
+                     ) -> Tuple[str, SampleStats,
+                                Counter[TaxId], Dict[TaxId, Score]]:
     """
     Read LMAT output (iterate over all the output files)
 
@@ -130,8 +130,13 @@ def read_lmat_output(output_file: Filename,
     abundances: Counter[TaxId] = Counter({tid: len(all_scores[tid])
                                           for tid in all_scores})
     # Basic output statistics
+    # TODO: Include DB matching in statistics
     class_seqs: int = sum([len(scores) for scores in all_scores.values()])
     read_seqs: int = sum(matchings.values())
+    stat: SampleStats = SampleStats(
+        minscore=minscore, scores=all_scores,
+        seq_read=read_seqs, seq_filt=class_seqs,
+    )
     if not read_seqs:
         raise Exception(
             f'\n\033[91mERROR!\033[0m Cannot read seqs from"{output_file}"')
@@ -145,12 +150,9 @@ def read_lmat_output(output_file: Filename,
                  f'Multi =\033[0m {multi_rel:.1%}\033[90m  '
                  f'Direct =\033[0m {direct_rel:.1%}\033[90m  '
                  f'NoDbHits =\033[0m {nodbhits_rel:.1%}\033[90m\n')
-    max_score: float = max([max(s) for s in all_scores.values()])
-    min_score: float = min([min(s) for s in all_scores.values()])
-    mean_score: float = mean([mean(s) for s in all_scores.values()])
-    output.write(f'\033[90m  Scores: min =\033[0m {min_score:.1f} '
-                 f'\033[90m max =\033[0m {max_score:.1f} '
-                 f'\033[90m avr =\033[0m {mean_score:.1f}\n')
+    output.write(gray('  Scores: min = ') + f'{stat.sco.mini:.1f},' +
+                 gray(' max = ') + f'{stat.sco.maxi:.1f},' +
+                 gray(' avr = ') + f'{stat.sco.mean:.1f}\n')
     # Select score output
     out_scores: Dict[TaxId, Score]
     if scoring is Scoring.LMAT:
@@ -158,7 +160,7 @@ def read_lmat_output(output_file: Filename,
     else:
         raise Exception(f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
     # Return
-    return output.getvalue(), abundances, out_scores
+    return output.getvalue(), stat, abundances, out_scores
 
 
 def select_lmat_inputs(lmats: List[Filename]) -> None:

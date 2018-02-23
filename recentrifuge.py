@@ -18,7 +18,7 @@ from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
-from recentrifuge.config import STR_CONTROL_SHARED, Err
+from recentrifuge.config import STR_CONTROL_SHARED, Err, SampleStats
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.core import process_rank, summarize_analysis
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
@@ -36,7 +36,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.17.3'
+__version__ = '0.18.0'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Feb 2018'
 
@@ -325,7 +325,7 @@ def main():
                           True if num < args.controls else False],  # is ctrl?
                     kwds=kwargs
                 ) for num in range(len(input_files))]
-                for file, (sample, tree, out, err) in zip(
+                for file, (sample, tree, out, stat, err) in zip(
                         input_files, [r.get() for r in async_results]):
                     if err is Err.NO_ERROR:
                         samples.append(sample)
@@ -334,12 +334,13 @@ def main():
                         counts[sample] = out.counts
                         accs[sample] = out.accs
                         scores[sample] = out.scores
+                        stats[sample] = stat
                     elif err is Err.VOID_CTRL:
                         print('There were void controls.', red('Aborting!'))
                         exit(1)
         else:  # sequential processing of each sample
             for num, file in enumerate(input_files):
-                (sample, tree, out, err) = process(
+                (sample, tree, out, stat, err) = process(
                     file, True if num < args.controls else False, **kwargs)
                 if err is Err.NO_ERROR:
                     samples.append(sample)
@@ -348,6 +349,7 @@ def main():
                     counts[sample] = out.counts
                     accs[sample] = out.accs
                     scores[sample] = out.scores
+                    stats[sample] = stat
                 elif err is Err.VOID_CTRL:
                     print('There were void controls.', red('Aborting!'))
                     exit(1)
@@ -442,6 +444,7 @@ def main():
         sys.stdout.flush()
         krona: KronaTree = KronaTree(samples,
                                      num_raw_samples=len(raw_samples),
+                                     stats=stats,
                                      min_score=Score(
                                          min([min(scores[sample].values())
                                               for sample in samples
@@ -473,7 +476,13 @@ def main():
         sys.stdout.flush()
         xlsxwriter = pd.ExcelWriter(xlsx_name)
         list_rows: List = []
-        data_frame: pd.DataFrame
+
+        # Save raw samples basic statistics
+        data_frame: pd.DataFrame = pd.DataFrame.from_dict(
+            {raw: stats[raw].to_dict() for raw in raw_samples})
+        data_frame.to_excel(xlsxwriter, sheet_name='_sample_stats')
+
+        # Save taxid related statistics per sample
         if excel is Excel.FULL:
             polytree.to_items(taxonomy=ncbi, items=list_rows)
             # Generate the pandas DataFrame from items and export to Excel
@@ -546,7 +555,8 @@ def main():
     check_debug()
 
     plasmidfile: Filename = None
-    process: Callable[..., Tuple[Sample, TaxTree, SampleDataByTaxId, Err]]
+    process: Callable[..., Tuple[Sample, TaxTree, SampleDataByTaxId,
+                                 SampleStats, Err]]
     select_inputs()
     check_controls()
     if not htmlfile:
@@ -567,6 +577,7 @@ def main():
     accs: Dict[Sample, Counter[TaxId]] = {}
     taxids: Dict[Sample, TaxLevels] = {}
     scores: Dict[Sample, Dict[TaxId, Score]] = {}
+    stats: Dict[Sample, SampleStats] = {}
     samples: List[Sample] = []
     raw_samples: List[Sample] = []
 
@@ -578,7 +589,7 @@ def main():
               'ctrlmintaxa': (
                   args.ctrlmintaxa
                   if args.ctrlmintaxa is not None else args.mintaxa),
-              'debug': args.debug, 'root':args.takeoutroot,
+              'debug': args.debug, 'root': args.takeoutroot,
               'lmat': bool(lmats), 'minscore': args.minscore,
               'mintaxa': args.mintaxa, 'scoring': scoring, 'taxonomy': ncbi,
               }
@@ -606,7 +617,7 @@ def main():
 
     # Timing results
     print(gray('Total elapsed time:'), time.strftime(
-        "%H:%M:%S", time.gmtime(time.time()-start_time)))
+        "%H:%M:%S", time.gmtime(time.time() - start_time)))
 
 
 if __name__ == '__main__':

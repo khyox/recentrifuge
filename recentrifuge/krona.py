@@ -11,7 +11,8 @@ from typing import List, Dict, NewType, Any, Optional
 import xml.etree.ElementTree as ETree
 from xml.dom import minidom
 
-from recentrifuge.config import JSLIB, HTML_SUFFIX, Filename, Sample, Scoring
+from recentrifuge.config import JSLIB, HTML_SUFFIX
+from recentrifuge.config import Filename, Sample, Scoring, SampleStats
 
 # from recentrifuge.config import HTML_SUFFIX
 
@@ -113,6 +114,7 @@ class KronaTree(ETree.ElementTree):
     def __init__(self,
                  samples: List[Sample],
                  num_raw_samples: int = None,
+                 stats: Dict[Sample, SampleStats] = None,
                  min_score: float = 0.0,
                  max_score: float = 1.0,
                  scoring: Scoring = Scoring.SHEL,
@@ -130,6 +132,10 @@ class KronaTree(ETree.ElementTree):
         self.attributes: Elm
         self.samples: List[Sample]
         self.datasets: Elm
+
+        # Dummy dict if stats not provided
+        if stats is None:
+            stats = {}
 
         # Set root of KronaTree
         self.krona = ETree.Element('krona',  # type: ignore
@@ -176,7 +182,11 @@ class KronaTree(ETree.ElementTree):
         self.datasets = ETree.SubElement(self.krona, 'datasets',
                                          {'rawSamples': f'{num_raw_samples}'})
         for sample in self.samples:
-            self.sub(self.datasets, 'dataset', {}, sample)
+            if sample in stats:
+                self.sub(self.datasets, 'dataset',
+                         stats[sample].to_krona(), sample)
+            else:
+                self.sub(self.datasets, 'dataset', {}, sample)
 
         # Set color
         self.color = self.sub(self.krona, 'color',

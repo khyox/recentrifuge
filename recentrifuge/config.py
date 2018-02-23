@@ -3,7 +3,9 @@ This module provides constants and other package-wide stuff.
 
 """
 from enum import Enum
-from typing import Dict, Counter, NewType, Union
+from statistics import mean
+from typing import Dict, List, Counter, NewType, Union, NamedTuple
+
 from recentrifuge.shared_counter import SharedCounter
 
 # Type annotations
@@ -75,6 +77,122 @@ class Err(Enum):
     VOID_SAMPLE = 2  # A (non-control) sample is empty
 
 
+class NT(int):
+    """Class representing any chain of nucleotides"""
+
+    def __str__(self) -> str:
+        """Format nucleotides number with SI prefixes and units"""
+        value: float
+        unit: str
+        if self > 1e+12:
+            value = self / 1e+12
+            unit = 'Tnt'
+        elif self > 1e+9:
+            value = self / 1e+9
+            unit = 'Gnt'
+        elif self > 1e+6:
+            value = self / 1e+6
+            unit = 'Mnt'
+        elif self > 1e+3:
+            value = self / 1e+3
+            unit = 'knt'
+        else:
+            value = self
+            unit = 'nt'
+            return f'{value:d} {unit}'
+        return f'{value:.2f} {unit}'
+
+
+# pylint: disable=too-few-public-methods
+class SeqsStats(NamedTuple):
+    """Sequence statistics"""
+    read: int = 0
+    unclas: int = 0
+    clas: int = 0
+    filt: int = 0
+
+
+class ScoreStats(NamedTuple):
+    """Score statistics"""
+    maxi: Score = NO_SCORE
+    mean: Score = NO_SCORE
+    mini: Score = NO_SCORE
+
+
+class LengthStats(NamedTuple):
+    """Leg statistics"""
+    maxi: NT = NT(0)
+    mean: NT = NT(0)
+    mini: NT = NT(0)
+# pylint: enable=too-few-public-methods
+
+
+class SampleStats(object):
+    """Sample statistics"""
+
+    def __init__(self, minscore: Score = None, nt_read: int = 0,
+                 seq_read: int = 0, seq_unclas: int = 0, seq_filt: int = 0,
+                 scores: Dict[TaxId, List[Score]] = None,
+                 lens: Dict[TaxId, List[int]] = None) -> None:
+        """Initialize some data and setup data structures"""
+        self.minscore: Score = minscore
+        self.nt_read: NT = NT(nt_read)
+        self.seq: SeqsStats = SeqsStats(
+            read=seq_read, unclas=seq_unclas,
+            clas=seq_read - seq_unclas, filt=seq_filt)
+        if scores:
+            self.sco: ScoreStats = ScoreStats(
+                mini=Score(min([min(s) for s in scores.values()])),
+                mean=Score(mean([mean(s) for s in scores.values()])),
+                maxi=Score(max([max(s) for s in scores.values()])))
+        else:
+            self.sco = ScoreStats()
+        if lens:
+            self.len: LengthStats = LengthStats(
+                mini=NT(min([min(l) for l in lens.values()])),
+                mean=NT(mean([mean(l) for l in lens.values()])),
+                maxi=NT(max([max(l) for l in lens.values()])))
+        else:
+            self.len = LengthStats()
+        self.num_taxa: int = len(scores)
+
+    def to_dict(self) -> Dict[str, Union[int, Score]]:
+        """
+        Create a dict with the data of the object (used to feed a DataFrame)
+        """
+        return {'Seqs. read': self.seq.read, 'Seqs. unclass.': self.seq.unclas,
+                'Seqs. class.': self.seq.clas, 'Seqs. filtered': self.seq.filt,
+                'Score min': self.sco.mini, 'Score mean': self.sco.mean,
+                'Score max': self.sco.maxi, 'Length min': self.len.mini,
+                'Length mean': self.len.mean, 'Length max': self.len.maxi,
+                'Total nt read': self.nt_read, 'Taxa assigned': self.num_taxa,
+                'Score limit': self.minscore}
+
+    def to_krona(self) -> Dict[str, str]:
+        """
+        Create a dict with the data of the object (used to feed a Krona plot)
+        """
+        return {'sread': str(self.seq.read),
+                'sclas': str(self.seq.clas),
+                'sfilt': str(self.seq.filt),
+                'scmin': str(self.sco.mini),
+                'scavg': str(self.sco.mean),
+                'scmax': str(self.sco.maxi),
+                'lnmin': str(self.len.mini),
+                'lnavg': str(self.len.mean),
+                'lnmax': str(self.len.maxi),
+                'taxas': str(self.num_taxa),
+                'sclim': str(self.minscore),
+                'totnt': str(self.nt_read)}
+
+    def get_unclas_ratio(self) -> float:
+        """Get ratio of unclassified sequences"""
+        return self.seq.unclas / self.seq.read
+
+    def get_reject_ratio(self) -> float:
+        """Get ratio of rejected sequences by filtering"""
+        return 1 - self.seq.filt / self.seq.clas
+
 def ansi(num: int):
     """Return function that escapes text with ANSI color n."""
     return lambda txt: f'\033[{num}m{txt}\033[0m'
@@ -83,26 +201,3 @@ def ansi(num: int):
 # pylint: disable=invalid-name
 gray, red, green, yellow, blue, magenta, cyan, white = map(ansi, range(90, 98))
 # pylint: enable=invalid-name
-
-
-def nucleotides(num: int) -> str:
-    """Format nucleotides number with SI prefixes and units"""
-    value: float
-    unit: str
-    if num > 1e+12:
-        value = num / 1e+12
-        unit = 'Tnt'
-    elif num > 1e+9:
-        value = num / 1e+9
-        unit = 'Gnt'
-    elif num > 1e+6:
-        value = num / 1e+6
-        unit = 'Mnt'
-    elif num > 1e+3:
-        value = num / 1e+3
-        unit = 'knt'
-    else:
-        value = num
-        unit = 'nt'
-        return f'{value} {unit}'
-    return f'{value:.2f} {unit}'
