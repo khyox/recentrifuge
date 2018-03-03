@@ -15,7 +15,8 @@ from typing import Tuple, Counter, Callable, Optional, Set, Dict, List
 from Bio import SeqIO
 
 from recentrifuge.config import Filename, TaxId, Score, Scoring, Sample
-from recentrifuge.config import UNCLASSIFIED, ROOT, NO_SCORE, Err, SampleStats
+from recentrifuge.config import NO_SCORE, Err, SampleStats
+from recentrifuge.config import UNCLASSIFIED, ROOT, CELLULAR_ORGANISMS
 from recentrifuge.config import gray, red, green, yellow, blue
 from recentrifuge.lmat import read_lmat_output
 from recentrifuge.rank import Rank, Ranks
@@ -184,15 +185,20 @@ def read_output(output_file: Filename,
                 except KeyError:
                     all_length[tid] = [length, ]
     except FileNotFoundError:
-        raise Exception(red('\nERROR!'), f'Cannot read "{output_file}"')
+        raise Exception(red('\nERROR! ') + f'Cannot read "{output_file}"')
     counts: Counter[TaxId] = Counter({tid: len(all_scores[tid])
                                       for tid in all_scores})
     output.write(green('OK!\n'))
+    if num_read == 0:
+        raise Exception(red('\nERROR! ')
+                        + f'Cannot read any sequence from"{output_file}"')
+    filt_seqs: int = sum([len(scores) for scores in all_scores.values()])
+    if filt_seqs == 0:
+        raise Exception(red('\nERROR! ') + 'No sequence passed the filter!')
     # Get statistics
     stat: SampleStats = SampleStats(
         minscore=minscore, nt_read=nt_read, scores=all_scores, lens=all_length,
-        seq_read=num_read, seq_unclas=num_uncl,
-        seq_filt=sum([len(scores) for scores in all_scores.values()]),
+        seq_read=num_read, seq_unclas=num_uncl, seq_filt=filt_seqs
     )
     # Output statistics
     output.write(gray('  Seqs read: ') + f'{stat.seq.read:_d}\t' + gray('[')
@@ -204,7 +210,6 @@ def read_output(output_file: Filename,
     output.write(gray('  Scores: min = ') + f'{stat.sco.mini:.1f},' +
                  gray(' max = ') + f'{stat.sco.maxi:.1f},' +
                  gray(' avr = ') + f'{stat.sco.mean:.1f}\n')
-
     output.write(gray('  Length: min = ') + f'{stat.len.mini},' +
                  gray(' max = ') + f'{stat.len.maxi},' +
                  gray(' avr = ') + f'{stat.len.mean}\n')
@@ -277,9 +282,26 @@ def process_output(*args, **kwargs
     scores: Dict[TaxId, Score]
     log, stat, counts, scores = read_method(target_file, scoring, minscore)
     output.write(log)
+    # Move cellular_organisms counts to root, in case
+    if taxonomy.collapse and counts[CELLULAR_ORGANISMS]:
+        vwrite(gray('Moving'), counts[CELLULAR_ORGANISMS],
+               gray('"CELLULAR_ORGANISMS" reads to "ROOT"... '))
+        if counts[ROOT]:
+            stat.num_taxa -= 1
+            scores[ROOT] = (
+                    (scores[CELLULAR_ORGANISMS] * counts[CELLULAR_ORGANISMS] +
+                     scores[ROOT] * counts[ROOT])
+                    / (counts[CELLULAR_ORGANISMS] + counts[ROOT]))
+        else:
+            scores[ROOT] = scores[CELLULAR_ORGANISMS]
+        counts[ROOT] += counts[CELLULAR_ORGANISMS]
+        counts[CELLULAR_ORGANISMS] = 0
+        scores[CELLULAR_ORGANISMS] = NO_SCORE
     # Remove root counts, in case
-    if kwargs['root']:
+    if kwargs['root'] and counts[ROOT]:
         vwrite(gray('Removing'), counts[ROOT], gray('"ROOT" reads... '))
+        stat.seq = stat.seq._replace(filt=stat.seq.filt-counts[ROOT])
+        stat.num_taxa -= 1
         counts[ROOT] = 0
         scores[ROOT] = NO_SCORE
         vwrite(green('OK!'), '\n')

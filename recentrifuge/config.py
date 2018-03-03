@@ -131,15 +131,22 @@ class SampleStats(object):
     """Sample statistics"""
 
     def __init__(self, minscore: Score = None, nt_read: int = 0,
-                 seq_read: int = 0, seq_unclas: int = 0, seq_filt: int = 0,
+                 seq_read: int = 0, seq_filt: int = 0,
+                 seq_clas: int = None, seq_unclas: int = None,
                  scores: Dict[TaxId, List[Score]] = None,
                  lens: Dict[TaxId, List[int]] = None) -> None:
         """Initialize some data and setup data structures"""
         self.minscore: Score = minscore
         self.nt_read: NT = NT(nt_read)
-        self.seq: SeqsStats = SeqsStats(
-            read=seq_read, unclas=seq_unclas,
-            clas=seq_read - seq_unclas, filt=seq_filt)
+        self.seq: SeqsStats
+        if seq_clas:
+            self.seq = SeqsStats(
+                read=seq_read, unclas=seq_read - seq_clas,
+                clas=seq_clas, filt=seq_filt)
+        else:
+            self.seq = SeqsStats(
+                read=seq_read, unclas=seq_unclas,
+                clas=seq_read - seq_unclas, filt=seq_filt)
         if scores:
             self.sco: ScoreStats = ScoreStats(
                 mini=Score(min([min(s) for s in scores.values()])),

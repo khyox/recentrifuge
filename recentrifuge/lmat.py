@@ -13,7 +13,7 @@ from typing import Tuple, Counter, Dict, List
 from Bio import SeqIO
 
 from recentrifuge.config import TaxId, Score, Scoring, Filename, SampleStats
-from recentrifuge.config import TAXDUMP_PATH, gray
+from recentrifuge.config import TAXDUMP_PATH, gray, red, green
 
 
 class UnsupportedMatchingError(Exception):
@@ -35,6 +35,10 @@ class Match(Enum):
     DIRECT = 'DIRECTMATCH'
     NODBHITS = ()
     NoDbHits = 'NODBHITS'
+    READTOOSHORT = ()
+    ReadTooShort = 'READTOOSHORT'
+    LOWSCORE = ()
+    LowScore = "LOWSCORE"
 
     # pylint: enable=invalid-name
 
@@ -84,6 +88,8 @@ def read_lmat_output(output_file: Filename,
     """
     output: io.StringIO = io.StringIO(newline='')
     all_scores: Dict[TaxId, List[Score]] = {}
+    all_length: Dict[TaxId, List[int]] = {}
+    nt_read: int = 0
     matchings: Counter[Match] = Counter()
     output_files: List[Filename] = []
     # Select files to process depending on if the output files are explicitly
@@ -114,45 +120,62 @@ def read_lmat_output(output_file: Filename,
                     score: Score = seq.annotations['final_score']
                     match: Match = Match.lmat(seq.annotations['final_match'])
                     matchings[match] += 1
+                    length: int = len(seq)
+                    nt_read += length
                     if minscore is not None:
                         if score < minscore:  # Ignore read if low score
                             continue
-                    if (match is not Match.NODBHITS
-                            and match is not Match.NOMATCH):
+                    if match in [Match.DIRECTMATCH, Match.MULTIMATCH]:
                         try:
                             all_scores[tid].append(score)
                         except KeyError:
                             all_scores[tid] = [score, ]
+                        try:
+                            all_length[tid].append(length)
+                        except KeyError:
+                            all_length[tid] = [length, ]
         except FileNotFoundError:
-            raise Exception(
-                f'\n\033[91mERROR!\033[0m Cannot read "{path}"')
-        output.write('\033[92m OK! \033[0m\n')
+            raise Exception(red('\nERROR!') + f'Cannot read "{path}"')
+        output.write(green('OK!\n'))
     abundances: Counter[TaxId] = Counter({tid: len(all_scores[tid])
                                           for tid in all_scores})
     # Basic output statistics
-    # TODO: Include DB matching in statistics
-    class_seqs: int = sum([len(scores) for scores in all_scores.values()])
     read_seqs: int = sum(matchings.values())
+    if read_seqs == 0:
+        raise Exception(red('\nERROR! ')
+                        + f'Cannot read any sequence from"{output_file}"')
+    filt_seqs: int = sum([len(scores) for scores in all_scores.values()])
+    if filt_seqs == 0:
+        raise Exception(red('\nERROR! ') + 'No sequence passed the filter!')
     stat: SampleStats = SampleStats(
-        minscore=minscore, scores=all_scores,
-        seq_read=read_seqs, seq_filt=class_seqs,
+        minscore=minscore, nt_read=nt_read, scores=all_scores, lens=all_length,
+        seq_read=read_seqs, seq_filt=filt_seqs,
+        seq_clas=matchings[Match.DIRECT] + matchings[Match.MULTI]
     )
-    if not read_seqs:
-        raise Exception(
-            f'\n\033[91mERROR!\033[0m Cannot read seqs from"{output_file}"')
-    output.write(f'  \033[90mSeqs: read = \033[0m{read_seqs:_d} \033[90m'
-                 f'  \033[90mclassified&filtered = \033[0m{class_seqs:_d}'
-                 f' ({class_seqs/read_seqs:.2%})\033[90m\n')
+    output.write(gray('  Seqs read: ') + f'{stat.seq.read:_d}\t' + gray('[')
+                 + f'{stat.nt_read}' + gray(']\n'))
+    output.write(gray('  Seqs clas: ') + f'{stat.seq.clas:_d}\t' + gray('(') +
+                 f'{stat.get_unclas_ratio():.2%}' + gray(' unclassified)\n'))
+    output.write(gray('  Seqs pass: ') + f'{stat.seq.filt:_d}\t' + gray('(') +
+                 f'{stat.get_reject_ratio():.2%}' + gray(' rejected)\n'))
     multi_rel: float = matchings[Match.MULTI] / read_seqs
     direct_rel: float = matchings[Match.DIRECT] / read_seqs
     nodbhits_rel: float = matchings[Match.NODBHITS] / read_seqs
+    tooshort_rel: float = matchings[Match.READTOOSHORT] / read_seqs
+    lowscore_rel: float = matchings[Match.LOWSCORE] / read_seqs
     output.write(f'\033[90m  DB Matching: '
                  f'Multi =\033[0m {multi_rel:.1%}\033[90m  '
                  f'Direct =\033[0m {direct_rel:.1%}\033[90m  '
+                 f'ReadTooShort =\033[0m {tooshort_rel:.1%}\033[90m  '
+                 f'LowScore =\033[0m {lowscore_rel:.1%}\033[90m  '
                  f'NoDbHits =\033[0m {nodbhits_rel:.1%}\033[90m\n')
     output.write(gray('  Scores: min = ') + f'{stat.sco.mini:.1f},' +
                  gray(' max = ') + f'{stat.sco.maxi:.1f},' +
                  gray(' avr = ') + f'{stat.sco.mean:.1f}\n')
+    output.write(gray('  Length: min = ') + f'{stat.len.mini},' +
+                 gray(' max = ') + f'{stat.len.maxi},' +
+                 gray(' avr = ') + f'{stat.len.mean}\n')
+    output.write(f'  {stat.num_taxa}' + gray(f' taxa with assigned reads\n'))
     # Select score output
     out_scores: Dict[TaxId, Score]
     if scoring is Scoring.LMAT:

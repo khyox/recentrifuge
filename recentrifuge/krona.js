@@ -3358,12 +3358,12 @@ function addOptionElements(hueName, hueDefault) {
     }
 
 // Loading FontFaces via JavaScript is alternative to using CSS's @font-face rule.
-    var ubuntuMonoFontFace = new FontFace('Ubuntu Mono', 'url(https://fonts.gstatic.com/s/ubuntumono/v7/KFOjCneDtsqEr0keqCMhbCc6CsTYl4BO.woff2)');
-    document.fonts.add(ubuntuMonoFontFace);
-    ubuntuMonoFontFace.loaded.then(logLoaded);
-    var oxygenFontFace = new FontFace('Oxygen', 'url(https://fonts.gstatic.com/s/oxygen/v5/qBSyz106i5ud7wkBU-FrPevvDin1pK8aKteLpeZ5c0A.woff2)');
-    document.fonts.add(oxygenFontFace);
-    oxygenFontFace.loaded.then(logLoaded);
+//     var ubuntuMonoFontFace = new FontFace('Ubuntu Mono', 'url(https://fonts.gstatic.com/s/ubuntumono/v7/KFOjCneDtsqEr0keqCMhbCc6CsTYl4BO.woff2)');
+//     document.fonts.add(ubuntuMonoFontFace);
+//     ubuntuMonoFontFace.loaded.then(logLoaded);
+//     var oxygenFontFace = new FontFace('Oxygen', 'url(https://fonts.gstatic.com/s/oxygen/v5/qBSyz106i5ud7wkBU-FrPevvDin1pK8aKteLpeZ5c0A.woff2)');
+//     document.fonts.add(oxygenFontFace);
+//     oxygenFontFace.loaded.then(logLoaded);
     var oxygenMonoFontFace = new FontFace('Oxygen Mono', 'url(https://fonts.gstatic.com/s/oxygenmono/v5/h0GsssGg9FxgDgCjLeAd7hjYx-6tPUUv.woff2)');
     document.fonts.add(oxygenMonoFontFace);
     oxygenMonoFontFace.loaded.then(logLoaded);
@@ -4610,13 +4610,22 @@ function interpolateHue(hueStart, hueEnd, valueStart, valueEnd) {
     // since the gradient will be RGB based, we need to add stops to hit all the
     // colors in the hue spectrum
 
+    function selective_round(value){
+        // Selective round depending on the hue scale width
+        if(valueEnd - valueStart < 10){
+            return(value.toFixed(1))
+        } else {
+            return(round(value))
+        }
+    }
+
     hueStopPositions = new Array();
     hueStopHsl = new Array();
     hueStopText = new Array();
 
     hueStopPositions.push(0);
     hueStopHsl.push(hslText(hueStart));
-    hueStopText.push(round(valueStart));
+    hueStopText.push(selective_round(valueStart));
 
     for
     (
@@ -4632,20 +4641,14 @@ function interpolateHue(hueStart, hueEnd, valueStart, valueEnd) {
         ) {
             hueStopPositions.push(lerp(i, hueStart, hueEnd, 0, 1));
             hueStopHsl.push(hslText(i));
-            hueStopText.push(round(lerp
-            (
-                i,
-                hueStart,
-                hueEnd,
-                valueStart,
-                valueEnd
-            )));
+            hueStopText.push(selective_round(lerp(
+                i, hueStart, hueEnd, valueStart, valueEnd)));
         }
     }
 
     hueStopPositions.push(1);
     hueStopHsl.push(hslText(hueEnd));
-    hueStopText.push(round(valueEnd));
+    hueStopText.push(selective_round(valueEnd));
 }
 
 function keyLineAngle(angle, keyAngle, bendRadius, keyX, keyY, pointsX,
@@ -4694,6 +4697,8 @@ function keyOffset() {
 }
 
 function lerp(value, fromStart, fromEnd, toStart, toEnd) {
+    // Rescale value from source scale [fromStart, fromEnd]
+    //  to target scale [toStart, toEnd]
     return (value - fromStart) *
         (toEnd - toStart) /
         (fromEnd - fromStart) +
