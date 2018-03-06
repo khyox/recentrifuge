@@ -378,10 +378,11 @@ function handleResize() {
 function Attribute() {
 }
 
-function SampleStats(sample, sread, sclas, sfilt, scmin, scavg, scmax,
+function SampleStats(sample, ictrl, sread, sclas, sfilt, scmin, scavg, scmax,
                      lnmin, lnavg, lnmax, taxas) {
     // Class to store the statistics of a sample
     this.sample = sample;
+    this.is_ctrl = (ictrl === 'True');
     this.sread = sread;
     this.sclas = sclas;
     this.sfilt = sfilt;
@@ -4041,8 +4042,8 @@ function drawLegend() {
 
         if
         (
-            i == 0 ||
-            i == hueStopPositions.length - 1 ||
+            i === 0 ||
+            i === hueStopPositions.length - 1 ||
             textY > top + fontSize && textY < top + height - fontSize
         ) {
             context.fillText(hueStopText[i], textLeft, textY);
@@ -4056,19 +4057,26 @@ function drawLegend() {
 
     // Sample statistics
     if (currentDataset < numRawSamples) {
+        var stat = stats[currentDataset];
         // Define aux position variables
         var statsX = textLeft + 2 * width;
         var statsY = top;
         var rad = width;
-        context.font = "Bold 11px Ubuntu"
-        context.fillStyle = 'rgba(200, 50, 50, 1)';
-        context.fillText('Sample statistics', statsX,
+        context.font = "Bold 11px Ubuntu";
+        var statLabelText;
+        if (stat.is_ctrl) {
+            context.fillStyle = 'rgba(50, 50, 200, 1)';
+            statLabelText = 'Control statistics';
+        } else {
+            context.fillStyle = 'rgba(200, 50, 50, 1)';
+            statLabelText = 'Sample statistics';
+        }
+        context.fillText(statLabelText, statsX,
             imageHeight - fontSize * 1.5);
         // Get the set of strings
         var oldFont = context.font;
         context.font = "10.5px monospace";  // In case the next line fails
         context.font = "10.5px Oxygen Mono";
-        var stat = stats[currentDataset];
         var statsStrs = [
             'Sequences read: ' + stat.sread,
             '  those classified: ' + (
@@ -4088,8 +4096,13 @@ function drawLegend() {
         }));
         // Draw the rounded rectangle
         context.lineWidth = 3;
-        context.strokeStyle = '#CC3333';
-        context.fillStyle = 'rgba(255, 255, 0, 0.2)';
+        if (stat.is_ctrl) {
+            context.strokeStyle = '#3333CC';
+            context.fillStyle = 'rgba(0, 255, 255, 0.2)';
+        } else {
+            context.strokeStyle = '#CC3333';
+            context.fillStyle = 'rgba(255, 255, 0, 0.2)';
+        }
         var box = new roundedRectangle(
             statsX, statsY, 1.2 * maxTextWidth, height, {tr: rad, bl: rad});
         context.stroke();
@@ -4874,6 +4887,7 @@ function load() {
                     if (i < numRawSamples) {  // Get stats of raw samples
                         var stat = new SampleStats(
                             datasetName,
+                            j.getAttribute('isctr'),
                             j.getAttribute('sread'),
                             j.getAttribute('sclas'),
                             j.getAttribute('sfilt'),

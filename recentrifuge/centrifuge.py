@@ -282,6 +282,8 @@ def process_output(*args, **kwargs
     scores: Dict[TaxId, Score]
     log, stat, counts, scores = read_method(target_file, scoring, minscore)
     output.write(log)
+    # Update field in stat about control nature of the sample
+    stat.is_ctrl = is_ctrl
     # Move cellular_organisms counts to root, in case
     if taxonomy.collapse and counts[CELLULAR_ORGANISMS]:
         vwrite(gray('Moving'), counts[CELLULAR_ORGANISMS],

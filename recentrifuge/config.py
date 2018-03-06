@@ -130,12 +130,14 @@ class LengthStats(NamedTuple):
 class SampleStats(object):
     """Sample statistics"""
 
-    def __init__(self, minscore: Score = None, nt_read: int = 0,
+    def __init__(self, is_ctrl: bool = False,
+                 minscore: Score = None, nt_read: int = 0,
                  seq_read: int = 0, seq_filt: int = 0,
                  seq_clas: int = None, seq_unclas: int = None,
                  scores: Dict[TaxId, List[Score]] = None,
                  lens: Dict[TaxId, List[int]] = None) -> None:
         """Initialize some data and setup data structures"""
+        self.is_ctrl: bool = is_ctrl
         self.minscore: Score = minscore
         self.nt_read: NT = NT(nt_read)
         self.seq: SeqsStats
@@ -179,7 +181,8 @@ class SampleStats(object):
         """
         Create a dict with the data of the object (used to feed a Krona plot)
         """
-        return {'sread': str(self.seq.read),
+        return {'isctr': str(self.is_ctrl),
+                'sread': str(self.seq.read),
                 'sclas': str(self.seq.clas),
                 'sfilt': str(self.seq.filt),
                 'scmin': str(self.sco.mini),
