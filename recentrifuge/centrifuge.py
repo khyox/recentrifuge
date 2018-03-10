@@ -153,6 +153,7 @@ def read_output(output_file: Filename,
     num_read: int = 0
     nt_read: int = 0
     num_uncl: int = 0
+    error_read: int = None
     output.write(gray(f'Loading output file {output_file}... '))
     try:
         with open(output_file, 'r') as file:
@@ -164,9 +165,9 @@ def read_output(output_file: Filename,
                 except ValueError:
                     print(red('Error'), f'parsing line: ({output_line}) '
                                         f'in {output_file}. Ignoring line!')
+                    error_read = num_read + 1
                     continue
                 tid = TaxId(_tid)
-                num_read += 1
                 try:
                     # From Centrifuge score get "single hit equivalent length"
                     shel = Score(float(_score) ** 0.5 + 15)
@@ -176,6 +177,7 @@ def read_output(output_file: Filename,
                           f'length ({_length}) for taxid {_tid}',
                           f'in {output_file}. Ignoring line!')
                     continue
+                num_read += 1
                 nt_read += length
                 if tid == UNCLASSIFIED:  # Just count unclassified reads
                     num_uncl += 1
@@ -192,6 +194,8 @@ def read_output(output_file: Filename,
                     all_length[tid] = [length, ]
     except FileNotFoundError:
         raise Exception(red('\nERROR! ') + f'Cannot read "{output_file}"')
+    if error_read == num_read + 1:  # Check if error in last line: truncated!
+        print(yellow('Warning!'), f'{output_file} seems truncated!')
     counts: Counter[TaxId] = Counter({tid: len(all_scores[tid])
                                       for tid in all_scores})
     output.write(green('OK!\n'))
