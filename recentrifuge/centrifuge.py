@@ -158,7 +158,13 @@ def read_output(output_file: Filename,
         with open(output_file, 'r') as file:
             file.readline()  # discard header
             for output_line in file:
-                _, _, _tid, _score, _, _, _length, *_ = output_line.split('\t')
+                try:
+                    _, _, _tid, _score, _, _, _length, *_ = output_line.split(
+                        '\t')
+                except ValueError:
+                    print(red('Error'), f'parsing line: ({output_line}) '
+                                        f'in {output_file}. Ignoring line!')
+                    continue
                 tid = TaxId(_tid)
                 num_read += 1
                 try:
