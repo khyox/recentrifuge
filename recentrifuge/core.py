@@ -250,10 +250,6 @@ def process_rank(*args,
                 mdn: float = statistics.median(relfreq)
                 # mad:float=statistics.mean([abs(mdn - rf) for rf in relfreq])
                 q_n: float = compute_qn(relfreq, dist="NegExp")
-                if q_n < EPS:  # Warn in case there is zero variation
-                    vwrite(yellow('Warning! Qn < eps for'), tid,
-                           taxonomy.get_name(tid),
-                           gray('relfreq:'), fltlst2str(relfreq_smpl), '\n')
                 # Calculate crossover in samples
                 outlier_lim: float = mdn + ROBUST_XOVER_OUTLIER * q_n
                 ordomag_lim: float = max(relfreq_ctrl)*10**ROBUST_XOVER_ORD_MAG
@@ -263,7 +259,9 @@ def process_rank(*args,
                 if any(crossover):
                     vwrite(magenta('crossover:\t'), tid,
                            taxonomy.get_name(tid), green(
-                            f'lims: [{outlier_lim:.1g}][{ordomag_lim:.1g}]'),
+                            f'lims: [{outlier_lim:.1g}]' + (
+                                '<' if outlier_lim < ordomag_lim else '>') +
+                            f'[{ordomag_lim:.1g}]'),
                            gray('relfreq:'), fltlst2str(relfreq_ctrl) +
                            fltlst2str(relfreq_smpl),
                            gray('crossover:'), blst2str(crossover), '\n')
@@ -278,7 +276,9 @@ def process_rank(*args,
                     continue
                 # Other contamination: remove from all samples
                 vwrite(gray('other cont:\t'), tid, taxonomy.get_name(tid),
-                       green(f'lims: [{outlier_lim:.1g}][{ordomag_lim:.1g}]'),
+                       green(f'lims: [{outlier_lim:.1g}]' + (
+                                '<' if outlier_lim < ordomag_lim else '>') +
+                             f'[{ordomag_lim:.1g}]'),
                        gray('relfreq:'), fltlst2str(relfreq_ctrl) +
                            fltlst2str(relfreq_smpl), '\n')
                 for exclude_set in exclude_sets.values():

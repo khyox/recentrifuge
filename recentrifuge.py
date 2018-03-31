@@ -36,9 +36,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.18.4'
+__version__ = '0.18.5'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Mar 2018'
+__date__ = 'Apr 2018'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
