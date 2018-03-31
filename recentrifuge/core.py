@@ -9,8 +9,8 @@ import subprocess
 import sys
 from typing import List, Set, Counter, Tuple, Union, Dict
 
-from recentrifuge.config import ADVCTRL_MIN_SAMPLES
-from recentrifuge.config import ADVCTRL_XOVER_FACTOR, ADVCTRL_XOVER_SIGMA
+from recentrifuge.config import ROBUST_MIN_SAMPLES
+from recentrifuge.config import ROBUST_XOVER_ORD_MAG, ROBUST_XOVER_OUTLIER
 from recentrifuge.config import Filename, Sample, TaxId, Parents, Score, Scores
 from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT, EPS
 from recentrifuge.config import SEVR_CONTM_MIN_RELFREQ, MILD_CONTM_MIN_RELFREQ
@@ -182,12 +182,32 @@ def process_rank(*args,
         """Perform last steps of control and shared controls analysis"""
         nonlocal shared_ctrl_counts, shared_ctrl_score
 
-        def advanced_control_removal():
-            """Implement advanced control removal"""
+        def robust_contamination_removal():
+            """Implement robust contamination removal algorithm."""
             nonlocal exclude_sets
 
+            def compute_qn(data: List[float], dist: str = "Gauss") -> float:
+                """Compute Qn robust estimator of scale (Rousseeuw, 1993)"""
+                c_d: float  # Select d parameter depending on the distribution
+                if dist == "Gauss":
+                    c_d = 2.2219
+                elif dist == "Cauchy":  # Heavy-tailed distribution
+                    c_d = 1.2071
+                elif dist == "NegExp":  # Negative exponential (asymetric)
+                    c_d = 3.4760
+                else:
+                    raise Exception(red('\nERROR! ') + 'Unknown distribution')
+                num: int = len(data)
+                sort_data = sorted(data)
+                pairwisedifs: List[float] = []
+                for (i, x_val) in enumerate(sort_data):
+                    for y_val in sort_data[i + 1:]:
+                        pairwisedifs.append(abs(x_val - y_val))
+                k: int = int(num * (num / 2 + 1) / 4)
+                return c_d * sorted(pairwisedifs)[k - 1]
+
             exclude_sets = {smpl: set() for smpl in raws[controls:]}
-            vwrite(gray('Advanced negative ctrl removal: '
+            vwrite(gray('Robust contamination removal: '
                         'Searching for contaminants...\n'))
             for tid in exclude_candidates:
                 relfreq_ctrl: List[float] = [accs[ctrl][tid] / accs[ctrl][ROOT]
@@ -228,21 +248,22 @@ def process_rank(*args,
                     continue  # Go for next candidate
                 # Calculate median and MAD median but including controls
                 mdn: float = statistics.median(relfreq)
-                mad: float = statistics.mean([abs(mdn - rf) for rf in relfreq])
-                if mad < EPS:  # Warn in case there is zero variation
-                    vwrite(yellow('Warning! No MAD mean!'), tid,
+                # mad:float=statistics.mean([abs(mdn - rf) for rf in relfreq])
+                q_n: float = compute_qn(relfreq, dist="NegExp")
+                if q_n < EPS:  # Warn in case there is zero variation
+                    vwrite(yellow('Warning! Qn < eps for'), tid,
                            taxonomy.get_name(tid),
                            gray('relfreq:'), fltlst2str(relfreq_smpl), '\n')
                 # Calculate crossover in samples
-                stat_limit: float = mdn + ADVCTRL_XOVER_SIGMA * mad
-                relfreq_limit: float = max(relfreq_ctrl) * ADVCTRL_XOVER_FACTOR
-                crossover = [rf > stat_limit and rf > relfreq_limit
+                outlier_lim: float = mdn + ROBUST_XOVER_OUTLIER * q_n
+                ordomag_lim: float = max(relfreq_ctrl)*10**ROBUST_XOVER_ORD_MAG
+                crossover = [rf > outlier_lim and rf > ordomag_lim
                              for rf in relfreq[controls:]]
                 # Crossover contamination check
                 if any(crossover):
                     vwrite(magenta('crossover:\t'), tid,
                            taxonomy.get_name(tid), green(
-                            f'lims: [{stat_limit:.1g}][{relfreq_limit:.1g}]'),
+                            f'lims: [{outlier_lim:.1g}][{ordomag_lim:.1g}]'),
                            gray('relfreq:'), fltlst2str(relfreq_ctrl) +
                            fltlst2str(relfreq_smpl),
                            gray('crossover:'), blst2str(crossover), '\n')
@@ -257,7 +278,7 @@ def process_rank(*args,
                     continue
                 # Other contamination: remove from all samples
                 vwrite(gray('other cont:\t'), tid, taxonomy.get_name(tid),
-                       green(f'lims: [{stat_limit:.1g}][{relfreq_limit:.1g}]'),
+                       green(f'lims: [{outlier_lim:.1g}][{ordomag_lim:.1g}]'),
                        gray('relfreq:'), fltlst2str(relfreq_ctrl) +
                            fltlst2str(relfreq_smpl), '\n')
                 for exclude_set in exclude_sets.values():
@@ -268,8 +289,8 @@ def process_rank(*args,
         for i in range(controls):
             exclude_candidates.update(taxids[raws[i]][rank])
         exclude_sets: Dict[Sample, Set[TaxId]]
-        if controls and (len(raws) - controls >= ADVCTRL_MIN_SAMPLES):
-            advanced_control_removal()
+        if controls and (len(raws) - controls >= ROBUST_MIN_SAMPLES):
+            robust_contamination_removal()
         else:  # If this case, just apply strict control
             exclude_sets = {file: exclude_candidates
                             for file in raws[controls::]}

@@ -42,9 +42,9 @@ ROOT: TaxId = TaxId('1')
 CELLULAR_ORGANISMS: TaxId = TaxId('131567')
 NO_SCORE: Score = Score(None)  # Score given to taxa with no score
 EPS: float = 1e-14
-ADVCTRL_MIN_SAMPLES: int = 1  # Min num of non-ctrl samples to enable advCtrl
-ADVCTRL_XOVER_SIGMA = 5  # Like sigma parameter in advCtrl crossover test
-ADVCTRL_XOVER_FACTOR = 100  # Scale relation param in advCtrl crossover test
+ROBUST_MIN_SAMPLES: int = 1  # Min num of non-ctrl samples to enable advCtrl
+ROBUST_XOVER_OUTLIER = 3  # Cutoff for crossover outlier test, typ in [2, 3]
+ROBUST_XOVER_ORD_MAG = 3  # Relfreq order of magnitude dif in crossover test
 SEVR_CONTM_MIN_RELFREQ: float = 0.01  # Min rel frequency of severe contaminant
 MILD_CONTM_MIN_RELFREQ: float = 0.001  # Min rel frequency of mild contaminant
 
