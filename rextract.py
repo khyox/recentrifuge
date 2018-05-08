@@ -19,9 +19,9 @@ from recentrifuge.rank import Rank, Ranks, TaxLevels
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree
 
-__version__ = '0.3.0'
+__version__ = '0.4.0'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Feb 2018'
+__date__ = 'May 2018'
 
 MAX_LENGTH_TAXID_LIST = 32
 
@@ -220,9 +220,10 @@ def main():
         try:
             with open(fastq_1, 'rU') as file1, open(fastq_2, 'rU') as file2:
                 for i, (rec1, rec2) in enumerate(zip(SeqIO.parse(file1,
-                                                                 'fastq'),
+                                                                 'quickfastq'),
                                                      SeqIO.parse(file2,
-                                                                 'fastq'))):
+                                                                 'quickfastq'))
+                                                 ):
                     if not records_ids or (
                             args.maxreads and i >= args.maxreads) or (
                             args.limit and extracted >= args.limit):
@@ -250,7 +251,7 @@ def main():
         sys.stdout.flush()
         try:
             with open(fastq_1, 'rU') as file1:
-                for i, rec1 in enumerate(SeqIO.parse(file1, 'fastq')):
+                for i, rec1 in enumerate(SeqIO.parse(file1, 'quickfastq')):
                     if not records_ids or (
                             args.maxreads and i >= args.maxreads) or (
                             args.limit and extracted >= args.limit):
@@ -292,11 +293,11 @@ def main():
         return Filename(''.join(output_list))
 
     filename1: Filename = format_filename(fastq_1)
-    SeqIO.write(seqs1, filename1, 'fastq')
+    SeqIO.write(seqs1, filename1, 'quickfastq')
     print(gray('Wrote'), magenta(f'{len(seqs1)}'), gray('reads in'), filename1)
     if fastq_2:
         filename2: Filename = format_filename(fastq_2)
-        SeqIO.write(seqs2, filename2, 'fastq')
+        SeqIO.write(seqs2, filename2, 'quickfastq')
         print(gray('Wrote'), magenta(f'{len(seqs1)}'), gray('reads in'),
               filename2)
 
