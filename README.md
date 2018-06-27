@@ -27,6 +27,8 @@ Recentrifuge enables researchers to analyze results from [Centrifuge](http://www
 
 The arithmetic of scored taxonomic trees of Recentrifuge supports the 48 taxonomic ranks of the [NCBI Taxonomy](https://www.ncbi.nlm.nih.gov/taxonomy), including several infraspecific levels such as strain or isolate. In addition to the scored charts for the original samples, different sets of scored plots are generated for each taxonomic level of interest, like shared taxa and exclusive taxa per sample.
 
+While Recentrifuge works at taxonomic level, **Regentrifuge** is the equivalent tool for functional metagenomics. It supports GO (Gene Ontology).
+
 ### Robust contamination removal
 
 If there are one or more negative control samples in the study, Recentrifuge will also generate additional control-subtracted interactive plots with the contamination removed from every sample and from the shared taxa specimen. 
