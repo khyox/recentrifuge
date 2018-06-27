@@ -12,16 +12,16 @@ from typing import List, Set
 
 from Bio import SeqIO, SeqRecord
 
-from recentrifuge.config import Filename, TaxId, Score
+from recentrifuge.config import Filename, Id, Score
 from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
 from recentrifuge.config import gray, red, green, cyan, magenta
 from recentrifuge.rank import Rank, Ranks, TaxLevels
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree
 
-__version__ = '0.4.0'
+__version__ = '0.4.1'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'May 2018'
+__date__ = 'June 2018'
 
 MAX_LENGTH_TAXID_LIST = 32
 
@@ -75,7 +75,7 @@ def main():
         '-i', '--include',
         action='append',
         metavar='TAXID',
-        type=TaxId,
+        type=Id,
         default=[],
         help=('NCBI taxid code to include a taxon and all underneath ' +
               '(multiple -i is available to include several taxid). ' +
@@ -85,7 +85,7 @@ def main():
         '-x', '--exclude',
         action='append',
         metavar='TAXID',
-        type=TaxId,
+        type=Id,
         default=[],
         help=('NCBI taxid code to exclude a taxon and all underneath ' +
               '(multiple -x is available to exclude several taxid)')
@@ -135,8 +135,8 @@ def main():
     output_file = args.file
     nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
-    excluding: Set[TaxId] = set(args.exclude)
-    including: Set[TaxId] = set(args.include)
+    excluding: Set[Id] = set(args.exclude)
+    including: Set[Id] = set(args.include)
     fastq_1: Filename
     fastq_2: Filename = args.mate2
     if not fastq_2:
@@ -153,7 +153,7 @@ def main():
     print(gray('Building taxonomy tree...'), end='')
     sys.stdout.flush()
     tree = TaxTree()
-    tree.grow(taxonomy=ncbi, look_ancestors=False)
+    tree.grow(ontology=ncbi, look_ancestors=False)
     print(green(' OK!'))
 
     # Get the taxa
@@ -164,7 +164,7 @@ def main():
                   include=including,
                   exclude=excluding)
     print(green(' OK!'))
-    taxids: Set[TaxId] = set(ranks)
+    taxids: Set[Id] = set(ranks)
     taxlevels: TaxLevels = Rank.ranks_to_taxlevels(ranks)
     num_taxlevels = Counter({rank: len(taxlevels[rank]) for rank in taxlevels})
     num_taxlevels = +num_taxlevels
@@ -187,7 +187,7 @@ def main():
         with open(output_file, 'rU') as file:
             file.readline()  # discard header
             for num_seqs, record in enumerate(SeqIO.parse(file, 'centrifuge')):
-                tid: TaxId = record.annotations['taxID']
+                tid: Id = record.annotations['taxID']
                 if tid not in taxids:
                     continue  # Ignore read if low confidence
                 score: Score = Score(record.annotations['score'])

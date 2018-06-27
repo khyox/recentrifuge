@@ -6,13 +6,13 @@ Rank class for representing taxonomic levels or ranks.
 from enum import Enum
 from typing import List, Iterator, NewType, Dict, Set
 
-from recentrifuge.config import TaxId
+from recentrifuge.config import Id
 
 # Type annotations
 # pylint: disable=invalid-name
 # Ranks and Levels are devised to be one the inverse of the other
-Ranks = NewType('Ranks', Dict[TaxId, 'Rank'])  # Rank of each TaxId
-TaxLevels = NewType('TaxLevels', Dict['Rank', Set[TaxId]])  # TaxIds for rank
+Ranks = NewType('Ranks', Dict[Id, 'Rank'])  # Rank of each Id
+TaxLevels = NewType('TaxLevels', Dict['Rank', Set[Id]])  # TaxIds for rank
 # pylint: enable=invalid-name
 
 
@@ -83,6 +83,16 @@ class Rank(Enum):
     SUBSPECIES = ()
     VARIETAS = ()
     FORMA = ()
+    GO0 = ()
+    GO1 = ()
+    GO2 = ()
+    GO3 = ()
+    GO4 = ()
+    GO5 = ()
+    GO6 = ()
+    GO7 = ()
+    GO8 = ()
+    GO9 = ()
     UNCLASSIFIED = 0
     U = 'UNCLASSIFIED'
     NO_RANK = -1
@@ -94,8 +104,14 @@ class Rank(Enum):
         _selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O,
                                              cls.C, cls.P, cls.K, cls.D]
 #        _selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O]
-
         return _selected_taxlevels
+
+    @classproperty
+    def genomic_ranks(cls):  # pylint: disable=no-self-argument
+        """GO ranks selected for deep analysis and comparisons"""
+        _selected_golevels: List['Rank'] = [cls.GO8, cls.GO7, cls.GO6, cls.GO5,
+                                            cls.GO4, cls.GO3, cls.GO2, cls.GO1]
+        return _selected_golevels
 
     @classmethod
     def centrifuge(cls, tax_level: str) -> 'Rank':

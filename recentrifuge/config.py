@@ -4,7 +4,7 @@ This module provides constants and other package-wide stuff.
 """
 from enum import Enum
 from statistics import mean
-from typing import Dict, List, Counter, NewType, Union, NamedTuple
+from typing import Dict, List, Counter, NewType, Union, NamedTuple, TypeVar
 
 from recentrifuge.shared_counter import SharedCounter
 
@@ -12,18 +12,19 @@ from recentrifuge.shared_counter import SharedCounter
 # pylint: disable=invalid-name
 Filename = NewType('Filename', str)
 Sample = NewType('Sample', str)
-TaxId = NewType('TaxId', str)
-Children = NewType('Children', Dict[TaxId, Dict[TaxId, int]])
-Names = NewType('Names', Dict[TaxId, str])
-Parents = NewType('Parents', Dict[TaxId, TaxId])
+Id = str
+Children = NewType('Children', Dict[Id, Dict[Id, int]])
+Names = NewType('Names', Dict[Id, str])
+Parents = NewType('Parents', Dict[Id, Id])
 Score = NewType('Score', float)
-Scores = NewType('Scores', Dict[TaxId, Score])
-UnionCounter = Union[Counter[TaxId], SharedCounter]
+Scores = NewType('Scores', Dict[Id, Score])
+UnionCounter = Union[Counter[Id], SharedCounter]
 UnionScores = Union[Scores, SharedCounter]
 # pylint: enable=invalid-name
 
 # Predefined internal constants
 PATH: Filename = Filename('.')
+GODUMP_PATH: Filename = Filename('./godump')
 TAXDUMP_PATH: Filename = Filename('./taxdump')
 NODES_FILE: Filename = Filename('nodes.dmp')
 NAMES_FILE: Filename = Filename('names.dmp')
@@ -37,9 +38,10 @@ STR_SHARED: str = 'SHARED'
 STR_CONTROL_SHARED: str = 'CONTROL_SHARED'
 STR_SUMMARY: str = 'SUMMARY'
 DEFMINTAXA: int = 10  # min taxa to avoid collapsing one level into the parent
-UNCLASSIFIED: TaxId = TaxId('0')
-ROOT: TaxId = TaxId('1')
-CELLULAR_ORGANISMS: TaxId = TaxId('131567')
+DEFMINGENE: int = 2  # min genes to avoid collapsing GO genes hierarchy levels
+UNCLASSIFIED: Id = Id('0')
+ROOT: Id = Id('1')
+CELLULAR_ORGANISMS: Id = Id('131567')
 NO_SCORE: Score = Score(None)  # Score given to taxa with no score
 EPS: float = 1e-14
 ROBUST_MIN_SAMPLES: int = 1  # Min num of non-ctrl samples to enable advCtrl
@@ -47,6 +49,16 @@ ROBUST_XOVER_OUTLIER = 5  # Cutoff for crossover outlier test, typ in [2, 3]
 ROBUST_XOVER_ORD_MAG = 3  # Relfreq order of magnitude dif in crossover test
 SEVR_CONTM_MIN_RELFREQ: float = 0.01  # Min rel frequency of severe contaminant
 MILD_CONTM_MIN_RELFREQ: float = 0.001  # Min rel frequency of mild contaminant
+GO_ROOT: Id = Id('GO:ROOT')
+
+
+class Chart(Enum):
+    """Enumeration with Krona chart options."""
+    TAXOMIC = 0  # Recentrifuge plot
+    GENOMIC = 1  # Regentrifuge plot
+
+    def __str__(self):
+        return f'{str(self.name)}'
 
 
 class Scoring(Enum):
@@ -134,8 +146,8 @@ class SampleStats(object):
                  minscore: Score = None, nt_read: int = 0,
                  seq_read: int = 0, seq_filt: int = 0,
                  seq_clas: int = None, seq_unclas: int = None,
-                 scores: Dict[TaxId, List[Score]] = None,
-                 lens: Dict[TaxId, List[int]] = None) -> None:
+                 scores: Dict[Id, List[Score]] = None,
+                 lens: Dict[Id, List[int]] = None) -> None:
         """Initialize some data and setup data structures"""
         self.is_ctrl: bool = is_ctrl
         self.minscore: Score = minscore

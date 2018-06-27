@@ -11,7 +11,7 @@ from typing import List, Set, Counter, Tuple, Union, Dict
 
 from recentrifuge.config import ROBUST_MIN_SAMPLES
 from recentrifuge.config import ROBUST_XOVER_ORD_MAG, ROBUST_XOVER_OUTLIER
-from recentrifuge.config import Filename, Sample, TaxId, Parents, Score, Scores
+from recentrifuge.config import Filename, Sample, Id, Parents, Score, Scores
 from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT, EPS
 from recentrifuge.config import SEVR_CONTM_MIN_RELFREQ, MILD_CONTM_MIN_RELFREQ
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
@@ -20,15 +20,15 @@ from recentrifuge.config import UnionCounter, UnionScores
 from recentrifuge.config import gray, red, yellow, blue, magenta, cyan, green
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
-from recentrifuge.taxonomy import Taxonomy
-from recentrifuge.trees import TaxTree, SampleDataByTaxId
+from recentrifuge.ontology import Ontology
+from recentrifuge.trees import TaxTree, SampleDataById
 
 
 def process_rank(*args,
                  **kwargs
                  ) -> Tuple[List[Sample],
                             Dict[Sample, UnionCounter],
-                            Dict[Sample, Counter[TaxId]],
+                            Dict[Sample, Counter[Id]],
                             Dict[Sample, UnionScores]]:
     """
     Process results for a taxlevel (to be usually called in parallel!).
@@ -38,12 +38,12 @@ def process_rank(*args,
     rank: Rank = args[0]
     controls: int = kwargs['controls']
     mintaxa = kwargs['mintaxa']
-    taxonomy: Taxonomy = kwargs['taxonomy']
-    including = taxonomy.including
-    excluding = taxonomy.excluding
+    ontology: Ontology = kwargs['ontology']
+    including = ontology.including
+    excluding = ontology.excluding
     taxids: Dict[Sample, TaxLevels] = kwargs['taxids']
     counts: Dict[Sample, UnionCounter] = kwargs['counts']
-    accs: Dict[Sample, Counter[TaxId]] = kwargs['accs']
+    accs: Dict[Sample, Counter[Id]] = kwargs['accs']
     scores: Dict[Sample, UnionScores] = kwargs['scores']
     raws: List[Sample] = kwargs['raw_samples']
     output: io.StringIO = io.StringIO(newline='')
@@ -103,7 +103,7 @@ def process_rank(*args,
                 shared_counts &= sub_shared_counts
                 shared_score &= sub_shared_score
 
-        exclude: Set[TaxId] = set()
+        exclude: Set[Id] = set()
         # Get taxids at this rank that are present in the other samples
         for sample in (smpl for smpl in raws if smpl != raw):
             exclude.update(taxids[sample][rank])
@@ -113,8 +113,8 @@ def process_rank(*args,
                      f'Generating sample...\033[0m')
 
         exclude_tree = TaxTree()
-        exclude_out = SampleDataByTaxId(['counts', 'scores', 'accs'])
-        exclude_tree.allin1(taxonomy=taxonomy,
+        exclude_out = SampleDataById(['counts', 'scores', 'accs'])
+        exclude_tree.allin1(ontology=ontology,
                             counts=counts[raw],
                             scores=scores[raw],
                             min_taxa=mintaxa,
@@ -136,8 +136,8 @@ def process_rank(*args,
 
         # Get partial abundance and score for the shared analysis
         sub_shared_tree = TaxTree()
-        sub_shared_out = SampleDataByTaxId(['shared', 'accs'])
-        sub_shared_tree.allin1(taxonomy=taxonomy,
+        sub_shared_out = SampleDataById(['shared', 'accs'])
+        sub_shared_tree.allin1(ontology=ontology,
                                counts=counts[raw],
                                scores=scores[raw],
                                min_taxa=mintaxa,
@@ -156,8 +156,8 @@ def process_rank(*args,
     def shared_analysis():
         """Perform last steps of shared taxa analysis"""
         shared_tree: TaxTree = TaxTree()
-        shared_out: SampleDataByTaxId = SampleDataByTaxId(['shared', 'accs'])
-        shared_tree.allin1(taxonomy=taxonomy,
+        shared_out: SampleDataById = SampleDataById(['shared', 'accs'])
+        shared_tree.allin1(ontology=ontology,
                            counts=shared_counts,
                            scores=shared_score,
                            min_taxa=mintaxa,
@@ -218,13 +218,13 @@ def process_rank(*args,
                 crossover: List[bool] = None  # Crossover source (yes/no)
                 # Just-controls contamination check
                 if all([rf < EPS for rf in relfreq_smpl]):
-                    vwrite(cyan('just-ctrl:\t'), tid, taxonomy.get_name(tid),
+                    vwrite(cyan('just-ctrl:\t'), tid, ontology.get_name(tid),
                            gray('relfreq:'), fltlst2str(relfreq_ctrl) +
                            fltlst2str(relfreq_smpl), '\n')
                     continue  # Go for next candidate
                 # Critical contamination check
                 if all([rf > SEVR_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
-                    vwrite(red('critical:\t'), tid, taxonomy.get_name(tid),
+                    vwrite(red('critical:\t'), tid, ontology.get_name(tid),
                            gray('relfreq:'), fltlst2str(relfreq_ctrl) +
                            fltlst2str(relfreq_smpl), '\n')
                     for exclude_set in exclude_sets.values():
@@ -232,7 +232,7 @@ def process_rank(*args,
                     continue  # Go for next candidate
                 # Severe contamination check
                 if any([rf > SEVR_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
-                    vwrite(yellow('severe: \t'), tid, taxonomy.get_name(tid),
+                    vwrite(yellow('severe: \t'), tid, ontology.get_name(tid),
                            gray('relfreq:'), fltlst2str(relfreq_ctrl) +
                            fltlst2str(relfreq_smpl), '\n')
                     for exclude_set in exclude_sets.values():
@@ -240,7 +240,7 @@ def process_rank(*args,
                     continue  # Go for next candidate
                 # Mild contamination check
                 if all([rf > MILD_CONTM_MIN_RELFREQ for rf in relfreq_ctrl]):
-                    vwrite(blue('mild cont:\t'), tid, taxonomy.get_name(tid),
+                    vwrite(blue('mild cont:\t'), tid, ontology.get_name(tid),
                            gray('relfreq:'), fltlst2str(relfreq_ctrl) +
                            fltlst2str(relfreq_smpl), '\n')
                     for exclude_set in exclude_sets.values():
@@ -258,7 +258,7 @@ def process_rank(*args,
                 # Crossover contamination check
                 if any(crossover):
                     vwrite(magenta('crossover:\t'), tid,
-                           taxonomy.get_name(tid), green(
+                           ontology.get_name(tid), green(
                             f'lims: [{outlier_lim:.1g}]' + (
                                 '<' if outlier_lim < ordomag_lim else '>') +
                             f'[{ordomag_lim:.1g}]'),
@@ -275,7 +275,7 @@ def process_rank(*args,
                     vwrite('\n')
                     continue
                 # Other contamination: remove from all samples
-                vwrite(gray('other cont:\t'), tid, taxonomy.get_name(tid),
+                vwrite(gray('other cont:\t'), tid, ontology.get_name(tid),
                        green(f'lims: [{outlier_lim:.1g}]' + (
                                 '<' if outlier_lim < ordomag_lim else '>') +
                              f'[{ordomag_lim:.1g}]'),
@@ -288,7 +288,7 @@ def process_rank(*args,
         exclude_candidates = set()
         for i in range(controls):
             exclude_candidates.update(taxids[raws[i]][rank])
-        exclude_sets: Dict[Sample, Set[TaxId]]
+        exclude_sets: Dict[Sample, Set[Id]]
         if controls and (len(raws) - controls >= ROBUST_MIN_SAMPLES):
             robust_contamination_removal()
         else:  # If this case, just apply strict control
@@ -304,8 +304,8 @@ def process_rank(*args,
                          gray(f'excluding {len(exclude_sets[raw])} ctrl taxa. '
                               f'Generating sample... '))
             ctrl_tree = TaxTree()
-            ctrl_out = SampleDataByTaxId(['counts', 'scores', 'accs'])
-            ctrl_tree.allin1(taxonomy=taxonomy,
+            ctrl_out = SampleDataById(['counts', 'scores', 'accs'])
+            ctrl_tree.allin1(ontology=ontology,
                              counts=counts[raw],
                              scores=scores[raw],
                              min_taxa=mintaxa,
@@ -328,9 +328,9 @@ def process_rank(*args,
         def shared_ctrl_analysis():
             """Perform last steps of shared taxa analysis"""
             shared_ctrl_tree: TaxTree = TaxTree()
-            shared_ctrl_out: SampleDataByTaxId = SampleDataByTaxId(
+            shared_ctrl_out: SampleDataById = SampleDataById(
                 ['shared', 'accs'])
-            shared_ctrl_tree.allin1(taxonomy=taxonomy,
+            shared_ctrl_tree.allin1(ontology=ontology,
                                     counts=shared_ctrl_counts,
                                     scores=shared_ctrl_score,
                                     min_taxa=mintaxa,
@@ -391,25 +391,25 @@ def process_rank(*args,
 def summarize_analysis(*args,
                        **kwargs
                        ) -> Tuple[Sample,
-                                  Counter[TaxId],
-                                  Counter[TaxId],
+                                  Counter[Id],
+                                  Counter[Id],
                                   Scores]:
     """
     Summarize for a cross-analysis (to be usually called in parallel!).
     """
     # Recover input and parameters
     analysis: str = args[0]
-    taxonomy: Taxonomy = kwargs['taxonomy']
-    including = taxonomy.including
-    excluding = taxonomy.excluding
-    counts: Dict[Sample, Counter[TaxId]] = kwargs['counts']
-    scores: Dict[Sample, Dict[TaxId, Score]] = kwargs['scores']
+    ontology: Ontology = kwargs['ontology']
+    including = ontology.including
+    excluding = ontology.excluding
+    counts: Dict[Sample, Counter[Id]] = kwargs['counts']
+    scores: Dict[Sample, Dict[Id, Score]] = kwargs['scores']
     samples: List[Sample] = kwargs['samples']
     output: io.StringIO = io.StringIO(newline='')
 
     # Declare/define variables
-    summary_counts: Counter[TaxId] = Counter()
-    summary_acc: Counter[TaxId] = Counter()
+    summary_counts: Counter[Id] = Counter()
+    summary_acc: Counter[Id] = Counter()
     summary_score: Scores = Scores({})
     summary: Sample = None
 
@@ -424,14 +424,14 @@ def summarize_analysis(*args,
         summary_score.update(scores[smpl])
 
     tree = TaxTree()
-    tree.grow(taxonomy=taxonomy,
+    tree.grow(ontology=ontology,
               counts=summary_counts,
               scores=summary_score)
     tree.subtract()
     tree.shape()
     summary_counts.clear()
     summary_score.clear()
-    tree.get_taxa(abundance=summary_counts,
+    tree.get_taxa(counts=summary_counts,
                   accs=summary_acc,
                   scores=summary_score,
                   include=including,
@@ -449,19 +449,20 @@ def summarize_analysis(*args,
     return summary, summary_counts, summary_acc, summary_score
 
 
-def write_lineage(parents: Parents,
-                  names: Dict[TaxId, str],
+def write_lineage(ontology: Ontology,
+                  parents: Parents,
+                  names: Dict[Id, str],
                   tree: TaxTree,
                   lineage_file: str,
-                  nodes: Counter[TaxId],
+                  nodes: Counter[Id],
                   collapse: bool = True,
                   ) -> str:
     """
     Writes a lineage file understandable by Krona.
 
     Args:
-        parents: dictionary of parents for every TaxId.
-        names: dictionary of names for every TaxId.
+        parents: dictionary of parents for every Id.
+        names: dictionary of names for every Id.
         tree: a TaxTree structure.
         lineage_file: name of the lineage file
         nodes: a counter for TaxIds
@@ -471,7 +472,7 @@ def write_lineage(parents: Parents,
     Returns: A string with the output messages
 
     """
-    log, taxids_dic = tree.get_lineage(parents, iter(nodes))
+    log, taxids_dic = tree.get_lineage(ontology, parents, iter(nodes))
     output: io.StringIO = io.StringIO(newline='')
     output.write(log)
     if collapse:  # Collapse taxid 131567 (cellular organisms) if desired
@@ -490,7 +491,7 @@ def write_lineage(parents: Parents,
         tsvwriter.writerow(["#taxID", "Lineage"])
         for tid in nodes:
             counts: str = str(nodes[tid])  # nodes[tid] is a int
-            row: List[Union[TaxId, str]] = [counts, ]
+            row: List[Union[Id, str]] = [counts, ]
             row.extend(lineage_dic[tid])
             tsvwriter.writerow(row)
     output.write('\033[92m OK! \033[0m\n')

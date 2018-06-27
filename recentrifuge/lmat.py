@@ -12,7 +12,7 @@ from typing import Tuple, Counter, Dict, List
 
 from Bio import SeqIO
 
-from recentrifuge.config import TaxId, Score, Scoring, Filename, SampleStats
+from recentrifuge.config import Id, Score, Scoring, Filename, SampleStats
 from recentrifuge.config import TAXDUMP_PATH, gray, red, green
 
 
@@ -73,7 +73,7 @@ def read_lmat_output(output_file: Filename,
                      scoring: Scoring = Scoring.LMAT,
                      minscore: Score = None,
                      ) -> Tuple[str, SampleStats,
-                                Counter[TaxId], Dict[TaxId, Score]]:
+                                Counter[Id], Dict[Id, Score]]:
     """
     Read LMAT output (iterate over all the output files)
 
@@ -87,8 +87,8 @@ def read_lmat_output(output_file: Filename,
 
     """
     output: io.StringIO = io.StringIO(newline='')
-    all_scores: Dict[TaxId, List[Score]] = {}
-    all_length: Dict[TaxId, List[int]] = {}
+    all_scores: Dict[Id, List[Score]] = {}
+    all_length: Dict[Id, List[int]] = {}
     nt_read: int = 0
     matchings: Counter[Match] = Counter()
     output_files: List[Filename] = []
@@ -116,7 +116,7 @@ def read_lmat_output(output_file: Filename,
         try:
             with open(path, 'r') as io_file:
                 for seq in SeqIO.parse(io_file, "lmat"):
-                    tid: TaxId = seq.annotations['final_taxid']
+                    tid: Id = seq.annotations['final_taxid']
                     score: Score = seq.annotations['final_score']
                     match: Match = Match.lmat(seq.annotations['final_match'])
                     matchings[match] += 1
@@ -137,8 +137,8 @@ def read_lmat_output(output_file: Filename,
         except FileNotFoundError:
             raise Exception(red('\nERROR!') + f'Cannot read "{path}"')
         output.write(green('OK!\n'))
-    abundances: Counter[TaxId] = Counter({tid: len(all_scores[tid])
-                                          for tid in all_scores})
+    abundances: Counter[Id] = Counter({tid: len(all_scores[tid])
+                                       for tid in all_scores})
     # Basic output statistics
     read_seqs: int = sum(matchings.values())
     if read_seqs == 0:
@@ -177,7 +177,7 @@ def read_lmat_output(output_file: Filename,
                  gray(' avr = ') + f'{stat.len.mean}\n')
     output.write(f'  {stat.num_taxa}' + gray(f' taxa with assigned reads\n'))
     # Select score output
-    out_scores: Dict[TaxId, Score]
+    out_scores: Dict[Id, Score]
     if scoring is Scoring.LMAT:
         out_scores = {tid: Score(mean(all_scores[tid])) for tid in all_scores}
     else:

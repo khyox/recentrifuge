@@ -7,14 +7,13 @@ import csv
 import html
 import os
 import subprocess
-from typing import List, Dict, NewType, Any, Optional
 import xml.etree.ElementTree as ETree
+from typing import List, Dict, NewType, Any, Optional
 from xml.dom import minidom
 
+from recentrifuge.config import Filename, Sample, Scoring, SampleStats, Chart
 from recentrifuge.config import JSLIB, HTML_SUFFIX
-from recentrifuge.config import Filename, Sample, Scoring, SampleStats
-
-# from recentrifuge.config import HTML_SUFFIX
+from recentrifuge.config import yellow, red
 
 # Type annotations
 # pylint: disable=invalid-name
@@ -28,6 +27,10 @@ UNASSIGNED = Attrib('unassigned')
 TID = Attrib('tid')
 RANK = Attrib('rank')
 SCORE = Attrib('score')
+HREFBASE_TAX = 'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id='
+HREFBASE_GEN = 'http://amigo.geneontology.org/amigo/term/'
+LOGO_RCF = '/img/logo-rcf-mini.uri'
+LOGO_RGF = '/img/logo-rgf-mini.uri'
 
 # Define encoding dialect for TSV files expected by Krona
 csv.register_dialect('krona', 'unix', delimiter='\t', quoting=csv.QUOTE_NONE)
@@ -118,6 +121,7 @@ class KronaTree(ETree.ElementTree):
                  min_score: float = 0.0,
                  max_score: float = 1.0,
                  scoring: Scoring = Scoring.SHEL,
+                 chart: Chart = Chart.TAXOMIC,
                  ) -> None:
         """
         Args:
@@ -125,6 +129,7 @@ class KronaTree(ETree.ElementTree):
             num_raw_samples: Number of raw samples (not from cross-analysis)
             min_score: minimum expected score
             max_score: maximum expected score
+            chart: Type of chart (taxonomic, genomic...)
         """
         # Type declaration
         self.krona: Elm
@@ -133,46 +138,65 @@ class KronaTree(ETree.ElementTree):
         self.samples: List[Sample]
         self.datasets: Elm
 
+        self.chart: Chart = chart
+
         # Dummy dict if stats not provided
         if stats is None:
             stats = {}
 
+        # Select for taxonomic or genomic chart
+        iden: str
+        hrefbase: str
+        display: str
+        if self.chart == Chart.TAXOMIC:
+            iden = 'TaxID'
+            hrefbase = HREFBASE_TAX
+            if scoring is Scoring.SHEL:
+                display = 'Confidence (avg)'
+            elif scoring is Scoring.LENGTH:
+                display = 'Read length (avg)'
+            elif scoring is Scoring.LOGLENGTH:
+                display = 'Read length (avg, log10)'
+            elif scoring is Scoring.NORMA:
+                display = 'Confidence/Length (%)'
+            elif scoring is Scoring.LMAT:
+                display = 'LMAT score (avg)'
+            else:
+                raise Exception(
+                    f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
+        elif self.chart == Chart.GENOMIC:
+            iden = 'GenID'
+            hrefbase = HREFBASE_GEN
+            display = 'Score from Eval'
+        else:
+            raise Exception(f'ERROR! Unknown Chart "{self.chart}"')
+
         # Set root of KronaTree
         self.krona = ETree.Element('krona',  # type: ignore
-                                   attrib={'collapse': 'true', 'key': 'true'})
+                                   attrib={'collapse': 'true',
+                                           'key': 'true',
+                                           'chart': str(chart)})
 
         # Set attributes
         self.attributes = ETree.SubElement(self.krona, 'attributes',
                                            {'magnitude': 'count'})
+        # # Set Count attribute
         self.sub(self.attributes, 'attribute',
                  {'display': 'Count', 'dataAll': 'members'},
                  'count')
+        # # Set Unassigned attribute
         self.sub(self.attributes, 'attribute',
                  {'display': 'Unassigned', 'dataNode': 'members'},
                  'unassigned')
+        # # Set Id attribute
         self.sub(self.attributes, 'attribute',
-                 {'display': 'TaxID', 'mono': 'true',
-                  'hrefBase':
-                      'https://www.ncbi.nlm.nih.gov/Taxonomy/'
-                      'Browser/wwwtax.cgi?mode=Info&id='},
+                 {'display': iden, 'mono': 'true', 'hrefBase': hrefbase},
                  'tid')
+        # # Set Rank attribute
         self.sub(self.attributes, 'attribute',
                  {'display': 'Rank', 'mono': 'true'},
                  'rank')
-        display: str
-        if scoring is Scoring.SHEL:
-            display = 'Confidence (avg)'
-        elif scoring is Scoring.LENGTH:
-            display = 'Read length (avg)'
-        elif scoring is Scoring.LOGLENGTH:
-            display = 'Read length (avg, log10)'
-        elif scoring is Scoring.NORMA:
-            display = 'Confidence/Length (%)'
-        elif scoring is Scoring.LMAT:
-            display = 'LMAT score (avg)'
-        else:
-            raise Exception(
-                f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
+        # # Set confidence/score attribute
         self.sub(self.attributes, 'attribute',
                  {'display': display},
                  'score')
@@ -244,12 +268,19 @@ class KronaTree(ETree.ElementTree):
             pretty: this parameter controls the layout of the XML code
                 so that it is human readable for True (use for debug
                 only because it uses a lot more of space and also has
-                empty tags which are currently not supported by Krona)
+                empty tags which are currently NOT SUPPORTED BY KRONA)
                 and machine readable for False (default, saves space).
 
         Returns: None
 
         """
+
+        # Warn about use of pretty option
+        if pretty:
+            print(yellow(f'\nWARNING! Pretty XML uses empty tags which are'
+                         f' UNSUPPORTED by Krona-JS!'))
+            print(yellow(f'WARNING! Prepare for unexpected HTML results!'))
+
         # Read aux files
         path = os.path.dirname(os.path.realpath(__file__))
         with open(path + '/img/hidden.uri', 'r') as file:
@@ -258,7 +289,15 @@ class KronaTree(ETree.ElementTree):
             loading_image = file.read()
         with open(path + '/img/favicon.uri', 'r') as file:
             favicon = file.read()
-        with open(path + '/img/logo-mini.uri', 'r') as file:
+        path_logo: str
+        if self.chart == Chart.TAXOMIC:
+            path_logo = path + LOGO_RCF
+        elif self.chart == Chart.GENOMIC:
+            path_logo = path + LOGO_RGF
+        else:
+            raise Exception(f'ERROR! Unknown Chart "{self.chart}"')
+
+        with open(path_logo, 'r') as file:
             logo = file.read()
         with open(f'{path}/{JSLIB}', 'r') as file:
             script = file.read()

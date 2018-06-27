@@ -14,7 +14,7 @@ from typing import Counter, List, Dict, Set, Callable, Tuple
 
 from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.centrifuge import select_centrifuge_inputs
-from recentrifuge.config import Filename, Sample, TaxId, Score, Scoring, Excel
+from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Excel
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
@@ -26,7 +26,7 @@ from recentrifuge.krona import KronaTree
 from recentrifuge.lmat import select_lmat_inputs
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.taxonomy import Taxonomy
-from recentrifuge.trees import TaxTree, MultiTree, SampleDataByTaxId
+from recentrifuge.trees import TaxTree, MultiTree, SampleDataById
 
 # optional package pandas (to generate Excel output)
 _USE_PANDAS = True
@@ -36,9 +36,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.18.6'
+__version__ = '0.19.0'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'May 2018'
+__date__ = 'June 2018'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -59,8 +59,8 @@ def _debug_dummy_plot(taxonomy: Taxonomy,
                                  scoring=scoring,
                                  )
     polytree: MultiTree = MultiTree(samples=samples)
-    polytree.grow(taxonomy=taxonomy)
-    polytree.toxml(taxonomy=taxonomy, krona=krona)
+    polytree.grow(ontology=taxonomy)
+    polytree.toxml(ontology=taxonomy, krona=krona)
     krona.tohtml(htmlfile, pretty=True)
     print(green('OK!'))
 
@@ -175,7 +175,7 @@ def main():
             '-i', '--include',
             action='append',
             metavar='TAXID',
-            type=TaxId,
+            type=Id,
             default=[],
             help=('NCBI taxid code to include a taxon and all underneath '
                   '(multiple -i is available to include several taxid); '
@@ -230,7 +230,7 @@ def main():
             '-x', '--exclude',
             action='append',
             metavar='TAXID',
-            type=TaxId,
+            type=Id,
             default=[],
             help=('NCBI taxid code to exclude a taxon and all underneath '
                   '(multiple -x is available to exclude several taxid)')
@@ -455,7 +455,7 @@ def main():
                                               if len(scores[sample])])),
                                      scoring=scoring,
                                      )
-        polytree.grow(taxonomy=ncbi,
+        polytree.grow(ontology=ncbi,
                       abundances=counts,
                       accs=accs,
                       scores=scores)
@@ -463,7 +463,7 @@ def main():
         print(gray('Generating final plot (') + magenta(htmlfile) +
               gray(')... '), end='')
         sys.stdout.flush()
-        polytree.toxml(taxonomy=ncbi, krona=krona)
+        polytree.toxml(ontology=ncbi, krona=krona)
         krona.tohtml(htmlfile, pretty=False)
         print(green('OK!'))
 
@@ -484,7 +484,7 @@ def main():
 
         # Save taxid related statistics per sample
         if excel is Excel.FULL:
-            polytree.to_items(taxonomy=ncbi, items=list_rows)
+            polytree.to_items(ontology=ncbi, items=list_rows)
             # Generate the pandas DataFrame from items and export to Excel
             iterable_1 = [samples, [COUNT, UNASSIGNED, SCORE]]
             cols1 = pd.MultiIndex.from_product(iterable_1,
@@ -495,7 +495,7 @@ def main():
             data_frame = pd.DataFrame.from_items(list_rows,
                                                  orient='index',
                                                  columns=cols)
-            data_frame.index.names = ['TaxId']
+            data_frame.index.names = ['Id']
             data_frame.to_excel(xlsxwriter, sheet_name=str(excel))
         elif excel is Excel.CMPLXCRUNCHER:
             target_ranks: List = [Rank.NO_RANK]
@@ -517,12 +517,12 @@ def main():
                     sheet_name = f'raw_samples_{rank.name.lower()}'
                     columns = [samples[i].split('_')[0] for i in indexes]
                 list_rows = []
-                polytree.to_items(taxonomy=ncbi, items=list_rows,
+                polytree.to_items(ontology=ncbi, items=list_rows,
                                   sample_indexes=indexes)
                 data_frame = pd.DataFrame.from_items(list_rows,
                                                      orient='index',
                                                      columns=columns)
-                data_frame.index.names = ['TaxId']
+                data_frame.index.names = ['Id']
                 data_frame.to_excel(xlsxwriter, sheet_name=sheet_name)
         else:
             raise Exception(red('\nERROR!'),
@@ -547,15 +547,15 @@ def main():
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
     htmlfile: Filename = args.outhtml
     collapse: bool = not args.nokollapse
-    excluding: Set[TaxId] = set(args.exclude)
-    including: Set[TaxId] = set(args.include)
+    excluding: Set[Id] = set(args.exclude)
+    including: Set[Id] = set(args.include)
     scoring: Scoring = Scoring[args.scoring]
     excel: Excel = Excel[args.excel]
 
     check_debug()
 
     plasmidfile: Filename = None
-    process: Callable[..., Tuple[Sample, TaxTree, SampleDataByTaxId,
+    process: Callable[..., Tuple[Sample, TaxTree, SampleDataById,
                                  SampleStats, Err]]
     select_inputs()
     check_controls()
@@ -573,10 +573,10 @@ def main():
 
     # Declare variables that will hold results for the samples analyzed
     trees: Dict[Sample, TaxTree] = {}
-    counts: Dict[Sample, Counter[TaxId]] = {}
-    accs: Dict[Sample, Counter[TaxId]] = {}
+    counts: Dict[Sample, Counter[Id]] = {}
+    accs: Dict[Sample, Counter[Id]] = {}
     taxids: Dict[Sample, TaxLevels] = {}
-    scores: Dict[Sample, Dict[TaxId, Score]] = {}
+    scores: Dict[Sample, Dict[Id, Score]] = {}
     stats: Dict[Sample, SampleStats] = {}
     samples: List[Sample] = []
     raw_samples: List[Sample] = []
@@ -591,7 +591,7 @@ def main():
                   if args.ctrlmintaxa is not None else args.mintaxa),
               'debug': args.debug, 'root': args.takeoutroot,
               'lmat': bool(lmats), 'minscore': args.minscore,
-              'mintaxa': args.mintaxa, 'scoring': scoring, 'taxonomy': ncbi,
+              'mintaxa': args.mintaxa, 'scoring': scoring, 'ontology': ncbi,
               }
     # The big stuff (done in parallel)
     read_samples()

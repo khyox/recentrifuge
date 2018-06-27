@@ -14,18 +14,18 @@ from typing import Tuple, Counter, Callable, Optional, Set, Dict, List
 
 from Bio import SeqIO
 
-from recentrifuge.config import Filename, TaxId, Score, Scoring, Sample
+from recentrifuge.config import Filename, Id, Score, Scoring, Sample
 from recentrifuge.config import NO_SCORE, Err, SampleStats
 from recentrifuge.config import UNCLASSIFIED, ROOT, CELLULAR_ORGANISMS
 from recentrifuge.config import gray, red, green, yellow, blue
 from recentrifuge.lmat import read_lmat_output
 from recentrifuge.rank import Rank, Ranks
-from recentrifuge.taxonomy import Taxonomy
-from recentrifuge.trees import TaxTree, SampleDataByTaxId
+from recentrifuge.ontology import Ontology
+from recentrifuge.trees import TaxTree, SampleDataById
 
 
-def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
-                                           Dict[TaxId, Rank]]:
+def read_report(report_file: str) -> Tuple[str, Counter[Id],
+                                           Dict[Id, Rank]]:
     """
     Read Centrifuge/Kraken report file
 
@@ -37,14 +37,14 @@ def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
 
     """
     output: io.StringIO = io.StringIO(newline='')
-    abundances: Counter[TaxId] = col.Counter()
+    abundances: Counter[Id] = col.Counter()
     level_dic = {}
     output.write(f'\033[90mLoading report file {report_file}...\033[0m')
     try:
         with open(report_file, 'r') as file:
             for report_line in file:
                 _, _, taxnum, taxlev, _tid, _ = report_line.split('\t')
-                tid = TaxId(_tid)
+                tid = Id(_tid)
                 abundances[tid] = int(taxnum)
                 level_dic[tid] = Rank.centrifuge(taxlev)
     except:
@@ -56,7 +56,7 @@ def read_report(report_file: str) -> Tuple[str, Counter[TaxId],
 
 
 def process_report(*args, **kwargs
-                   ) -> Tuple[Sample, TaxTree, SampleDataByTaxId,
+                   ) -> Tuple[Sample, TaxTree, SampleDataById,
                               SampleStats, Err]:
     """
     Process Centrifuge/Kraken report files (to be usually called in parallel!).
@@ -64,11 +64,11 @@ def process_report(*args, **kwargs
     # TODO: Full review to report support
     # Recover input and parameters
     filerep: Filename = args[0]
-    taxonomy: Taxonomy = kwargs['taxonomy']
+    ontology: Ontology = kwargs['ontology']
     mintaxa: int = kwargs['mintaxa']
-    collapse: bool = taxonomy.collapse
-    including: Set[TaxId] = taxonomy.including
-    excluding: Set[TaxId] = taxonomy.excluding
+    collapse: bool = ontology.collapse
+    including: Set[Id] = ontology.including
+    excluding: Set[Id] = ontology.excluding
     debug: bool = kwargs['debug']
     output: io.StringIO = io.StringIO(newline='')
 
@@ -81,7 +81,7 @@ def process_report(*args, **kwargs
 
     # Read Centrifuge/Kraken report file to get abundances
     log: str
-    abundances: Counter[TaxId]
+    abundances: Counter[Id]
     log, abundances, _ = read_report(filerep)
     output.write(log)
     # Remove root counts, in case
@@ -90,25 +90,25 @@ def process_report(*args, **kwargs
         abundances[ROOT] = 0
         vwrite(green('OK!'), '\n')
 
-    # Build taxonomy tree
-    output.write('  \033[90mBuilding taxonomy tree...\033[0m')
+    # Build ontology tree
+    output.write('  \033[90mBuilding ontology tree...\033[0m')
     tree = TaxTree()
-    tree.grow(taxonomy=taxonomy,
+    tree.grow(ontology=ontology,
               counts=abundances)  # Grow tax tree from root node
     output.write('\033[92m OK! \033[0m\n')
 
     # Prune the tree
-    output.write('  \033[90mPruning taxonomy tree...\033[0m')
+    output.write('  \033[90mPruning ontology tree...\033[0m')
     tree.prune(mintaxa, None, collapse, debug)
     tree.shape()
     output.write('\033[92m OK! \033[0m\n')
 
     # Get the taxa with their abundances and taxonomical levels
     output.write('  \033[90mFiltering taxa...\033[0m')
-    new_abund: Counter[TaxId] = col.Counter()
-    new_accs: Counter[TaxId] = col.Counter()
+    new_abund: Counter[Id] = col.Counter()
+    new_accs: Counter[Id] = col.Counter()
     ranks: Ranks = Ranks({})
-    tree.get_taxa(abundance=new_abund,
+    tree.get_taxa(counts=new_abund,
                   accs=new_accs,
                   ranks=ranks,
                   mindepth=0, maxdepth=0,
@@ -117,12 +117,12 @@ def process_report(*args, **kwargs
     new_abund = +new_abund  # remove zero and negative counts
     if including or excluding:  # Recalculate accumulated counts
         new_tree = TaxTree()
-        new_tree.grow(taxonomy, new_abund)  # Grow tree with new abund
+        new_tree.grow(ontology, new_abund)  # Grow tree with new abund
         new_tree.shape()
         new_abund = col.Counter()  # Reset abundances
         new_accs = col.Counter()  # Reset accumulated
         new_tree.get_taxa(new_abund, new_accs)  # Get new accumulated counts
-    out: SampleDataByTaxId = SampleDataByTaxId()
+    out: SampleDataById = SampleDataById()
     out.set(counts=new_abund, ranks=ranks, accs=new_accs)
     output.write('\033[92m OK! \033[0m\n')
     print(output.getvalue())
@@ -134,7 +134,7 @@ def read_output(output_file: Filename,
                 scoring: Scoring = Scoring.SHEL,
                 minscore: Score = None,
                 ) -> Tuple[str, SampleStats,
-                           Counter[TaxId], Dict[TaxId, Score]]:
+                           Counter[Id], Dict[Id, Score]]:
     """
     Read Centrifuge output file
 
@@ -148,8 +148,8 @@ def read_output(output_file: Filename,
 
     """
     output: io.StringIO = io.StringIO(newline='')
-    all_scores: Dict[TaxId, List[Score]] = {}
-    all_length: Dict[TaxId, List[int]] = {}
+    all_scores: Dict[Id, List[Score]] = {}
+    all_length: Dict[Id, List[int]] = {}
     num_read: int = 0
     nt_read: int = 0
     num_uncl: int = 0
@@ -167,7 +167,7 @@ def read_output(output_file: Filename,
                                         f'in {output_file}. Ignoring line!')
                     error_read = num_read + 1
                     continue
-                tid = TaxId(_tid)
+                tid = Id(_tid)
                 try:
                     # From Centrifuge score get "single hit equivalent length"
                     shel = Score(float(_score) ** 0.5 + 15)
@@ -196,8 +196,8 @@ def read_output(output_file: Filename,
         raise Exception(red('\nERROR! ') + f'Cannot read "{output_file}"')
     if error_read == num_read + 1:  # Check if error in last line: truncated!
         print(yellow('Warning!'), f'{output_file} seems truncated!')
-    counts: Counter[TaxId] = Counter({tid: len(all_scores[tid])
-                                      for tid in all_scores})
+    counts: Counter[Id] = Counter({tid: len(all_scores[tid])
+                                   for tid in all_scores})
     output.write(green('OK!\n'))
     if num_read == 0:
         raise Exception(red('\nERROR! ')
@@ -225,7 +225,7 @@ def read_output(output_file: Filename,
                  gray(' avr = ') + f'{stat.len.mean}\n')
     output.write(f'  {stat.num_taxa}' + gray(f' taxa with assigned reads\n'))
     # Select score output
-    out_scores: Dict[TaxId, Score]
+    out_scores: Dict[Id, Score]
     if scoring is Scoring.SHEL:
         out_scores = {tid: Score(mean(all_scores[tid])) for tid in all_scores}
     elif scoring is Scoring.LENGTH:
@@ -234,10 +234,10 @@ def read_output(output_file: Filename,
         out_scores = {tid: Score(log10(mean(all_length[tid])))
                       for tid in all_length}
     elif scoring is Scoring.NORMA:
-        scores: Dict[TaxId, Score] = {tid: Score(mean(all_scores[tid]))
-                                      for tid in all_scores}
-        lengths: Dict[TaxId, Score] = {tid: Score(mean(all_length[tid]))
-                                       for tid in all_length}
+        scores: Dict[Id, Score] = {tid: Score(mean(all_scores[tid]))
+                                   for tid in all_scores}
+        lengths: Dict[Id, Score] = {tid: Score(mean(all_length[tid]))
+                                    for tid in all_length}
         out_scores = {tid: Score(scores[tid] / lengths[tid] * 100)
                       for tid in scores}
     else:
@@ -247,7 +247,7 @@ def read_output(output_file: Filename,
 
 
 def process_output(*args, **kwargs
-                   ) -> Tuple[Sample, TaxTree, SampleDataByTaxId,
+                   ) -> Tuple[Sample, TaxTree, SampleDataById,
                               SampleStats, Err]:
     """
     Process Centrifuge/LMAT output files (to be usually called in parallel!).
@@ -262,11 +262,11 @@ def process_output(*args, **kwargs
         print(gray('Processing'), blue('ctrl' if is_ctrl else 'sample'),
               target_file, gray('...'))
         sys.stdout.flush()
-    taxonomy: Taxonomy = kwargs['taxonomy']
+    ontology: Ontology = kwargs['ontology']
     mintaxa: int = kwargs['ctrlmintaxa'] if is_ctrl else kwargs['mintaxa']
     minscore: Score = kwargs['ctrlminscore'] if is_ctrl else kwargs['minscore']
-    including: Set[TaxId] = taxonomy.including
-    excluding: Set[TaxId] = taxonomy.excluding
+    including: Set[Id] = ontology.including
+    excluding: Set[Id] = ontology.excluding
     scoring: Scoring = kwargs['scoring']
     lmat: bool = kwargs['lmat']
     output: io.StringIO = io.StringIO(newline='')
@@ -281,21 +281,21 @@ def process_output(*args, **kwargs
     # Read Centrifuge/LMAT output files to get abundances
     read_method: Callable[
         [Filename, Scoring, Optional[Score]],  # Input
-        Tuple[str, SampleStats, Counter[TaxId], Dict[TaxId, Score]]  # Output
+        Tuple[str, SampleStats, Counter[Id], Dict[Id, Score]]  # Output
     ]
     if lmat:
         read_method = read_lmat_output
     else:
         read_method = read_output
     log: str
-    counts: Counter[TaxId]
-    scores: Dict[TaxId, Score]
+    counts: Counter[Id]
+    scores: Dict[Id, Score]
     log, stat, counts, scores = read_method(target_file, scoring, minscore)
     output.write(log)
     # Update field in stat about control nature of the sample
     stat.is_ctrl = is_ctrl
     # Move cellular_organisms counts to root, in case
-    if taxonomy.collapse and counts[CELLULAR_ORGANISMS]:
+    if ontology.collapse and counts[CELLULAR_ORGANISMS]:
         vwrite(gray('Moving'), counts[CELLULAR_ORGANISMS],
                gray('"CELLULAR_ORGANISMS" reads to "ROOT"... '))
         if counts[ROOT]:
@@ -318,15 +318,15 @@ def process_output(*args, **kwargs
         scores[ROOT] = NO_SCORE
         vwrite(green('OK!'), '\n')
 
-    # Building taxonomy tree
+    # Building ontology tree
     output.write(gray('Building from raw data... '))
-    vwrite(gray('\n  Building taxonomy tree with all-in-1... '))
+    vwrite(gray('\n  Building ontology tree with all-in-1... '))
     tree = TaxTree()
-    ancestors: Set[TaxId]
-    orphans: Set[TaxId]
-    ancestors, orphans = taxonomy.get_ancestors(counts.keys())
-    out = SampleDataByTaxId(['all'])
-    tree.allin1(taxonomy=taxonomy, counts=counts, scores=scores,
+    ancestors: Set[Id]
+    orphans: Set[Id]
+    ancestors, orphans = ontology.get_ancestors(counts.keys())
+    out = SampleDataById(['all'])
+    tree.allin1(ontology=ontology, counts=counts, scores=scores,
                 ancestors=ancestors, min_taxa=mintaxa,
                 include=including, exclude=excluding, out=out)
     out.purge_counters()
@@ -355,7 +355,7 @@ def process_output(*args, **kwargs
             if not out.counts[taxid]:
                 lost += 1
                 vwrite(yellow('Warning!'), f'Lost taxid={taxid}: '
-                                           f'{taxonomy.get_name(taxid)}\n')
+                                           f'{ontology.get_name(taxid)}\n')
         if lost:
             vwrite(yellow('WARNING!'), f'Lost {lost} taxids ('
                                        f'{lost/len(counts):.2%} of total)'

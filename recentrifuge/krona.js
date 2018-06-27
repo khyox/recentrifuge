@@ -89,9 +89,13 @@
 //
 //----------------------------------------------------------------------------
 }
-
 var canvas;
 var canvasButtons = [];  // Keep trace of CanvasButton objects
+var ChartEnum = Object.freeze({
+    TAXOMIC: 'taxonomic',
+    GENOMIC: 'genomic'
+})
+var chart = ChartEnum.TAXOMIC
 var context;
 var svg; // for snapshot mode
 var collapse = true;
@@ -102,7 +106,7 @@ var compressCheckBox;
 var maxAbsoluteDepthText;
 var maxAbsoluteDepthButtonDecrease;
 var maxAbsoluteDepthButtonIncrease;
-var fontSize = 11;
+var fontSize = 12;
 var fontSizeText;
 var fontSizeButtonDecrease;
 var fontSizeButtonIncrease;
@@ -229,7 +233,7 @@ var labelWidthFudge = 1.05; // The width of unshortened labels are set slightly
                             // finishes faster.
 var fontNormal;
 var fontBold;
-var fontFamily = 'Ubuntu'  //sans-serif';
+var fontFamily = 'sans-serif';
 //var fontFaceBold = 'bold Arial';
 var nodeRadius;
 var angleFactor;
@@ -3351,7 +3355,11 @@ function addOptionElements(hueName, hueDefault) {
 //	options.onmouseup = function(e) {mouseUp(e)}
     document.body.appendChild(options);
 
-    document.body.style.font = '11px Ubuntu';
+    if (chart === ChartEnum.TAXOMIC) {
+        document.body.style.font = '11px Ubuntu';
+    } else {
+        document.body.style.font = '12px Saira Semi Condensed';
+    }
     var position = 5;
 
     function logLoaded(fontFace) {
@@ -3368,6 +3376,12 @@ function addOptionElements(hueName, hueDefault) {
     var oxygenMonoFontFace = new FontFace('Oxygen Mono', 'url(https://fonts.gstatic.com/s/oxygenmono/v5/h0GsssGg9FxgDgCjLeAd7hjYx-6tPUUv.woff2)');
     document.fonts.add(oxygenMonoFontFace);
     oxygenMonoFontFace.loaded.then(logLoaded);
+    var sairaCondensedFontFace = new FontFace('Saira Condensed', 'url(https://fonts.gstatic.com/s/sairacondensed/v3/EJROQgErUN8XuHNEtX81i9TmEkrvoutF2o-Srg.woff2)');
+    document.fonts.add(sairaCondensedFontFace);
+    sairaCondensedFontFace.loaded.then(logLoaded);
+    var sairaSemiCondensedFontFace = new FontFace('Saira Semi Condensed', 'url(https://fonts.gstatic.com/s/sairasemicondensed/v3/U9MD6c-2-nnJkHxyCjRcnMHcWVWV1cWRRX8MaOY8q3T_.woff2)');
+    document.fonts.add(sairaSemiCondensedFontFace);
+    sairaSemiCondensedFontFace.loaded.then(logLoaded);
 
 // The .ready promise resolves when all fonts that have been previously requested
 // are loaded and layout operations are complete.
@@ -3415,14 +3429,18 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
     else {
         logoImage = 'http://khyox.github.io/recentrifuge/img/logo-med.png';
     }
-
-//	document.getElementById('options').style.fontSize = '9pt';
+    var placeholderTit;
+    if (chart === ChartEnum.GENOMIC) {
+        placeholderTit = "Complete or partial function, process, component...";
+    } else {
+        placeholderTit = "Taxon scientific name, complete or partial name...";
+    }
     position = addOptionElement
     (
         position,
-        '<a style="margin:2px" target="_blank" href="https://github.com/khyox/recentrifuge/wiki"><img style="vertical-align:middle;width:136px;height:32px;padding:8px 10px 6px 10px" src="' + logoImage + '"/></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
+        '<a style="margin:2px" target="_blank" href="http://www.recentrifuge.org"><img style="vertical-align:middle;width:136px;height:32px;padding:8px 10px 6px 10px" src="' + logoImage + '"/></a><input type="button" id="back" value="&larr;" title="Go back (Shortcut: &larr;)"/>\
 <input type="button" id="forward" value="&rarr;" title="Go forward (Shortcut: &rarr;)"/> \
-&nbsp;&nbsp;&nbsp;Search: <input type="text" placeholder="Taxon scientific name, complete or partial name..." size="45" id="search"/>\
+&nbsp;&nbsp;&nbsp;Search: <input type="text" placeholder="' + placeholderTit + '" size="45" id="search"/>\
 <input id="searchClear" type="button" value="x" onclick="clearSearch()"/> \
 <span id="searchResults"></span>'
     );
@@ -3473,7 +3491,13 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
         datasetButtonPrev = document.getElementById('prevDataset');
         datasetButtonNext = document.getElementById('nextDataset');
         rankDropDown = document.getElementById('ranks');
-
+        if (chart === ChartEnum.GENOMIC) {
+            for (i = 1; i < 9; i++) {
+                rankDropDown.remove(1);  // Remove taxonomic ranks from options
+            }
+            datasetDropDown.style.color='#FFFFFF'
+            datasetDropDown.style.backgroundColor='#555555'  // #B20DFF22'
+        }
         position += datasetDropDown.clientHeight;
     }
 
@@ -3516,7 +3540,7 @@ and including collapsed wedges.'
         (
             position + 5,
             '<input type="checkbox" id="useHue" style="float:left; ' +
-            'margin:1px 4px 0 12px"/><div>Color by<br/>' + hueDisplayName +
+            'margin:1px 4px 0 12px"/><div>Color by ' + hueDisplayName +
             '</div>'
         );
 
@@ -4064,7 +4088,10 @@ function drawLegend() {
         var rad = width;
         context.font = "Bold 11px Ubuntu";
         var statLabelText;
-        if (stat.is_ctrl) {
+        if (chart === ChartEnum.GENOMIC) {
+            context.fillStyle = 'rgba(170, 20, 255, 1)';
+            statLabelText = 'Functional sample statistics';
+        } else if (stat.is_ctrl) {
             context.fillStyle = 'rgba(50, 50, 200, 1)';
             statLabelText = 'Control statistics';
         } else {
@@ -4077,8 +4104,17 @@ function drawLegend() {
         var oldFont = context.font;
         context.font = "10.5px monospace";  // In case the next line fails
         context.font = "10.5px Oxygen Mono";
+        var readTitle;
+        var assignedTitle;
+        if (chart === ChartEnum.GENOMIC) {
+            readTitle = 'Annotations read: '
+            assignedTitle = 'Assigned GOs: '
+        } else {
+            readTitle = 'Sequences read: '
+            assignedTitle = 'Assigned taxa: '
+        }
         var statsStrs = [
-            'Sequences read: ' + stat.sread,
+            readTitle + stat.sread,
             '  those classified: ' + (
                 stat.sclas / stat.sread * 100).toPrecision(3) + '%',
             '    those accepted: '
@@ -4089,14 +4125,17 @@ function drawLegend() {
             'Length minimum: ' + stat.lnmin,
             '       average: ' + stat.lnavg,
             '       maximum: ' + stat.lnmax,
-            'Assigned taxa: ' + stat.taxas
+            assignedTitle + stat.taxas
         ];
         var maxTextWidth = Math.max.apply(null, statsStrs.map(function (text) {
             return context.measureText(text).width
         }));
         // Draw the rounded rectangle
         context.lineWidth = 3;
-        if (stat.is_ctrl) {
+        if (chart === ChartEnum.GENOMIC) {
+            context.strokeStyle = '#B20DFF';
+            context.fillStyle = 'rgba(180, 100, 255, 0.2)';
+        } else if (stat.is_ctrl) {
             context.strokeStyle = '#3333CC';
             context.fillStyle = 'rgba(0, 255, 255, 0.2)';
         } else {
@@ -4758,12 +4797,27 @@ function load() {
     var valueStart;
     var valueEnd;
 
-    if (kronaElement.getAttribute('collapse') != undefined) {
-        collapse = kronaElement.getAttribute('collapse') == 'true';
+    if (kronaElement.getAttribute('collapse') !== undefined) {
+        collapse = kronaElement.getAttribute('collapse') === 'true';
     }
 
-    if (kronaElement.getAttribute('key') != undefined) {
-        showKeys = kronaElement.getAttribute('key') == 'true';
+    if (kronaElement.getAttribute('key') !== undefined) {
+        showKeys = kronaElement.getAttribute('key') === 'true';
+    }
+
+    if (kronaElement.getAttribute('chart') !== undefined) {
+         switch (kronaElement.getAttribute('chart')) {
+             case 'TAXOMIC':
+                 chart = ChartEnum.TAXOMIC;
+                 fontFamily = 'Ubuntu'
+                 fontSize = 11
+                 break;
+             case 'GENOMIC':
+                 chart = ChartEnum.GENOMIC;
+                 fontFamily = 'Saira Condensed'
+                 fontSize = 12
+                 break;
+         }
     }
 
     for

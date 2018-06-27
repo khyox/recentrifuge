@@ -11,7 +11,7 @@ import sys
 from typing import Counter
 
 from recentrifuge.centrifuge import select_centrifuge_inputs
-from recentrifuge.config import Filename, TaxId
+from recentrifuge.config import Filename, Id
 from recentrifuge.config import NODES_FILE, NAMES_FILE
 from recentrifuge.config import TAXDUMP_PATH
 from recentrifuge.config import gray, red, green, yellow, blue, cyan
@@ -25,9 +25,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'Jan 2018'
+__date__ = 'June 2018'
 
 MAX_HIT_LENGTH: int = 200  # Max hit length for random score generation
 
@@ -109,30 +109,30 @@ def main():
         if args.debug:
             print(gray('INFO: Debugging mode activated\n'))
 
-    def read_mock_files(mock: Filename) -> Counter[TaxId]:
+    def read_mock_files(mock: Filename) -> Counter[Id]:
         """Read a mock layout (.mck) file"""
-        mock_layout: Counter[TaxId] = col.Counter()
+        mock_layout: Counter[Id] = col.Counter()
         with open(mock, 'r') as file:
             vprint(gray('\nProcessing'), blue(mock), gray('file:\n'))
             for line in file:
                 if line.startswith('#'):
                     continue
                 _tid, _num = line.split('\t')
-                tid = TaxId(_tid)
+                tid = Id(_tid)
                 num = int(_num)
                 mock_layout[tid] = num
                 vprint(num, gray('\treads for taxid\t'), tid, '\t(',
                        cyan(ncbi.get_name(tid)), ')\n')
         return mock_layout
 
-    def mock_from_source(out: Filename, mock_layout: Counter[TaxId]) -> None:
+    def mock_from_source(out: Filename, mock_layout: Counter[Id]) -> None:
         """Generate a mock Centrifuge output file from source file"""
         with open(out, 'w') as fout, open(args.file) as fcfg:
             vprint(gray('Generating'), blue(out), gray('file... '))
             fout.write(fcfg.readline())  # copy cfg output file header
             reads_writen: int = 0
             for line in fcfg:
-                tid = TaxId(line.split('\t')[2])
+                tid = Id(line.split('\t')[2])
                 if mock_layout[tid]:
                     fout.write(line)
                     mock_layout[tid] -= 1
@@ -148,7 +148,7 @@ def main():
                 print(yellow(mock_layout[tid]), gray('reads missing for tid'),
                       tid, '(', cyan(ncbi.get_name(tid)), ')\n')
 
-    def mock_from_scratch(out: Filename, mock_layout: Counter[TaxId]) -> None:
+    def mock_from_scratch(out: Filename, mock_layout: Counter[Id]) -> None:
         """Generate a mock Centrifuge output file from scratch"""
         with open(out, 'w') as fout:
             vprint(gray('Generating'), blue(out), gray('file... '))
@@ -171,7 +171,7 @@ def main():
         if len(args.mock) == 1 and os.path.isdir(args.mock[0]):
             select_centrifuge_inputs(args.mock, ext='.mck')
         for mock in args.mock:
-            mock_layout: Counter[TaxId] = read_mock_files(mock)
+            mock_layout: Counter[Id] = read_mock_files(mock)
             test: Filename = Filename(mock.split('.mck')[0] + '.out')
             if args.file:
                 mock_from_source(test, mock_layout)
@@ -187,7 +187,7 @@ def main():
         del mock_df['RECENTRIFUGE MOCK']
         vprint(gray('Layout to generate the mock files:\n'), mock_df, '\n')
         for name, series in mock_df.iteritems():
-            mock_layout: Counter[TaxId] = col.Counter(series.to_dict(dict))
+            mock_layout: Counter[Id] = col.Counter(series.to_dict(dict))
             # In prev, series.to_dict(col.Counter) fails, so this is workaround
             test: Filename = Filename(os.path.join(dirname, name + '.out'))
             if args.file:

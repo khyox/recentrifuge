@@ -11,16 +11,16 @@
    xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="136"
+   width="140"
    height="32"
-   viewBox="0 0 136 32.000001"
+   viewBox="0 0 140 32.000001"
    id="svg2"
    version="1.1"
    inkscape:version="0.91+devel+osxmenu r12922"
    sodipodi:docname="recentrifuge_scaled.svg"
-   inkscape:export-filename="/Users/martijm/local/recentrifuge/recentrifuge/img/recentrifuge.png"
-   inkscape:export-xdpi="58.836082"
-   inkscape:export-ydpi="58.836082">
+   inkscape:export-filename="/Users/martijm/local/recentrifuge/recentrifuge/img/rcfg_huge.png"
+   inkscape:export-xdpi="1200"
+   inkscape:export-ydpi="1200">
   <defs
      id="defs4">
     <linearGradient
@@ -50,9 +50,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.5831051"
-     inkscape:cx="34.923508"
-     inkscape:cy="-66.621343"
+     inkscape:zoom="5.88"
+     inkscape:cx="70.519599"
+     inkscape:cy="-0.32300046"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -63,11 +63,18 @@
      units="px"
      inkscape:showpageshadow="true"
      borderlayer="false"
-     inkscape:window-width="1920"
-     inkscape:window-height="1035"
+     inkscape:window-width="1440"
+     inkscape:window-height="851"
      inkscape:window-x="-4"
      inkscape:window-y="23"
-     inkscape:window-maximized="0" />
+     inkscape:window-maximized="0"
+     showguides="true"
+     inkscape:guide-bbox="true">
+    <sodipodi:guide
+       position="25.170068,6.6326533"
+       orientation="0,1"
+       id="guide5184" />
+  </sodipodi:namedview>
   <metadata
      id="metadata7">
     <rdf:RDF>
@@ -112,14 +119,14 @@
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:24.74869537px;line-height:125%;font-family:sans-serif;-inkscape-font-specification:'sans-serif, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.35355279px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
        x="309.71976"
-       y="146.65851"
+       y="147.16818"
        id="text4812"
        sodipodi:linespacing="125%"
        transform="scale(0.99894231,1.0010588)"><tspan
          sodipodi:role="line"
          id="tspan4816"
          x="309.71976"
-         y="146.65851"
+         y="147.16818"
          style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:condensed;font-size:31.81975174px;line-height:125%;font-family:'DIN Condensed';-inkscape-font-specification:'DIN Condensed, Bold Condensed';text-align:start;writing-mode:lr-tb;text-anchor:start;stroke-width:0.35355279px">Rec</tspan></text>
     <text
        xml:space="preserve"

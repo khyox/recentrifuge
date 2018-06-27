@@ -6,12 +6,13 @@ import re
 import sys
 from typing import Set, Counter, Iterable, Tuple
 
-from recentrifuge.config import Filename, TaxId, Parents, Names, Children
+from recentrifuge.config import Filename, Id, Parents, Names, Children
 from recentrifuge.config import ROOT, CELLULAR_ORGANISMS
 from recentrifuge.rank import Ranks, Rank, UnsupportedTaxLevelError
+from recentrifuge.ontology import Ontology
 
 
-class Taxonomy:
+class Taxonomy(Ontology):
     """Taxonomy related data and methods."""
 
     def __init__(self,
@@ -19,12 +20,13 @@ class Taxonomy:
                  names_file: Filename,
                  plasmid_file: Filename,
                  collapse: bool = True,
-                 excluding: Set[TaxId] = None,
-                 including: Set[TaxId] = None,
+                 excluding: Set[Id] = None,
+                 including: Set[Id] = None,
                  debug: bool = False,
                  ) -> None:
 
         # Type data declaration and initialization
+        self.ROOT = ROOT
         self.parents: Parents = Parents({})
         self.ranks: Ranks = Ranks({})
         self.names: Names = Names({})
@@ -42,19 +44,19 @@ class Taxonomy:
         # Show explicitly included and excluded taxa
         if including:
             print('List of taxa (and below) to be explicitly included:')
-            print('\t\tTaxId\tScientific Name')
+            print('\t\tId\tScientific Name')
             for taxid in including:
                 print(f'\t\t{taxid}\t{self.names[taxid]}')
         else:
             # To excluding to operate not on single taxa but on subtrees
             including = {ROOT}
-        self.including: Set[TaxId] = including
+        self.including: Set[Id] = including
         if excluding:
             print('List of taxa (and below) to be excluded:')
-            print('\t\tTaxId\tScientific Name')
+            print('\t\tId\tScientific Name')
             for taxid in excluding:
                 print(f'\t\t{taxid}\t{self.names[taxid]}')
-        self.excluding: Set[TaxId] = excluding
+        self.excluding: Set[Id] = excluding
 
     def read_nodes(self, nodes_file: Filename) -> None:
         """Build dicts of parent and rank for a given taxid (key)"""
@@ -64,8 +66,8 @@ class Taxonomy:
             with open(nodes_file, 'r') as file:
                 for line in file:
                     _tid, _parent, _rank, *_ = line.split('\t|\t')
-                    tid = TaxId(_tid)
-                    parent = TaxId(_parent)
+                    tid = Id(_tid)
+                    parent = Id(_parent)
                     if self.collapse and parent == CELLULAR_ORGANISMS:
                         self.parents[tid] = ROOT
                     else:
@@ -93,7 +95,7 @@ class Taxonomy:
                 for line in file:
                     if 'scientific name' in line:
                         tid, scientific_name, *_ = line.split('\t|\t')
-                        self.names[TaxId(tid)] = scientific_name
+                        self.names[Id(tid)] = scientific_name
         except OSError:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
                             names_file + '"')
@@ -116,8 +118,8 @@ class Taxonomy:
                 for line in file:
                     _tid, _parent, *_, last = line.rstrip('\n').split('\t')
                     last = last.split(r'|')[-1]
-                    tid = TaxId(_tid)
-                    parent = TaxId(_parent)
+                    tid = Id(_tid)
+                    parent = Id(_parent)
                     # Plasmids sanity checks
                     if tid in self.parents:  # if plasmid tid already in NCBI
                         match['ERR1'] += 1
@@ -180,21 +182,21 @@ class Taxonomy:
             self.children[self.parents[tid]][tid] = 0
         print('\033[92m OK! \033[0m')
 
-    def get_rank(self, taxid: TaxId) -> Rank:
-        """Retrieve the rank for a TaxId."""
+    def get_rank(self, taxid: Id) -> Rank:
+        """Retrieve the rank for a Id."""
         return self.ranks.get(taxid, Rank.UNCLASSIFIED)
 
-    def get_name(self, taxid: TaxId) -> str:
-        """Retrieve the name for a TaxId."""
+    def get_name(self, taxid: Id) -> str:
+        """Retrieve the name for a Id."""
         return self.names.get(taxid, 'Unnamed')
 
-    def get_ancestors(self, leaves: Iterable[TaxId]
-                      ) -> Tuple[Set[TaxId], Set[TaxId]]:
+    def get_ancestors(self, leaves: Iterable[Id]
+                      ) -> Tuple[Set[Id], Set[Id]]:
         """Return the taxids entered with all their ancestors"""
-        ancestors: Set[TaxId] = set(leaves)
-        orphans: Set[TaxId] = set()
+        ancestors: Set[Id] = set(leaves)
+        orphans: Set[Id] = set()
         for leaf in leaves:
-            tid: TaxId = leaf
+            tid: Id = leaf
             while tid != ROOT:
                 try:
                     tid = self.parents[tid]
