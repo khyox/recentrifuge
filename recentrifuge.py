@@ -12,19 +12,22 @@ import sys
 import time
 from typing import Counter, List, Dict, Set, Callable, Tuple
 
-from recentrifuge.centrifuge import process_report, process_output
 from recentrifuge.centrifuge import select_centrifuge_inputs
+from recentrifuge.clark import select_clark_inputs
 from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Excel
+from recentrifuge.config import Err, Classifier
+from recentrifuge.stats import SampleStats
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
-from recentrifuge.config import STR_CONTROL_SHARED, Err, SampleStats
+from recentrifuge.config import STR_CONTROL_SHARED
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.core import process_rank, summarize_analysis
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.krona import KronaTree
 from recentrifuge.lmat import select_lmat_inputs
 from recentrifuge.rank import Rank, TaxLevels
+from recentrifuge.taxclass import process_output, process_report
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree, MultiTree, SampleDataById
 
@@ -36,9 +39,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.19.0'
+__version__ = '0.20.0'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'June 2018'
+__date__ = 'July 2018'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -117,6 +120,15 @@ def main():
                   'taken as a sample and scanned looking for LMAT output files'
                   '. Multiple -l is available to include several samples.')
         )
+        parser_filein.add_argument(
+            '-k', '--clark',
+            action='append',
+            metavar='FILE',
+            type=Filename,
+            help=('CLARK(S) output files. If a single directory is entered, '
+                  'every .csv file inside will be taken as a different sample.'
+                  ' Multiple -k is available to include several samples.')
+        )
         parser_cross = parser.add_mutually_exclusive_group(required=False)
         parser_cross.add_argument(
             '-a', '--avoidcross',
@@ -182,7 +194,7 @@ def main():
                   'by default all the taxa is considered for inclusion')
         )
         parser_tuning.add_argument(
-            '-k', '--nokollapse',
+            '--nokollapse',
             action='store_true',
             help='show the "cellular organisms" taxon'
         )
@@ -262,26 +274,32 @@ def main():
             print(gray('INFO: Debugging mode activated\n'))
 
     def select_inputs():
-        """Choose right input and output files"""
-        nonlocal process, scoring, input_files, plasmidfile
+        """Choose right classifier, input and output files"""
+        nonlocal process, scoring, input_files, plasmidfile, classifier
 
-        if outputs and len(outputs) == 1 and os.path.isdir(outputs[0]):
-            select_centrifuge_inputs(outputs)
-        if lmats:
-            plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))
-            select_lmat_inputs(lmats)
-
-        # Select method and arguments depending on type of files to analyze
-        if lmats:
-            process = process_output
-            input_files = lmats
-            scoring = Scoring.LMAT
-        elif reports:
+        if reports:
+            classifier = Classifier.KRAKEN
             process = process_report
             input_files = reports
-        else:
+        elif clarks:
+            classifier = Classifier.CLARK
+            process = process_output
+            input_files = clarks
+            if len(clarks) == 1 and os.path.isdir(clarks[0]):
+                select_clark_inputs(clarks)
+        elif lmats:
+            classifier = Classifier.LMAT
+            scoring = Scoring.LMAT
+            process = process_output
+            input_files = lmats
+            plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))
+            select_lmat_inputs(lmats)
+        elif outputs:
+            classifier = Classifier.CENTRIFUGE
             process = process_output
             input_files = outputs
+            if len(outputs) == 1 and os.path.isdir(outputs[0]):
+                select_centrifuge_inputs(outputs)
 
     def check_controls():
         """Check and info about the control samples"""
@@ -542,6 +560,7 @@ def main():
     outputs: List[Filename] = args.file
     reports: List[Filename] = args.report
     lmats: List[Filename] = args.lmat
+    clarks: List[Filename] = args.clark
     input_files: List[Filename]
     nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
@@ -555,6 +574,7 @@ def main():
     check_debug()
 
     plasmidfile: Filename = None
+    classifier: Classifier
     process: Callable[..., Tuple[Sample, TaxTree, SampleDataById,
                                  SampleStats, Err]]
     select_inputs()
@@ -590,7 +610,7 @@ def main():
                   args.ctrlmintaxa
                   if args.ctrlmintaxa is not None else args.mintaxa),
               'debug': args.debug, 'root': args.takeoutroot,
-              'lmat': bool(lmats), 'minscore': args.minscore,
+              'classifier': classifier, 'minscore': args.minscore,
               'mintaxa': args.mintaxa, 'scoring': scoring, 'ontology': ncbi,
               }
     # The big stuff (done in parallel)

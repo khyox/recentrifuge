@@ -11,7 +11,8 @@ import xml.etree.ElementTree as ETree
 from typing import List, Dict, NewType, Any, Optional
 from xml.dom import minidom
 
-from recentrifuge.config import Filename, Sample, Scoring, SampleStats, Chart
+from recentrifuge.config import Filename, Sample, Scoring, Chart
+from recentrifuge.stats import SampleStats
 from recentrifuge.config import JSLIB, HTML_SUFFIX
 from recentrifuge.config import yellow, red
 
@@ -152,18 +153,20 @@ class KronaTree(ETree.ElementTree):
             iden = 'TaxID'
             hrefbase = HREFBASE_TAX
             if scoring is Scoring.SHEL:
-                display = 'Confidence (avg)'
+                display = 'Score (avg)'
             elif scoring is Scoring.LENGTH:
                 display = 'Read length (avg)'
             elif scoring is Scoring.LOGLENGTH:
-                display = 'Read length (avg, log10)'
+                display = 'Length (log10)'
             elif scoring is Scoring.NORMA:
-                display = 'Confidence/Length (%)'
+                display = 'Score/Length (%)'
             elif scoring is Scoring.LMAT:
                 display = 'LMAT score (avg)'
+            elif scoring is Scoring.CLARK:
+                display = 'CLARK conf (avg)'
             else:
-                raise Exception(
-                    f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
+                print(red('ERROR!'), f'Unknown Scoring "{scoring}"')
+                raise Exception('Krona.py: Unknown scoring!')
         elif self.chart == Chart.GENOMIC:
             iden = 'GenID'
             hrefbase = HREFBASE_GEN

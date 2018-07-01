@@ -4098,7 +4098,7 @@ function drawLegend() {
             context.fillStyle = 'rgba(200, 50, 50, 1)';
             statLabelText = 'Sample statistics';
         }
-        context.fillText(statLabelText, statsX,
+        context.fillText(statLabelText, statsX + width,
             imageHeight - fontSize * 1.5);
         // Get the set of strings
         var oldFont = context.font;

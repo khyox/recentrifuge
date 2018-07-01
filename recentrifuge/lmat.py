@@ -12,7 +12,8 @@ from typing import Tuple, Counter, Dict, List
 
 from Bio import SeqIO
 
-from recentrifuge.config import Id, Score, Scoring, Filename, SampleStats
+from recentrifuge.config import Id, Score, Scoring, Filename
+from recentrifuge.stats import SampleStats
 from recentrifuge.config import TAXDUMP_PATH, gray, red, green
 
 
@@ -181,8 +182,8 @@ def read_lmat_output(output_file: Filename,
     if scoring is Scoring.LMAT:
         out_scores = {tid: Score(mean(all_scores[tid])) for tid in all_scores}
     else:
-        raise Exception(f'\n\033[91mERROR!\033[0m Unknown Scoring "{scoring}"')
-    # Return
+        print(red('ERROR!'), f' LMAT: Unsupported Scoring "{scoring}"')
+        raise Exception('Unsupported scoring')    # Return
     return output.getvalue(), stat, abundances, out_scores
 
 
