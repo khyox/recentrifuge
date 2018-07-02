@@ -90,9 +90,13 @@ def read_clark_output(output_file: Filename,
                         conf = Score(1 - conf)  # Get CLARK's h2/(h1+h2)
                 # From CLARK(S) score get "single hit equivalent length"
                 shel: Score = Score(score)
-                if minscore is not None and shel < minscore:
-                    continue  # Ignore read if low score
-
+                if minscore is not None:  # Decide if ignore read if low score
+                    if scoring is Scoring.CLARK:
+                        if conf < minscore:
+                            continue
+                    else:
+                        if shel < minscore:
+                            continue
                 try:
                     all_scores[tid].append(shel)
                 except KeyError:
