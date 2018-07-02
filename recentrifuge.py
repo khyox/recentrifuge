@@ -39,7 +39,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.20.0'
+__version__ = '0.20.2'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'July 2018'
 
@@ -271,7 +271,11 @@ def main():
     def check_debug():
         """Check debugging mode"""
         if args.debug:
-            print(gray('INFO: Debugging mode activated\n'))
+            print(blue('INFO:'), gray('Debugging mode activated'))
+            print(blue('INFO:'), gray('Active parameters:'))
+            for key, value in vars(args).items():
+                if value:
+                    print(gray(f'\t{key} ='), f'{value}')
 
     def select_inputs():
         """Choose right classifier, input and output files"""
