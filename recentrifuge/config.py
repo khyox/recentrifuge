@@ -75,9 +75,10 @@ class Scoring(Enum):
     SHEL = 0  # Single Hit Equivalent Length (default)
     LENGTH = 1  # The length of a read or the combined length of mate pairs
     LOGLENGTH = 2  # Log10 of the length
-    NORMA = 3  # It is the normalized score SHEL / LENGTH
+    NORMA = 3  # This is the normalized score SHEL / LENGTH
     LMAT = 4  # Default for LMAT, not available for others
-    CLARK = 5  # Based on CLARK's confidence score, not available for others
+    CLARK_C = 5  # Based on CLARK's confidence score, not available for others
+    CLARK_G = 6  # Based on CLARK's gamma score, not available for others
 
     def __str__(self):
         return f'{self.name}'

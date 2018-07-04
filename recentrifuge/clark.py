@@ -1,5 +1,5 @@
 """
-Functions directly related with CLARK(S).
+Functions directly related with CLARK_C(S).
 
 """
 
@@ -13,17 +13,17 @@ from recentrifuge.config import Filename, Id, Score, Scoring
 from recentrifuge.config import gray, red, green, yellow
 from recentrifuge.stats import SampleStats
 
-# CLARK specific constants
+# CLARK_C specific constants
 UNCLASSIFIED: Id = Id('NA')
 
 
 def read_clark_output(output_file: Filename,
-                      scoring: Scoring = Scoring.CLARK,
+                      scoring: Scoring = Scoring.CLARK_C,
                       minscore: Score = None,
                       ) -> Tuple[str, SampleStats,
                            Counter[Id], Dict[Id, Score]]:
     """
-    Read CLARK(S) output file
+    Read CLARK_C(S) output file
 
     Args:
         output_file: output file name
@@ -37,6 +37,7 @@ def read_clark_output(output_file: Filename,
     output: io.StringIO = io.StringIO(newline='')
     all_scores: Dict[Id, List[Score]] = {}
     all_confs: Dict[Id, List[Score]] = {}
+    all_gammas: Dict[Id, List[Score]] = {}
     all_length: Dict[Id, List[int]] = {}
     num_read: int = 0
     nt_read: int = 0
@@ -49,7 +50,7 @@ def read_clark_output(output_file: Filename,
             header = file.readline().split(',')
             if len(header) != 8:
                 print(red('\nERROR! ') +
-                      f'CLARK output format of "{output_file}" not supported.')
+                      f'CLARK_C output format of "{output_file}" not supported.')
                 print('Expected: ID,Length,Gamma,1st,score1,2nd,score2,conf')
                 raise Exception('Unsupported file format. Aborting.')
             for raw_line in file:
@@ -64,6 +65,7 @@ def read_clark_output(output_file: Filename,
                     continue
                 try:
                     length: int = int(_length)
+                    gamma: Score = Score(float(_gamma))
                     tid1: Id = Id(_tid1)
                     score1: Score = Score(float(_score1))
                     tid2: Id = Id(_tid2)
@@ -77,7 +79,7 @@ def read_clark_output(output_file: Filename,
                     continue
                 num_read += 1
                 nt_read += length
-                # Select tid and score between CLARK assignments 1 and 2
+                # Select tid and score between CLARK_C assignments 1 and 2
                 tid: Id = tid1
                 score: Score = score1
                 if tid1 == UNCLASSIFIED:
@@ -87,12 +89,15 @@ def read_clark_output(output_file: Filename,
                     else:  # Majority of read unclassified
                         tid = tid2
                         score = score2
-                        conf = Score(1 - conf)  # Get CLARK's h2/(h1+h2)
-                # From CLARK(S) score get "single hit equivalent length"
+                        conf = Score(1 - conf)  # Get CLARK_C's h2/(h1+h2)
+                # From CLARK_C(S) score get "single hit equivalent length"
                 shel: Score = Score(score)
                 if minscore is not None:  # Decide if ignore read if low score
-                    if scoring is Scoring.CLARK:
+                    if scoring is Scoring.CLARK_C:
                         if conf < minscore:
+                            continue
+                    elif scoring is Scoring.CLARK_G:
+                        if gamma < minscore:
                             continue
                     else:
                         if shel < minscore:
@@ -105,6 +110,10 @@ def read_clark_output(output_file: Filename,
                     all_confs[tid].append(conf)
                 except KeyError:
                     all_confs[tid] = [conf, ]
+                try:
+                    all_gammas[tid].append(gamma)
+                except KeyError:
+                    all_gammas[tid] = [gamma, ]
                 try:
                     all_length[tid].append(length)
                 except KeyError:
@@ -126,7 +135,7 @@ def read_clark_output(output_file: Filename,
     # Get statistics
     stat: SampleStats = SampleStats(
         minscore=minscore, nt_read=nt_read, lens=all_length,
-        scores=all_scores, scores_alt=all_confs,
+        scores=all_scores, scores2=all_confs, scores3=all_gammas,
         seq_read=num_read, seq_unclas=num_uncl, seq_filt=filt_seqs
     )
     # Output statistics
@@ -136,13 +145,16 @@ def read_clark_output(output_file: Filename,
                  f'{stat.get_unclas_ratio():.2%}' + gray(' unclassified)\n'))
     output.write(gray('  Seqs pass: ') + f'{stat.seq.filt:_d}\t' + gray('(') +
                  f'{stat.get_reject_ratio():.2%}' + gray(' rejected)\n'))
-    output.write(gray('  Scores: min = ') + f'{stat.sco.mini:.1f},' +
+    output.write(gray('  Hit (score): min = ') + f'{stat.sco.mini:.1f},' +
                  gray(' max = ') + f'{stat.sco.maxi:.1f},' +
                  gray(' avr = ') + f'{stat.sco.mean:.1f}\n')
-    output.write(gray('  Confid: min = ') + f'{stat.sco_alt.mini:.1f},' +
-                 gray(' max = ') + f'{stat.sco_alt.maxi:.1f},' +
-                 gray(' avr = ') + f'{stat.sco_alt.mean:.1f}\n')
-    output.write(gray('  Length: min = ') + f'{stat.len.mini},' +
+    output.write(gray('  Conf. score: min = ') + f'{stat.sco2.mini:.1f},' +
+                 gray(' max = ') + f'{stat.sco2.maxi:.1f},' +
+                 gray(' avr = ') + f'{stat.sco2.mean:.1f}\n')
+    output.write(gray('  Gamma score: min = ') + f'{stat.sco3.mini:.1f},' +
+                 gray(' max = ') + f'{stat.sco3.maxi:.1f},' +
+                 gray(' avr = ') + f'{stat.sco3.mean:.1f}\n')
+    output.write(gray('  Read length: min = ') + f'{stat.len.mini},' +
                  gray(' max = ') + f'{stat.len.maxi},' +
                  gray(' avr = ') + f'{stat.len.mean}\n')
     output.write(f'  {stat.num_taxa}' + gray(f' taxa with assigned reads\n'))
@@ -150,8 +162,10 @@ def read_clark_output(output_file: Filename,
     out_scores: Dict[Id, Score]
     if scoring is Scoring.SHEL:
         out_scores = {tid: Score(mean(all_scores[tid])) for tid in all_scores}
-    elif scoring is Scoring.CLARK:
+    elif scoring is Scoring.CLARK_C:
         out_scores = {tid: Score(mean(all_confs[tid])) for tid in all_confs}
+    elif scoring is Scoring.CLARK_G:
+        out_scores = {tid: Score(mean(all_gammas[tid])) for tid in all_gammas}
     elif scoring is Scoring.LENGTH:
         out_scores = {tid: Score(mean(all_length[tid])) for tid in all_length}
     elif scoring is Scoring.LOGLENGTH:
@@ -165,7 +179,7 @@ def read_clark_output(output_file: Filename,
         out_scores = {tid: Score(scores[tid] / lengths[tid] * 100)
                       for tid in scores}
     else:
-        print(red('ERROR!'), f' CLARK: Unsupported Scoring "{scoring}"')
+        print(red('ERROR!'), f'clark: Unsupported Scoring "{scoring}"')
         raise Exception('Unsupported scoring')
     # Return
     return output.getvalue(), stat, counts, out_scores
@@ -173,7 +187,7 @@ def read_clark_output(output_file: Filename,
 
 def select_clark_inputs(clarks: List[Filename],
                         ext: str = '.csv') -> None:
-    """CLARK output files processing specific stuff"""
+    """CLARK_C output files processing specific stuff"""
     dir_name = clarks[0]
     clarks.clear()
     with os.scandir(dir_name) as dir_entry:
@@ -184,4 +198,4 @@ def select_clark_inputs(clarks: List[Filename],
                 else:  # Avoid sample names starting with just the dot
                     clarks.append(Filename(fil.name))
     clarks.sort()
-    print(gray(f'CLARK {ext} files to analyze:'), clarks)
+    print(gray(f'CLARK_C {ext} files to analyze:'), clarks)

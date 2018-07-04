@@ -39,7 +39,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.20.3'
+__version__ = '0.20.4'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'July 2018'
 
@@ -207,7 +207,7 @@ def main():
             default=[],
             help=('NCBI taxid code to include a taxon and all underneath '
                   '(multiple -i is available to include several taxid); '
-                  'by default all the taxa is considered for inclusion')
+                  'by default, all the taxa are considered for inclusion')
         )
         parser_cross.add_argument(
             '-a', '--avoidcross',

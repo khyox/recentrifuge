@@ -96,7 +96,9 @@ class SampleStats(object):
                  seq_clas: int = None, seq_unclas: int = 0,
                  lens: Dict[Id, List[int]] = None,
                  scores: Dict[Id, List[Score]] = None,
-                 scores_alt: Dict[Id, List[Score]] = None,) -> None:
+                 scores2: Dict[Id, List[Score]] = None,
+                 scores3: Dict[Id, List[Score]] = None,
+                 ) -> None:
         """Initialize some data and set up data structures"""
         self.is_ctrl: bool = is_ctrl
         self.minscore: Optional[Score] = minscore
@@ -120,8 +122,10 @@ class SampleStats(object):
         else:
             self.sco = ScoreStats()
             self.num_taxa = 0
-        if scores_alt is not None:
-            self.sco_alt: ScoreStats = stats(scores_alt, ScoreStats, Score)
+        if scores2 is not None:
+            self.sco2: ScoreStats = stats(scores2, ScoreStats, Score)
+        if scores3 is not None:
+            self.sco3: ScoreStats = stats(scores3, ScoreStats, Score)
 
     def to_dict(self) -> Dict[str, Union[int, Score, None]]:
         """
