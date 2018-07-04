@@ -77,12 +77,14 @@ def stats(dict_list: Dict[Id, List[int]],
     pass
 
 
-def stats(dict_list, tuple_cls, elems_cls):
+def stats(dic_lst, tuple_cls, elems_cls):
     """Get minimum, mean and maximum of dictionary of list"""
     return (tuple_cls(
-        mini=elems_cls(min([min(e) for e in dict_list.values()])),
-        mean=elems_cls(mean([mean(e) for e in dict_list.values()])),
-        maxi=elems_cls(max([max(e) for e in dict_list.values()]))
+        mini=elems_cls(min([min(e) for e in dic_lst.values()])),
+        mean=elems_cls(mean([val for lst in dic_lst.values() for val in lst])),
+        # mean=elems_cls(mean(chain.from_iterable(dic_lst.values()))),
+        # Using itertools.chain here provided no benefit in the tests!
+        maxi=elems_cls(max([max(e) for e in dic_lst.values()]))
     ))
 # pylint: enable=function-redefined, unused-argument
 
