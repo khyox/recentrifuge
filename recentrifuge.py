@@ -14,9 +14,8 @@ from typing import Counter, List, Dict, Set, Callable, Tuple
 
 from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.clark import select_clark_inputs
-from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Excel
 from recentrifuge.config import Err, Classifier
-from recentrifuge.stats import SampleStats
+from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Excel
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
@@ -27,6 +26,7 @@ from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.krona import KronaTree
 from recentrifuge.lmat import select_lmat_inputs
 from recentrifuge.rank import Rank, TaxLevels
+from recentrifuge.stats import SampleStats
 from recentrifuge.taxclass import process_output, process_report
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree, MultiTree, SampleDataById
@@ -39,7 +39,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.20.2'
+__version__ = '0.20.3'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'July 2018'
 
@@ -74,11 +74,18 @@ def main():
     def configure_parser():
         """Argument Parser Configuration"""
         parser = argparse.ArgumentParser(
-            description='Post-process Centrifuge/LMAT output',
+            description='Analyze results of metagenomic taxonomic classifiers',
             epilog=f'%(prog)s  - {__author__} - {__date__}',
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
         parser.add_argument(
+            '-V', '--version',
+            action='version',
+            version=f'%(prog)s release {__version__} ({__date__})'
+        )
+        parser_in = parser.add_argument_group(
+            'input', 'Define Recentrifuge input files and formats')
+        parser_in.add_argument(
             '-n', '--nodespath',
             action='store',
             metavar='PATH',
@@ -86,12 +93,7 @@ def main():
             help=('path for the nodes information files '
                   '(nodes.dmp and names.dmp from NCBI)')
         )
-        parser.add_argument(
-            '-V', '--version',
-            action='version',
-            version=f'%(prog)s release {__version__} ({__date__})'
-        )
-        parser_filein = parser.add_mutually_exclusive_group(required=True)
+        parser_filein = parser_in.add_mutually_exclusive_group(required=True)
         parser_filein.add_argument(
             '-f', '--file',
             action='append',
@@ -100,14 +102,6 @@ def main():
             help=('Centrifuge output files. If a single directory is entered, '
                   'every .out file inside will be taken as a different sample.'
                   ' Multiple -f is available to include several samples.')
-        )
-        parser_filein.add_argument(
-            '-r', '--report',
-            action='append',
-            metavar='FILE',
-            type=Filename,
-            help=('Centrifuge/Kraken report files '
-                  '(multiple -r is available to include several samples)')
         )
         parser_filein.add_argument(
             '-l', '--lmat',
@@ -129,12 +123,38 @@ def main():
                   'every .csv file inside will be taken as a different sample.'
                   ' Multiple -k is available to include several samples.')
         )
-        parser_cross = parser.add_mutually_exclusive_group(required=False)
-        parser_cross.add_argument(
-            '-a', '--avoidcross',
-            action='store_true',
-            help='avoid cross analysis'
+        parser_filein.add_argument(
+            '-r', '--report',
+            action='append',
+            metavar='FILE',
+            type=Filename,
+            help=('Centrifuge/Kraken report files '
+                  '(multiple -r is available to include several samples)')
         )
+        parser_out = parser.add_argument_group(
+            'output', 'Related to the Recentrifuge output files')
+        parser_out.add_argument(
+            '-o', '--outhtml',
+            action='store',
+            metavar='FILE',
+            type=Filename,
+            help='HTML output file (if not given, the filename will be '
+                 'inferred from input files)'
+        )
+        parser_out.add_argument(
+            '-e', '--excel',
+            action='store',
+            metavar='OUTPUT_TYPE',
+            choices=[str(excel) for excel in Excel],
+            default=str(Excel(0)),
+            help=(f'type of excel report to be generated, and can be one of '
+                  f'{[str(excel) for excel in Excel]}')
+        )
+        parser_coarse = parser.add_argument_group(
+            'tuning',
+            'Coarse tuning of algorithm parameters')
+        parser_cross = parser_coarse.add_mutually_exclusive_group(
+            required=False)
         parser_cross.add_argument(
             '-c', '--controls',
             action='store',
@@ -144,27 +164,99 @@ def main():
             help=('this number of first samples will be treated as negative '
                   'controls; default is no controls')
         )
-        parser_output = parser.add_argument_group(
-            'output', 'Related to the output files')
-        parser_output.add_argument(
-            '-e', '--excel',
+        parser_coarse.add_argument(
+            '-s', '--scoring',
             action='store',
-            metavar='OUTPUT_TYPE',
-            choices=[str(excel) for excel in Excel],
-            default=str(Excel(0)),
+            metavar='SCORING',
+            choices=[str(each_score) for each_score in Scoring],
+            default=str(Scoring(0)),
             help=(f'type of scoring to be applied, and can be one of '
-                  f'{[str(excel) for excel in Excel]}')
+                  f'{[str(scoring) for scoring in Scoring]}')
         )
-        parser_output.add_argument(
-            '-o', '--outhtml',
+        parser_coarse.add_argument(
+            '-y', '--minscore',
             action='store',
-            metavar='FILE',
-            type=Filename,
-            help='HTML output file (if not given the filename will be '
-                 'inferred from input files)'
+            metavar='NUMBER',
+            type=lambda txt: Score(float(txt)),
+            default=None,
+            help=('minimum score/confidence of the classification of a read '
+                  'to pass the quality filter; all pass by default')
         )
-        parser_mode = parser.add_argument_group('mode',
-                                                'Specific modes of running')
+        parser_coarse.add_argument(
+            '-m', '--mintaxa',
+            action='store',
+            metavar='INT',
+            type=int,
+            default=DEFMINTAXA,
+            help='minimum taxa to avoid collapsing one level to the parent one'
+        )
+        parser_coarse.add_argument(
+            '-x', '--exclude',
+            action='append',
+            metavar='TAXID',
+            type=Id,
+            default=[],
+            help=('NCBI taxid code to exclude a taxon and all underneath '
+                  '(multiple -x is available to exclude several taxid)')
+        )
+        parser_coarse.add_argument(
+            '-i', '--include',
+            action='append',
+            metavar='TAXID',
+            type=Id,
+            default=[],
+            help=('NCBI taxid code to include a taxon and all underneath '
+                  '(multiple -i is available to include several taxid); '
+                  'by default all the taxa is considered for inclusion')
+        )
+        parser_cross.add_argument(
+            '-a', '--avoidcross',
+            action='store_true',
+            help='avoid cross analysis'
+        )
+        parser_fine = parser.add_argument_group(
+            'fine tuning',
+            'Fine tuning of algorithm parameters')
+        parser_fine.add_argument(
+            '-z', '--ctrlminscore',
+            action='store',
+            metavar='NUMBER',
+            type=lambda txt: Score(float(txt)),
+            default=None,
+            help=('minimum score/confidence of the classification of a read '
+                  'in control samples to pass the quality filter; if defaults '
+                  'to "minscore"')
+        )
+        parser_fine.add_argument(
+            '-w', '--ctrlmintaxa',
+            action='store',
+            metavar='INT',
+            type=int,
+            default=None,
+            help='minimum taxa to avoid collapsing one level to the parent one'
+                 ' in control samples; it defaults to "mintaxa"'
+        )
+        parser_fine.add_argument(
+            '-u', '--summary',
+            action='store',
+            metavar='OPTION',
+            choices=['add', 'only', 'avoid'],
+            default='add',
+            help=('select to "add" summary samples to other samples, or to '
+                  '"only" show summary samples or to "avoid" summaries at all')
+        )
+        parser_fine.add_argument(
+            '-t', '--takeoutroot',
+            action='store_true',
+            help='remove counts directly assigned to the "root" level'
+        )
+        parser_fine.add_argument(
+            '--nokollapse',
+            action='store_true',
+            help='show the "cellular organisms" taxon'
+        )
+        parser_mode = parser.add_argument_group('advanced',
+                                                'Advanced modes of running')
         parser_mode.add_argument(
             '--dummy',  # hidden flag: just generate a dummy plot for JS debug
             action='store_true',
@@ -179,92 +271,6 @@ def main():
             '--sequential',
             action='store_true',
             help='deactivate parallel processing'
-        )
-        parser_tuning = parser.add_argument_group(
-            'tuning',
-            'Fine tuning of algorithm parameters')
-        parser_tuning.add_argument(
-            '-i', '--include',
-            action='append',
-            metavar='TAXID',
-            type=Id,
-            default=[],
-            help=('NCBI taxid code to include a taxon and all underneath '
-                  '(multiple -i is available to include several taxid); '
-                  'by default all the taxa is considered for inclusion')
-        )
-        parser_tuning.add_argument(
-            '--nokollapse',
-            action='store_true',
-            help='show the "cellular organisms" taxon'
-        )
-        parser_tuning.add_argument(
-            '-m', '--mintaxa',
-            action='store',
-            metavar='INT',
-            type=int,
-            default=DEFMINTAXA,
-            help='minimum taxa to avoid collapsing one level to the parent one'
-        )
-        parser_tuning.add_argument(
-            '-s', '--scoring',
-            action='store',
-            metavar='SCORING',
-            choices=[str(each_score) for each_score in Scoring],
-            default=str(Scoring(0)),
-            help=(f'type of scoring to be applied, and can be one of '
-                  f'{[str(scoring) for scoring in Scoring]}')
-        )
-        parser_tuning.add_argument(
-            '-t', '--takeoutroot',
-            action='store_true',
-            help='remove counts directly assigned to the "root" level'
-        )
-        parser_tuning.add_argument(
-            '-u', '--summary',
-            action='store',
-            metavar='OPTION',
-            choices=['add', 'only', 'avoid'],
-            default='add',
-            help=('select to "add" summary samples to other samples, or to '
-                  '"only" show summary samples or to "avoid" summaries at all')
-        )
-        parser_tuning.add_argument(
-            '-w', '--ctrlmintaxa',
-            action='store',
-            metavar='INT',
-            type=int,
-            default=None,
-            help='minimum taxa to avoid collapsing one level to the parent one'
-                 ' in control samples; it defaults to "mintaxa"'
-        )
-        parser_tuning.add_argument(
-            '-x', '--exclude',
-            action='append',
-            metavar='TAXID',
-            type=Id,
-            default=[],
-            help=('NCBI taxid code to exclude a taxon and all underneath '
-                  '(multiple -x is available to exclude several taxid)')
-        )
-        parser_tuning.add_argument(
-            '-y', '--minscore',
-            action='store',
-            metavar='NUMBER',
-            type=lambda txt: Score(float(txt)),
-            default=None,
-            help=('minimum score/confidence of the classification of a read '
-                  'to pass the quality filter; all pass by default')
-        )
-        parser_tuning.add_argument(
-            '-z', '--ctrlminscore',
-            action='store',
-            metavar='NUMBER',
-            type=lambda txt: Score(float(txt)),
-            default=None,
-            help=('minimum score/confidence of the classification of a read '
-                  'in control samples to pass the quality filter; if defaults '
-                  'to "minscore"')
         )
         return parser
 

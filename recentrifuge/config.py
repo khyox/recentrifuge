@@ -3,7 +3,7 @@ This module provides constants and other package-wide stuff.
 
 """
 from enum import Enum
-from typing import Dict, Counter, NewType, Union, Optional
+from typing import Dict, Counter, NewType, Union
 
 from recentrifuge.shared_counter import SharedCounter
 
@@ -77,7 +77,7 @@ class Scoring(Enum):
     LOGLENGTH = 2  # Log10 of the length
     NORMA = 3  # It is the normalized score SHEL / LENGTH
     LMAT = 4  # Default for LMAT, not available for others
-    CLARK = 5  # Based on CLARK's confidence, not available for others
+    CLARK = 5  # Based on CLARK's confidence score, not available for others
 
     def __str__(self):
         return f'{self.name}'

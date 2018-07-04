@@ -8,6 +8,7 @@ from typing import Set, Counter, Iterable, Tuple
 
 from recentrifuge.config import Filename, Id, Parents, Names, Children
 from recentrifuge.config import ROOT, CELLULAR_ORGANISMS
+from recentrifuge.config import red, magenta
 from recentrifuge.rank import Ranks, Rank, UnsupportedTaxLevelError
 from recentrifuge.ontology import Ontology
 
@@ -81,7 +82,11 @@ class Taxonomy(Ontology):
                     self.ranks[tid] = rank
 
         except OSError:
-            print(f'\n\033[91mERROR!\033[0m Cannot read {nodes_file}')
+            print(red('ERROR!'), f'Cannot read {nodes_file}.')
+            print(magenta('TIP:'),
+                  'Did you select the right path with the "-n" option?')
+            print(magenta('TIP:'),
+                  'Did you use "Retaxdump" to install the dump files?')
             raise
         else:
             print('\033[92m OK! \033[0m')
@@ -97,8 +102,10 @@ class Taxonomy(Ontology):
                         tid, scientific_name, *_ = line.split('\t|\t')
                         self.names[Id(tid)] = scientific_name
         except OSError:
-            raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
-                            names_file + '"')
+            print(red('ERROR!'), f'Cannot read {names_file}.')
+            print(magenta('TIP:'),
+                  'Did you use "Retaxdump" to install the dump files?')
+            raise
         else:
             print('\033[92m OK! \033[0m')
 
@@ -159,6 +166,9 @@ class Taxonomy(Ontology):
         except OSError:
             print('\033[93mWARNING\033[0m: Cannot read "' +
                         plasmid_file + '". Plasmid taxids not loaded!')
+            print(magenta('TIP:'),
+                  'Manual installation of the plasmids file required.')
+            raise
         else:  # Statistics about plasmids
             print('\033[92m OK! \033[0m\n',
                   '\033[90mPlasmid sanity check:\033[0m',
