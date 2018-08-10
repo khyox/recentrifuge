@@ -89,6 +89,11 @@
 //
 //----------------------------------------------------------------------------
 }
+
+///////////////
+// Variables //
+///////////////
+
 var canvas;
 var canvasButtons = [];  // Keep trace of CanvasButton objects
 var ChartEnum = Object.freeze({
@@ -324,6 +329,25 @@ var image;
 var hiddenPattern;
 var loadingImage;
 var logoImage;
+
+// Setup CSS-like style of tooltips for attributes
+//
+var csstring = '.CellWithTooltip{ position:relative; }\n' +
+    '.Tooltip{ display:none;position:absolute;z-index:100;border:2px;' +
+    'background-color:white;border-style:solid;border-width:2px;' +
+    'border-color:red;padding:3px;color:red;top:20px;left:0px; }' +
+    '.CellWithTooltip:hover span.Tooltip{ display:block; }';
+var style = document.createElement('style');
+if (style.styleSheet) {
+    style.styleSheet.cssText = csstring;
+} else {
+    style.appendChild(document.createTextNode(csstring));
+}
+document.getElementsByTagName('head')[0].appendChild(style);
+
+///////////////
+// Functions //
+///////////////
 
 function backingScale() {
     if ('devicePixelRatio' in window) {
@@ -4845,6 +4869,11 @@ function load() {
                         attribute.displayName =
                             attributeElement.getAttribute('display');
 
+                        if (attributeElement.getAttribute('tip')) {
+                            attribute.tip =
+                                attributeElement.getAttribute('tip');
+                        }
+
                         if (attributeElement.getAttribute('hrefBase')) {
                             attribute.hrefBase =
                                 attributeElement.getAttribute('hrefBase');
@@ -4855,7 +4884,7 @@ function load() {
                                 attributeElement.getAttribute('target');
                         }
 
-                        if (attribute.name == magnitudeName) {
+                        if (attribute.name === magnitudeName) {
                             magnitudeIndex = attributes.length;
                         }
 
@@ -5888,9 +5917,11 @@ function setFocus(node) {
                 }
 
                 table +=
-                    '<tr><td><strong>' + attributes[i].displayName
-                    + ':</strong></td><td>' +
-                    value + '</td></tr>';
+                    '<tr><td class="CellWithTooltip">' +
+                    '<strong>' + attributes[i].displayName + ':</strong>' +
+                    '<span class="Tooltip">' +
+                    attributes[i].tip + '</span>' +
+                    '</td><td>' + value + '</td></tr>';
             }
         }
     }

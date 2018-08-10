@@ -12,9 +12,9 @@ from typing import List, Dict, NewType, Any, Optional
 from xml.dom import minidom
 
 from recentrifuge.config import Filename, Sample, Scoring, Chart
-from recentrifuge.stats import SampleStats
 from recentrifuge.config import JSLIB, HTML_SUFFIX
 from recentrifuge.config import yellow, red
+from recentrifuge.stats import SampleStats
 
 # Type annotations
 # pylint: disable=invalid-name
@@ -187,23 +187,29 @@ class KronaTree(ETree.ElementTree):
                                            {'magnitude': 'count'})
         # # Set Count attribute
         self.sub(self.attributes, 'attribute',
-                 {'display': 'Count', 'dataAll': 'members'},
+                 {'display': 'Count', 'dataAll': 'members',
+                  'tip': 'Number of reads assigned to this and child taxa'},
                  'count')
         # # Set Unassigned attribute
         self.sub(self.attributes, 'attribute',
-                 {'display': 'Unassigned', 'dataNode': 'members'},
+                 {'display': 'Unassigned', 'dataNode': 'members',
+                  'tip': 'Number of reads assigned specifically to this taxon'},
                  'unassigned')
         # # Set Id attribute
         self.sub(self.attributes, 'attribute',
-                 {'display': iden, 'mono': 'true', 'hrefBase': hrefbase},
+                 {'display': iden, 'mono': 'true', 'hrefBase': hrefbase,
+                  'tip': 'Taxonomic identifier'},
                  'tid')
         # # Set Rank attribute
         self.sub(self.attributes, 'attribute',
-                 {'display': 'Rank', 'mono': 'true'},
+                 {'display': 'Rank', 'mono': 'true',
+                  'tip': 'Taxonomic rank/level'},
                  'rank')
         # # Set confidence/score attribute
         self.sub(self.attributes, 'attribute',
-                 {'display': display},
+                 {'display': display,
+                  'tip': 'Averaged score of reads assigned'
+                         ' to this and child taxa'},
                  'score')
 
         # Set datasets
