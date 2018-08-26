@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+#
+#     Copyright (C) 2017, 2018, Jose Manuel Martí Martínez
+#
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU Affero General Public License as
+#     published by the Free Software Foundation, either version 3 of the
+#     License, or (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#     GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 """
 Get needed taxdump files from NCBI.
 """
@@ -8,19 +24,21 @@ from ftplib import FTP
 import sys
 from zipfile import ZipFile
 
-from recentrifuge.config import NODES_FILE, NAMES_FILE, ZIPFILE, TAXDUMP_PATH
+from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, ZIPFILE
+from recentrifuge.config import TAXDUMP_PATH
 
-__version__ = '0.0.2'
-__author__ = 'Jose Manuel Marti'
-__date__ = 'Jan 2018'
+__version__ = '0.0.3'
+__author__ = 'Jose Manuel Martí'
+__date__ = 'Aug 2018'
 
 
 def main():
     """Main entry point to script."""
     # Argument Parser Configuration
     parser = argparse.ArgumentParser(
-        description='Extract reads following Centrifuge/Kraken output',
-        epilog=f'%(prog)s  - {__author__} - {__date__}'
+        description='Get needed taxdump files from NCBI servers',
+        epilog=f'%(prog)s  - Release {__version__} - {__date__}' + LICENSE,
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
         '-V', '--version',
@@ -40,7 +58,8 @@ def main():
     args = parser.parse_args()
 
     # Program header
-    print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
+    print(f'\n=-= {sys.argv[0]} =-= v{__version__} - {__date__}'
+          f' =-= by {__author__} =-=\n')
     sys.stdout.flush()
 
     # Load NCBI nodes, names and build children

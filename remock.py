@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+#
+#     Copyright (C) 2017, 2018, Jose Manuel Martí Martínez
+#
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU Affero General Public License as
+#     published by the Free Software Foundation, either version 3 of the
+#     License, or (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#     GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 """
 Generate mock samples for Recentrifuge testing
 """
@@ -12,7 +28,7 @@ from typing import Counter
 
 from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.config import Filename, Id
-from recentrifuge.config import NODES_FILE, NAMES_FILE
+from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE
 from recentrifuge.config import TAXDUMP_PATH
 from recentrifuge.config import gray, red, green, yellow, blue, cyan
 from recentrifuge.taxonomy import Taxonomy
@@ -25,15 +41,15 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.2.1'
-__author__ = 'Jose Manuel Marti'
-__date__ = 'June 2018'
+__version__ = '0.2.2'
+__author__ = 'Jose Manuel Martí'
+__date__ = 'Aug 2018'
 
 MAX_HIT_LENGTH: int = 200  # Max hit length for random score generation
 
 
 def main():
-    """Main entry point to recentrifuge."""
+    """Main entry point to script."""
 
     def vprint(*args):
         """Print only if verbose/debug mode is enabled"""
@@ -45,8 +61,8 @@ def main():
         """Argument Parser Configuration"""
         parser = argparse.ArgumentParser(
             description='Generate mock samples for Recentrifuge testing',
-            epilog=f'%(prog)s  - {__author__} - {__date__}',
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+            epilog=f'%(prog)s  - Release {__version__} - {__date__}' + LICENSE,
+            formatter_class=argparse.RawDescriptionHelpFormatter
         )
         parser_mode = parser.add_mutually_exclusive_group(required=True)
         parser_mode.add_argument(
@@ -196,7 +212,8 @@ def main():
                 mock_from_scratch(test, mock_layout)
 
     # Program header
-    print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
+    print(f'\n=-= {sys.argv[0]} =-= v{__version__} - {__date__}'
+          f' =-= by {__author__} =-=\n')
     sys.stdout.flush()
 
     # Parse arguments

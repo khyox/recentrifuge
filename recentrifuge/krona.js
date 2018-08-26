@@ -73,15 +73,15 @@
 // 
 //----------------------------------------------------------------------------
 //
-// Copyright (C) 2017, Jose Manuel Martí Martínez, for the changes in this
-// file from the Krona javascript 2.0 release.
+// Copyright (C) 2017, 2018 Jose Manuel Martí Martínez, for the changes in
+// this file from the Krona Javascript 2.0 release.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the above copyright notice is
 // reproduced and all the above conditions are met.
 //
-// The KRONA(TM) mark has been substituted in the generated charts by the
-// Recentrifuge logo in compliance with the above-stated conditions.
+// The KRONA(TM) mark has been substituted in the generated charts by
+// another logo in compliance with the above-stated conditions.
 //
 // FOR MORE INFORMATION VISIT
 //

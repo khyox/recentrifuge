@@ -1,6 +1,22 @@
 #!/usr/bin/env python3
+#
+#     Copyright (C) 2017, 2018, Jose Manuel Martí Martínez
+#
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU Affero General Public License as
+#     published by the Free Software Foundation, either version 3 of the
+#     License, or (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#     GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 """
-Extract reads following Centrifuge/Kraken output.
+Selectively extract reads following Centrifuge/Kraken output.
 """
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse
@@ -13,15 +29,15 @@ from typing import List, Set
 from Bio import SeqIO, SeqRecord
 
 from recentrifuge.config import Filename, Id, Score
-from recentrifuge.config import NODES_FILE, NAMES_FILE, TAXDUMP_PATH
+from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, TAXDUMP_PATH
 from recentrifuge.config import gray, red, green, cyan, magenta
 from recentrifuge.rank import Rank, Ranks, TaxLevels
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree
 
-__version__ = '0.4.1'
-__author__ = 'Jose Manuel Marti'
-__date__ = 'June 2018'
+__version__ = '0.4.2'
+__author__ = 'Jose Manuel Martí'
+__date__ = 'Aug 2018'
 
 MAX_LENGTH_TAXID_LIST = 32
 
@@ -30,8 +46,9 @@ def main():
     """Main entry point to script."""
     # Argument Parser Configuration
     parser = argparse.ArgumentParser(
-        description='Extract reads following Centrifuge/Kraken output',
-        epilog=f'%(prog)s  - {__author__} - {__date__}'
+        description='Selectively extract reads following Centrifuge output',
+        epilog=f'%(prog)s  - Release {__version__} - {__date__}' + LICENSE,
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
         '-V', '--version',
@@ -127,7 +144,8 @@ def main():
     # timing initialization
     start_time: float = time.time()
     # Program header
-    print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
+    print(f'\n=-= {sys.argv[0]} =-= v{__version__} - {__date__}'
+          f' =-= by {__author__} =-=\n')
     sys.stdout.flush()
 
     # Parse arguments

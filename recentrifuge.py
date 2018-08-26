@@ -1,6 +1,22 @@
 #!/usr/bin/env python3
+#
+#     Copyright (C) 2017, 2018, Jose Manuel Martí Martínez
+#
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU Affero General Public License as
+#     published by the Free Software Foundation, either version 3 of the
+#     License, or (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#     GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 """
-Post-process Centrifuge/LMAT output.
+Analyze metagenomic taxonomic classification data.
 """
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse
@@ -14,7 +30,7 @@ from typing import Counter, List, Dict, Set, Callable, Tuple
 
 from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.clark import select_clark_inputs
-from recentrifuge.config import Err, Classifier
+from recentrifuge.config import LICENSE, Err, Classifier
 from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Excel
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
@@ -39,9 +55,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.20.6'
-__author__ = 'Jose Manuel Marti'
-__date__ = 'August 2018'
+__version__ = '0.20.7'
+__author__ = 'Jose Manuel Martí'
+__date__ = 'Aug 2018'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -75,13 +91,13 @@ def main():
         """Argument Parser Configuration"""
         parser = argparse.ArgumentParser(
             description='Analyze results of metagenomic taxonomic classifiers',
-            epilog=f'%(prog)s  - {__author__} - {__date__}',
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+            epilog=f'%(prog)s  - Release {__version__} - {__date__}' + LICENSE,
+            formatter_class=argparse.RawDescriptionHelpFormatter
         )
         parser.add_argument(
             '-V', '--version',
             action='version',
-            version=f'%(prog)s release {__version__} ({__date__})'
+            version=f'%(prog)s version {__version__} released in {__date__}'
         )
         parser_in = parser.add_argument_group(
             'input', 'Define Recentrifuge input files and formats')
@@ -561,7 +577,8 @@ def main():
     # timing initialization
     start_time: float = time.time()
     # Program header
-    print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
+    print(f'\n=-= {sys.argv[0]} =-= v{__version__} - {__date__}'
+          f' =-= by {__author__} =-=\n')
     sys.stdout.flush()
 
     # Parse arguments
