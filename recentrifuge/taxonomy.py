@@ -19,7 +19,7 @@ class Taxonomy(Ontology):
     def __init__(self,
                  nodes_file: Filename,
                  names_file: Filename,
-                 plasmid_file: Filename,
+                 plasmid_file: Filename = None,
                  collapse: bool = True,
                  excluding: Set[Id] = None,
                  including: Set[Id] = None,

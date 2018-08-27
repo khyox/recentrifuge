@@ -171,10 +171,11 @@ def main():
             fout.write('readID\tseqID\ttaxID\tscore\t2ndBestScore\t'
                        'hitLength\tqueryLength\tnumMatches\n')
             reads_writen: int = 0
-            for tid in mock_layout:
+            for numtid in mock_layout:
+                tid = Id(numtid)  # Convert to Id the excel integer
                 maxhl: int = random.randint(args.random + 1, MAX_HIT_LENGTH)
                 rank: str = str(ncbi.get_rank(tid)).lower()
-                for _ in range(mock_layout[tid]):
+                for _ in range(int(mock_layout[numtid])):
                     hit_length = random.randint(args.random + 1, maxhl)
                     fout.write(f'test{reads_writen}\t{rank}\t'
                                f'{tid}\t{(hit_length-15)**2}\t'
@@ -199,7 +200,8 @@ def main():
         dirname = os.path.dirname(args.xcel)
         # Expected index (taxids) in column after taxa name, and last row will
         #  be removed (reserved for sum of reads in Excel file)
-        mock_df = pd.read_excel(args.xcel, index_col=1, skip_footer=1)
+        mock_df = pd.read_excel(args.xcel, index_col=1, skip_footer=1,
+                                dtype=str)
         del mock_df['RECENTRIFUGE MOCK']
         vprint(gray('Layout to generate the mock files:\n'), mock_df, '\n')
         for name, series in mock_df.iteritems():
