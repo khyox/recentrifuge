@@ -60,12 +60,6 @@ DEFMINTAXA: int = 10  # min taxa to avoid collapsing one level into the parent
 DEFMINGENE: int = 2  # min genes to avoid collapsing GO genes hierarchy levels
 ROOT: Id = Id('1')
 CELLULAR_ORGANISMS: Id = Id('131567')
-EPS: float = 1e-14
-ROBUST_MIN_SAMPLES: int = 1  # Min num of non-ctrl samples to enable advCtrl
-ROBUST_XOVER_OUTLIER = 5  # Cutoff for crossover outlier test, typ in [2, 3]
-ROBUST_XOVER_ORD_MAG = 3  # Relfreq order of magnitude dif in crossover test
-SEVR_CONTM_MIN_RELFREQ: float = 0.01  # Min rel frequency of severe contaminant
-MILD_CONTM_MIN_RELFREQ: float = 0.001  # Min rel frequency of mild contaminant
 GO_ROOT: Id = Id('GO:ROOT')
 NO_SCORE = Score(float("-inf"))
 

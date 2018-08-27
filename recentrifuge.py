@@ -55,7 +55,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.20.7'
+__version__ = '0.20.8'
 __author__ = 'Jose Manuel Martí'
 __date__ = 'Aug 2018'
 

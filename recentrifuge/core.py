@@ -9,15 +9,15 @@ import subprocess
 import sys
 from typing import List, Set, Counter, Tuple, Union, Dict
 
-from recentrifuge.config import ROBUST_MIN_SAMPLES
-from recentrifuge.config import ROBUST_XOVER_ORD_MAG, ROBUST_XOVER_OUTLIER
 from recentrifuge.config import Filename, Sample, Id, Parents, Score, Scores
-from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT, EPS
-from recentrifuge.config import SEVR_CONTM_MIN_RELFREQ, MILD_CONTM_MIN_RELFREQ
+from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_SUMMARY, STR_CONTROL_SHARED
 from recentrifuge.config import UnionCounter, UnionScores
 from recentrifuge.config import gray, red, yellow, blue, magenta, cyan, green
+from recentrifuge.params import EPS, ROBUST_MIN_SAMPLES, ROBUST_XOVER_OUTLIER
+from recentrifuge.params import ROBUST_XOVER_ORD_MAG, SEVR_CONTM_MIN_RELFREQ
+from recentrifuge.params import MILD_CONTM_MIN_RELFREQ
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
 from recentrifuge.ontology import Ontology

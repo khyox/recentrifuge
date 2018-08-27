@@ -93,7 +93,7 @@ def main():
             metavar='FILE',
             type=Filename,
             help=('Mock files to be read for mock Centrifuge sequences layout.'
-                  ' If a single directory is entered, every .out file inside '
+                  ' If a single directory is entered, every .mck file inside '
                   'will be taken as a different sample. '
                   'Multiple -f is available to include several samples.')
         )
