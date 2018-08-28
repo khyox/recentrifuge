@@ -30,98 +30,98 @@ Loading output file ctrl1.out... OK!
   Seqs read: 100_000	[20.00 Mnt]
   Seqs clas: 100_000	(0.00% unclassified)
   Seqs pass: 100_000	(0.00% rejected)
-  Scores: min = 36.0, max = 194.0, avr = 65.0
+  Scores: min = 36.0, max = 179.0, avr = 48.9
   Length: min = 200 nt, max = 200 nt, avr = 200 nt
   11 taxa with assigned reads
 Building from raw data...
   Building ontology tree with all-in-1... OK!
   Checking taxid loss (orphans)... OK!
 ctrl1 ctrl OK!
-Load elapsed time: 0.452 sec
+Load elapsed time: 0.453 sec
 
 Processing ctrl ctrl2.out ...
 Loading output file ctrl2.out... OK!
   Seqs read: 100_000	[20.00 Mnt]
   Seqs clas: 100_000	(0.00% unclassified)
   Seqs pass: 100_000	(0.00% rejected)
-  Scores: min = 36.0, max = 175.0, avr = 77.3
+  Scores: min = 36.0, max = 182.0, avr = 80.2
   Length: min = 200 nt, max = 200 nt, avr = 200 nt
   11 taxa with assigned reads
 Building from raw data...
   Building ontology tree with all-in-1... OK!
   Checking taxid loss (orphans)... OK!
 ctrl2 ctrl OK!
-Load elapsed time: 0.466 sec
+Load elapsed time: 0.473 sec
 
 Processing ctrl ctrl3.out ...
 Loading output file ctrl3.out... OK!
   Seqs read: 100_000	[20.00 Mnt]
   Seqs clas: 100_000	(0.00% unclassified)
   Seqs pass: 100_000	(0.00% rejected)
-  Scores: min = 36.0, max = 192.0, avr = 47.6
+  Scores: min = 36.0, max = 168.0, avr = 92.4
   Length: min = 200 nt, max = 200 nt, avr = 200 nt
   13 taxa with assigned reads
 Building from raw data...
   Building ontology tree with all-in-1... OK!
   Checking taxid loss (orphans)... OK!
 ctrl3 ctrl OK!
-Load elapsed time: 0.482 sec
+Load elapsed time: 0.466 sec
 
 Processing sample smpl1.out ...
 Loading output file smpl1.out... OK!
   Seqs read: 100_000	[20.00 Mnt]
   Seqs clas: 100_000	(0.00% unclassified)
   Seqs pass: 100_000	(0.00% rejected)
-  Scores: min = 36.0, max = 191.0, avr = 94.4
+  Scores: min = 36.0, max = 185.0, avr = 88.2
   Length: min = 200 nt, max = 200 nt, avr = 200 nt
   14 taxa with assigned reads
 Building from raw data...
   Building ontology tree with all-in-1... OK!
   Checking taxid loss (orphans)... OK!
 smpl1 sample OK!
-Load elapsed time: 0.679 sec
+Load elapsed time: 0.495 sec
 
 Processing sample smpl2.out ...
 Loading output file smpl2.out... OK!
   Seqs read: 100_000	[20.00 Mnt]
   Seqs clas: 100_000	(0.00% unclassified)
   Seqs pass: 100_000	(0.00% rejected)
-  Scores: min = 36.0, max = 194.0, avr = 76.5
+  Scores: min = 36.0, max = 184.0, avr = 73.7
   Length: min = 200 nt, max = 200 nt, avr = 200 nt
   18 taxa with assigned reads
 Building from raw data...
   Building ontology tree with all-in-1... OK!
   Checking taxid loss (orphans)... OK!
 smpl2 sample OK!
-Load elapsed time: 0.589 sec
+Load elapsed time: 0.557 sec
 
 Processing sample smpl3.out ...
 Loading output file smpl3.out... OK!
   Seqs read: 100_000	[20.00 Mnt]
   Seqs clas: 100_000	(0.00% unclassified)
   Seqs pass: 100_000	(0.00% rejected)
-  Scores: min = 36.0, max = 188.0, avr = 80.3
+  Scores: min = 36.0, max = 189.0, avr = 72.1
   Length: min = 200 nt, max = 200 nt, avr = 200 nt
   17 taxa with assigned reads
 Building from raw data...
   Building ontology tree with all-in-1... OK!
   Checking taxid loss (orphans)... OK!
 smpl3 sample OK!
-Load elapsed time: 0.704 sec
+Load elapsed time: 0.503 sec
 
 Processing sample smpl4.out ...
 Loading output file smpl4.out... OK!
   Seqs read: 100_000	[20.00 Mnt]
   Seqs clas: 100_000	(0.00% unclassified)
   Seqs pass: 100_000	(0.00% rejected)
-  Scores: min = 36.0, max = 195.0, avr = 80.7
+  Scores: min = 36.0, max = 199.0, avr = 74.8
   Length: min = 200 nt, max = 200 nt, avr = 200 nt
   20 taxa with assigned reads
 Building from raw data...
   Building ontology tree with all-in-1... OK!
   Checking taxid loss (orphans)... OK!
 smpl4 sample OK!
-Load elapsed time: 0.493 sec
+Load elapsed time: 0.473 sec
 
 Please, wait. Performing cross analysis in parallel...
 
@@ -133,26 +133,25 @@ Analysis for taxonomic rank "species":
   Exclusive: From smpl2 excluding 15 taxa. Generating sample... OK!
   Exclusive: From smpl3 excluding 16 taxa. Generating sample... VOID
   Exclusive: From smpl4 excluding 16 taxa. Generating sample... VOID
-  Shared: Including 6 shared taxa. Generating sample... OK!
+  Shared: Including 5 shared taxa. Generating sample... OK!
 Robust contamination removal: Searching for contaminants...
-mild cont:	 9598 Pan troglodytes relfreq: [0.01, 0.001, 0.005][0.05, 0.05, 0.05, 0.05]
-mild cont:	 4577 Zea mays relfreq: [0.005, 0.005, 0.005][0.0004, 0.0004, 0.0004, 0.0004]
-other cont:	 76773 Malassezia globosa lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
-other cont:	 1982305 Propionibacterium virus SKKY lims: [0.09]<[5] relfreq: [0.005, 0, 0.002][0.0005, 0.01, 0.02, 0.02]
-severe: 	 1747 Cutibacterium acnes relfreq: [0.005, 0.3, 0.0005][0.1, 0.1, 0.1, 0.1]
 critical:	 9606 Homo sapiens relfreq: [0.9, 0.6, 0.9][0.3, 0.3, 0.2, 0.2]
+other cont:	 1982305 Propionibacterium virus SKKY lims: [0.09]<[5] relfreq: [0.005, 0, 0.002][0.0005, 0.01, 0.02, 0.02]
+mild cont:	 562 Escherichia coli relfreq: [0.005, 0.005, 0.005][0.05, 0.05, 0.05, 0.05]
+mild cont:	 9598 Pan troglodytes relfreq: [0.01, 0.001, 0.005][0.05, 0.05, 0.05, 0.05]
 crossover:	 2209 Methanosarcina mazei lims: [0.002]<[0.1] relfreq: [0.0001, 0.0001, 0.0001][0.2, 0.0002, 0.0002, 0.0002] crossover: [T, F, F, F]
 	-> Include 2209 just in: smpl1
-mild cont:	 562 Escherichia coli relfreq: [0.005, 0.005, 0.005][0.05, 0.05, 0.05, 0.05]
 just-ctrl:	 4565 Triticum aestivum relfreq: [0.003, 0.004, 0.004][0, 0, 0, 0]
-other cont:	 1587 Lactobacillus helveticus lims: [0.2]<[0.4] relfreq: [0, 0, 0.0004][0.06, 0.05, 0.04, 0.05]
+other cont:	 76773 Malassezia globosa lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
 crossover:	 2208 Methanosarcina barkeri lims: [0.0009]<[0.06] relfreq: [6e-05, 0, 6e-05][0.0001, 7e-05, 0.06, 0.0001] crossover: [F, F, T, F]
 	-> Include 2208 just in: smpl3
-  Ctrl: From smpl1 excluding 9 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl2 excluding 10 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl3 excluding 9 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl4 excluding 10 ctrl taxa. Generating sample... OK!
-  Ctrl-shared: Including 1 shared taxa. Generating sample... OK!
+just-ctrl:	 4577 Zea mays relfreq: [0.0005, 0.0005, 0.0005][0, 0, 0, 0]
+severe: 	 1747 Cutibacterium acnes relfreq: [0.005, 0.3, 0.0005][0.1, 0.1, 0.1, 0.1]
+  Ctrl: From smpl1 excluding 7 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl2 excluding 8 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl3 excluding 7 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl4 excluding 8 ctrl taxa. Generating sample... OK!
+  Ctrl-shared: Including 2 shared taxa. Generating sample... OK!
 
 Analysis for taxonomic rank "genus":
   Exclusive: From ctrl1 excluding 14 taxa. Generating sample... VOID
@@ -162,23 +161,23 @@ Analysis for taxonomic rank "genus":
   Exclusive: From smpl2 excluding 14 taxa. Generating sample... VOID
   Exclusive: From smpl3 excluding 14 taxa. Generating sample... VOID
   Exclusive: From smpl4 excluding 14 taxa. Generating sample... VOID
-  Shared: Including 7 shared taxa. Generating sample... OK!
+  Shared: Including 5 shared taxa. Generating sample... OK!
 Robust contamination removal: Searching for contaminants...
-other cont:	 1982251 Pa6virus lims: [0.09]<[5] relfreq: [0.005, 0, 0.002][0.0005, 0.01, 0.02, 0.02]
-other cont:	 1578 Lactobacillus lims: [0.5]<[2] relfreq: [0.0004, 0.001, 0.002][0.07, 0.1, 0.09, 0.1]
-other cont:	 55193 Malassezia lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
-critical:	 9605 Homo relfreq: [0.9, 0.6, 0.9][0.3, 0.3, 0.2, 0.2]
-just-ctrl:	 4564 Triticum relfreq: [0.003, 0.004, 0.004][0, 0, 0, 0]
-mild cont:	 9596 Pan relfreq: [0.01, 0.001, 0.005][0.05, 0.05, 0.05, 0.05]
-mild cont:	 561 Escherichia relfreq: [0.005, 0.005, 0.005][0.05, 0.05, 0.05, 0.05]
-mild cont:	 4575 Zea relfreq: [0.005, 0.005, 0.005][0.0004, 0.0004, 0.0004, 0.0004]
 crossover:	 2207 Methanosarcina lims: [0.003]<[0.2] relfreq: [0.0002, 0.0001, 0.0002][0.2, 0.0003, 0.06, 0.0003] crossover: [T, F, F, F]
 	-> Include 2207 just in: smpl1
+critical:	 9605 Homo relfreq: [0.9, 0.6, 0.9][0.3, 0.3, 0.2, 0.2]
+mild cont:	 561 Escherichia relfreq: [0.005, 0.005, 0.005][0.05, 0.05, 0.05, 0.05]
+just-ctrl:	 4564 Triticum relfreq: [0.003, 0.004, 0.004][0, 0, 0, 0]
+mild cont:	 9596 Pan relfreq: [0.01, 0.001, 0.005][0.05, 0.05, 0.05, 0.05]
+other cont:	 55193 Malassezia lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
+just-ctrl:	 4575 Zea relfreq: [0.0005, 0.0005, 0.0005][0, 0, 0, 0]
+other cont:	 1982251 Pa6virus lims: [0.09]<[5] relfreq: [0.005, 0, 0.002][0.0005, 0.01, 0.02, 0.02]
+other cont:	 1578 Lactobacillus lims: [0.5]<[2] relfreq: [0, 0.001, 0.002][0.07, 0.1, 0.09, 0.1]
 severe: 	 1912216 Cutibacterium relfreq: [0.005, 0.3, 0.0005][0.1, 0.1, 0.1, 0.1]
-  Ctrl: From smpl1 excluding 8 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl2 excluding 9 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl3 excluding 9 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl4 excluding 9 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl1 excluding 7 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl2 excluding 8 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl3 excluding 8 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl4 excluding 8 ctrl taxa. Generating sample... OK!
   Ctrl-shared: Including 2 shared taxa. Generating sample... OK!
 
 Analysis for taxonomic rank "family":
@@ -189,21 +188,21 @@ Analysis for taxonomic rank "family":
   Exclusive: From smpl2 excluding 10 taxa. Generating sample... VOID
   Exclusive: From smpl3 excluding 10 taxa. Generating sample... VOID
   Exclusive: From smpl4 excluding 10 taxa. Generating sample... VOID
-  Shared: Including 6 shared taxa. Generating sample... OK!
+  Shared: Including 4 shared taxa. Generating sample... OK!
 Robust contamination removal: Searching for contaminants...
 critical:	 9604 Hominidae relfreq: [0.9, 0.6, 0.9][0.4, 0.3, 0.2, 0.3]
-severe: 	 31957 Propionibacteriaceae relfreq: [0.005, 0.3, 0.0005][0.1, 0.1, 0.1, 0.1]
+just-ctrl:	 4479 Poaceae relfreq: [0.004, 0.005, 0.004][0, 0, 0, 0]
+mild cont:	 543 Enterobacteriaceae relfreq: [0.005, 0.005, 0.005][0.05, 0.2, 0.05, 0.1]
 other cont:	 10699 Siphoviridae lims: [0.8]<[5] relfreq: [0.005, 0, 0.002][0.04, 0.1, 0.07, 0.1]
 other cont:	 742845 Malasseziaceae lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
 crossover:	 2206 Methanosarcinaceae lims: [0.003]<[0.2] relfreq: [0.0002, 0.0001, 0.0002][0.2, 0.0003, 0.06, 0.0003] crossover: [T, F, F, F]
 	-> Include 2206 just in: smpl1
-mild cont:	 4479 Poaceae relfreq: [0.008, 0.009, 0.009][0.0004, 0.0004, 0.0004, 0.0004]
-other cont:	 33958 Lactobacillaceae lims: [0.5]<[2] relfreq: [0.0004, 0.001, 0.002][0.07, 0.1, 0.09, 0.1]
-mild cont:	 543 Enterobacteriaceae relfreq: [0.005, 0.005, 0.005][0.05, 0.2, 0.05, 0.1]
-  Ctrl: From smpl1 excluding 7 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl2 excluding 8 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl3 excluding 8 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl4 excluding 8 ctrl taxa. Generating sample... OK!
+other cont:	 33958 Lactobacillaceae lims: [0.5]<[2] relfreq: [0, 0.001, 0.002][0.07, 0.1, 0.09, 0.1]
+severe: 	 31957 Propionibacteriaceae relfreq: [0.005, 0.3, 0.0005][0.1, 0.1, 0.1, 0.1]
+  Ctrl: From smpl1 excluding 6 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl2 excluding 7 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl3 excluding 7 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl4 excluding 7 ctrl taxa. Generating sample... OK!
   Ctrl-shared: Including 1 shared taxa. Generating sample... OK!
 
 Analysis for taxonomic rank "order":
@@ -214,21 +213,21 @@ Analysis for taxonomic rank "order":
   Exclusive: From smpl2 excluding 10 taxa. Generating sample... VOID
   Exclusive: From smpl3 excluding 10 taxa. Generating sample... VOID
   Exclusive: From smpl4 excluding 10 taxa. Generating sample... VOID
-  Shared: Including 6 shared taxa. Generating sample... OK!
+  Shared: Including 4 shared taxa. Generating sample... OK!
 Robust contamination removal: Searching for contaminants...
-mild cont:	 38820 Poales relfreq: [0.008, 0.009, 0.009][0.0004, 0.0004, 0.0004, 0.0004]
-other cont:	 28883 Caudovirales lims: [0.8]<[5] relfreq: [0.005, 0, 0.002][0.04, 0.1, 0.07, 0.1]
-critical:	 9443 Primates relfreq: [0.9, 0.6, 0.9][0.4, 0.3, 0.2, 0.3]
-mild cont:	 91347 Enterobacterales relfreq: [0.005, 0.005, 0.005][0.05, 0.2, 0.05, 0.1]
-severe: 	 85009 Propionibacteriales relfreq: [0.005, 0.3, 0.0005][0.1, 0.1, 0.1, 0.1]
-other cont:	 186826 Lactobacillales lims: [0.5]<[2] relfreq: [0.0004, 0.001, 0.002][0.07, 0.1, 0.09, 0.1]
-other cont:	 162474 Malasseziales lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
 crossover:	 94695 Methanosarcinales lims: [0.003]<[0.2] relfreq: [0.0002, 0.0001, 0.0002][0.2, 0.0003, 0.06, 0.0003] crossover: [T, F, F, F]
 	-> Include 94695 just in: smpl1
-  Ctrl: From smpl1 excluding 7 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl2 excluding 8 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl3 excluding 8 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl4 excluding 8 ctrl taxa. Generating sample... OK!
+other cont:	 186826 Lactobacillales lims: [0.5]<[2] relfreq: [0, 0.001, 0.002][0.07, 0.1, 0.09, 0.1]
+other cont:	 162474 Malasseziales lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
+mild cont:	 91347 Enterobacterales relfreq: [0.005, 0.005, 0.005][0.05, 0.2, 0.05, 0.1]
+critical:	 9443 Primates relfreq: [0.9, 0.6, 0.9][0.4, 0.3, 0.2, 0.3]
+severe: 	 85009 Propionibacteriales relfreq: [0.005, 0.3, 0.0005][0.1, 0.1, 0.1, 0.1]
+just-ctrl:	 38820 Poales relfreq: [0.004, 0.005, 0.004][0, 0, 0, 0]
+other cont:	 28883 Caudovirales lims: [0.8]<[5] relfreq: [0.005, 0, 0.002][0.04, 0.1, 0.07, 0.1]
+  Ctrl: From smpl1 excluding 6 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl2 excluding 7 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl3 excluding 7 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl4 excluding 7 ctrl taxa. Generating sample... OK!
   Ctrl-shared: Including 1 shared taxa. Generating sample... OK!
 
 Analysis for taxonomic rank "class":
@@ -239,20 +238,20 @@ Analysis for taxonomic rank "class":
   Exclusive: From smpl2 excluding 9 taxa. Generating sample... VOID
   Exclusive: From smpl3 excluding 9 taxa. Generating sample... VOID
   Exclusive: From smpl4 excluding 9 taxa. Generating sample... VOID
-  Shared: Including 6 shared taxa. Generating sample... OK!
+  Shared: Including 4 shared taxa. Generating sample... OK!
 Robust contamination removal: Searching for contaminants...
-mild cont:	 1236 Gammaproteobacteria relfreq: [0.005, 0.005, 0.005][0.05, 0.2, 0.05, 0.1]
 severe: 	 1760 Actinobacteria relfreq: [0.005, 0.3, 0.0005][0.1, 0.1, 0.1, 0.1]
-mild cont:	 4447 Liliopsida relfreq: [0.008, 0.009, 0.009][0.0004, 0.0004, 0.0004, 0.0004]
-critical:	 40674 Mammalia relfreq: [0.9, 0.6, 0.9][0.4, 0.3, 0.2, 0.3]
-other cont:	 91061 Bacilli lims: [0.5]<[2] relfreq: [0.0004, 0.001, 0.002][0.07, 0.1, 0.09, 0.1]
 crossover:	 224756 Methanomicrobia lims: [0.003]<[0.2] relfreq: [0.0002, 0.0001, 0.0002][0.2, 0.0003, 0.06, 0.0003] crossover: [T, F, F, F]
 	-> Include 224756 just in: smpl1
+mild cont:	 1236 Gammaproteobacteria relfreq: [0.005, 0.005, 0.005][0.05, 0.2, 0.05, 0.1]
 other cont:	 1538075 Malasseziomycetes lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
-  Ctrl: From smpl1 excluding 6 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl2 excluding 7 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl3 excluding 7 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl4 excluding 7 ctrl taxa. Generating sample... OK!
+critical:	 40674 Mammalia relfreq: [0.9, 0.6, 0.9][0.4, 0.3, 0.2, 0.3]
+just-ctrl:	 4447 Liliopsida relfreq: [0.004, 0.005, 0.004][0, 0, 0, 0]
+other cont:	 91061 Bacilli lims: [0.5]<[2] relfreq: [0, 0.001, 0.002][0.07, 0.1, 0.09, 0.1]
+  Ctrl: From smpl1 excluding 5 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl2 excluding 6 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl3 excluding 6 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl4 excluding 6 ctrl taxa. Generating sample... OK!
   Ctrl-shared: Including 1 shared taxa. Generating sample... OK!
 
 Analysis for taxonomic rank "phylum":
@@ -263,20 +262,20 @@ Analysis for taxonomic rank "phylum":
   Exclusive: From smpl2 excluding 7 taxa. Generating sample... VOID
   Exclusive: From smpl3 excluding 7 taxa. Generating sample... VOID
   Exclusive: From smpl4 excluding 7 taxa. Generating sample... VOID
-  Shared: Including 6 shared taxa. Generating sample... OK!
+  Shared: Including 4 shared taxa. Generating sample... OK!
 Robust contamination removal: Searching for contaminants...
-other cont:	 1239 Firmicutes lims: [0.5]<[2] relfreq: [0.0004, 0.001, 0.002][0.07, 0.1, 0.09, 0.1]
+mild cont:	 1224 Proteobacteria relfreq: [0.005, 0.005, 0.005][0.05, 0.2, 0.3, 0.3]
 severe: 	 201174 Actinobacteria relfreq: [0.005, 0.3, 0.0005][0.1, 0.1, 0.1, 0.1]
+other cont:	 5204 Basidiomycota lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
 crossover:	 28890 Euryarchaeota lims: [0.003]<[0.2] relfreq: [0.0002, 0.0001, 0.0002][0.2, 0.0003, 0.06, 0.0003] crossover: [T, F, F, F]
 	-> Include 28890 just in: smpl1
-other cont:	 5204 Basidiomycota lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
 critical:	 7711 Chordata relfreq: [0.9, 0.6, 0.9][0.4, 0.3, 0.2, 0.3]
-mild cont:	 35493 Streptophyta relfreq: [0.008, 0.009, 0.009][0.0004, 0.0004, 0.0004, 0.0004]
-mild cont:	 1224 Proteobacteria relfreq: [0.005, 0.005, 0.005][0.05, 0.2, 0.3, 0.3]
-  Ctrl: From smpl1 excluding 6 ctrl taxa. Generating sample... OK!
-  Ctrl: From smpl2 excluding 7 ctrl taxa. Generating sample... VOID
-  Ctrl: From smpl3 excluding 7 ctrl taxa. Generating sample... VOID
-  Ctrl: From smpl4 excluding 7 ctrl taxa. Generating sample... VOID
+other cont:	 1239 Firmicutes lims: [0.5]<[2] relfreq: [0, 0.001, 0.002][0.07, 0.1, 0.09, 0.1]
+just-ctrl:	 35493 Streptophyta relfreq: [0.004, 0.005, 0.004][0, 0, 0, 0]
+  Ctrl: From smpl1 excluding 5 ctrl taxa. Generating sample... OK!
+  Ctrl: From smpl2 excluding 6 ctrl taxa. Generating sample... VOID
+  Ctrl: From smpl3 excluding 6 ctrl taxa. Generating sample... VOID
+  Ctrl: From smpl4 excluding 6 ctrl taxa. Generating sample... VOID
   Ctrl-shared: Including 0 shared taxa. Generating sample... VOID
 
 Analysis for taxonomic rank "kingdom":
@@ -287,15 +286,15 @@ Analysis for taxonomic rank "kingdom":
   Exclusive: From smpl2 excluding 3 taxa. Generating sample... VOID
   Exclusive: From smpl3 excluding 3 taxa. Generating sample... VOID
   Exclusive: From smpl4 excluding 3 taxa. Generating sample... VOID
-  Shared: Including 2 shared taxa. Generating sample... OK!
+  Shared: Including 1 shared taxa. Generating sample... OK!
 Robust contamination removal: Searching for contaminants...
-mild cont:	 33090 Viridiplantae relfreq: [0.008, 0.009, 0.009][0.0004, 0.0004, 0.0004, 0.0004]
+just-ctrl:	 33090 Viridiplantae relfreq: [0.004, 0.005, 0.004][0, 0, 0, 0]
 other cont:	 4751 Fungi lims: [0.08]<[1e+01] relfreq: [0, 0.002, 0.01][0.05, 0.05, 0.05, 0.05]
 critical:	 33208 Metazoa relfreq: [0.9, 0.6, 0.9][0.4, 0.3, 0.2, 0.3]
-  Ctrl: From smpl1 excluding 3 ctrl taxa. Generating sample... VOID
-  Ctrl: From smpl2 excluding 3 ctrl taxa. Generating sample... VOID
-  Ctrl: From smpl3 excluding 3 ctrl taxa. Generating sample... VOID
-  Ctrl: From smpl4 excluding 3 ctrl taxa. Generating sample... VOID
+  Ctrl: From smpl1 excluding 2 ctrl taxa. Generating sample... VOID
+  Ctrl: From smpl2 excluding 2 ctrl taxa. Generating sample... VOID
+  Ctrl: From smpl3 excluding 2 ctrl taxa. Generating sample... VOID
+  Ctrl: From smpl4 excluding 2 ctrl taxa. Generating sample... VOID
   Ctrl-shared: Including 0 shared taxa. Generating sample... VOID
 
 Analysis for taxonomic rank "domain":
@@ -322,7 +321,7 @@ Summary for smpl3_CTRL... (5 samples) OK!
 Summary for smpl4_CTRL... (5 samples) OK!
 Summary for SHARED... (7 samples) OK!
 Summary for CONTROL_SHARED... (5 samples) OK!
-Summary elapsed time: 36.4 sec
+Summary elapsed time: 40.7 sec
 
 Building the taxonomy multiple tree... OK!
 Generating final plot (TEST.rcf.html)... OK!
