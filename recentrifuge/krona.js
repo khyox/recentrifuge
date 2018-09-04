@@ -3614,9 +3614,10 @@ and including collapsed wedges.'
     position = addOptionElement
     (
         position,
-        '<input type="button" id="snapshot" style="margin:5px 2px 0 10px" value="Snapshot" title="Render the current view as SVG (Scalable Vector Graphics), a publication-\
-quality format that can be printed and saved (see Help for browser\
-    compatibility)"/> <input type="button" id="help" value="?"\
+        '<input type="button" id="snapshot" style="margin:5px 2px 0 10px"\
+         value="Snapshot" title="Render the current view as SVG (Scalable \
+Vector Graphics), a vectorial publication-quality format that can be saved or \
+printed as PDF"/> <input type="button" id="help" value="?"\
     onclick="window.open(\'https://github.com/khyox/recentrifuge/wiki\',\
      \'help\')" title="Help"/>');
 
@@ -6090,24 +6091,16 @@ function snapshot() {
 
     svg += svgFooter();
 
-    snapshotWindow = window.open
-    (
-        'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg),
-        '_blank'
-    );
-    /*	var data = window.open('data:text/plain;charset=utf-8,hello', '_blank');
-	var data = window.open('', '_blank');
-	data.document.open('text/plain');
-	data.document.write('hello');
-	data.document.close();
-	var button = document.createElement('input');
-	button.type = 'button';
-	button.value = 'save';
-	button.onclick = save;
-	data.document.body.appendChild(button);
-//	snapshotWindow.document.write(svg);
-//	snapshotWindow.document.close();
-*/
+   	var snapshotWindow = window.open('', '_blank', '', 'replace=false');
+	snapshotWindow.document.write('<html><body>' +
+        '<button title="Download Rec@ntrifuge snapshot as SVG file" ' +
+        'onclick="document.getElementById(\'link\').click()">' +
+        'Download</button><a id="link" href="data:image/svg+xml,' +
+        encodeURIComponent(svg) + '" download="Recfg_snapshot.svg" hidden>' +
+        'Download</a><br></html></body>');
+    snapshotWindow.document.title = 'Re@ [snapshot] ' +
+       location.href.split("/").slice(-1)[0].split(".html")[0];
+	snapshotWindow.document.write(svg);
 }
 
 function save() {
@@ -6147,6 +6140,7 @@ function svgHeader() {
         '</title>\
 <defs>\
 	<style type="text/css">\
+	@import url("https://fonts.googleapis.com/css?family=' + fontFamily + '");\
 	text {font-size: ' + fontSize + 'px; font-family: ' + fontFamily
         + '; dominant-baseline:central}\
 	path {stroke-width:' + thinLineWidth * fontSize / 12 + ';}\
