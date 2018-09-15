@@ -8,8 +8,8 @@ import html
 import os
 import subprocess
 import xml.etree.ElementTree as ETree
-from typing import List, Dict, NewType, Any, Optional
 from xml.dom import minidom
+from typing import List, Dict, NewType, Any, Optional
 
 from recentrifuge.config import Filename, Sample, Scoring, Chart
 from recentrifuge.config import JSLIB, HTML_SUFFIX

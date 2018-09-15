@@ -202,4 +202,3 @@ def select_centrifuge_inputs(outputs: List[Filename],
     outputs.sort()
     print(gray(f'Centrifuge {ext} files to analyze:'), outputs)
 
-

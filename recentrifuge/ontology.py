@@ -41,4 +41,3 @@ class Ontology(metaclass=ABCMeta):
         """Return the ids entered with all their ancestors"""
         raise NotImplementedError(f'Class {self.__class__.__name__} does not'
                                   f' implement get_ancestors()')
-

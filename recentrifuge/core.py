@@ -184,7 +184,7 @@ def process_rank(*args,
 
         def robust_contamination_removal():
             """Implement robust contamination removal algorithm."""
-            nonlocal exclude_sets
+            nonlocal exclude_sets, shared_crossover
 
             def compute_qn(data: List[float], dist: str = "Gauss") -> float:
                 """Compute Qn robust estimator of scale (Rousseeuw, 1993)"""
@@ -272,6 +272,9 @@ def process_rank(*args,
                             exclude_sets[raws[i + controls]].add(tid)
                         else:
                             vwrite(f' {raws[i + controls]}')
+                    if all(crossover):  # Shared taxon contaminating control(s)
+                        vwrite(' (', yellow('Shared crossover taxon!'), ')')
+                        shared_crossover.add(tid)
                     vwrite('\n')
                     continue
                 # Other contamination: remove from all samples
@@ -285,10 +288,11 @@ def process_rank(*args,
                     exclude_set.add(tid)
 
         # Get taxids at this rank that are present in the control samples
-        exclude_candidates = set()
+        exclude_candidates: Set[Id] = set()
         for i in range(controls):
             exclude_candidates.update(taxids[raws[i]][rank])
         exclude_sets: Dict[Sample, Set[Id]]
+        shared_crossover: Set[Id] = set()  # Shared taxa contaminating controls
         if controls and (len(raws) - controls >= ROBUST_MIN_SAMPLES):
             robust_contamination_removal()
         else:  # If this case, just apply strict control
@@ -335,7 +339,8 @@ def process_rank(*args,
                                     scores=shared_ctrl_score,
                                     min_taxa=mintaxa,
                                     include=including,
-                                    exclude=exclude_candidates,
+                                    exclude=(exclude_candidates
+                                             - shared_crossover),
                                     out=shared_ctrl_out)
             shared_ctrl_out.purge_counters()
             out_counts: SharedCounter = shared_ctrl_out.get_shared_counts()
