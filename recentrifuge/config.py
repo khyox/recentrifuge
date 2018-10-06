@@ -98,10 +98,12 @@ class Scoring(Enum):
         return f'{self.name}'
 
 
-class Excel(Enum):
-    """Enumeration with excel output options."""
-    FULL = 0  # Provide detailed results including score (default)
-    CMPLXCRUNCHER = 1  # Results in cmplxcruncher format
+class Extra(Enum):
+    """Enumeration with options for the extra output."""
+    FULL = 0  # Provide excel with detailed results including score (default)
+    CMPLXCRUNCHER = 1  # Results in excel with cmplxcruncher format
+    CSV = 2  # Results as a collection of CSV files
+    TSV = 3  # Results as a collection of TSV files
 
     def __str__(self):
         return f'{str(self.name)}'

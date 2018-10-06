@@ -516,7 +516,7 @@ def krona_from_text(samples: List[Sample],
     subprc.extend(samples)
     try:
         subprc.extend([outputs[level][i]
-                       for level in List(Rank.selected_ranks)
+                       for level in list(Rank.selected_ranks)
                        for i in range(len(outputs[level]))])
     except KeyError:
         pass

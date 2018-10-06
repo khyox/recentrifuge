@@ -30,7 +30,7 @@ from typing import Counter, List, Dict, Set, Callable, Tuple
 
 from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.clark import select_clark_inputs
-from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Excel
+from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Extra
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
 from recentrifuge.config import LICENSE, Err, Classifier
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
@@ -47,7 +47,7 @@ from recentrifuge.taxclass import process_output, process_report
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree, MultiTree, SampleDataById
 
-# optional package pandas (to generate Excel output)
+# optional package pandas (to generate extra output)
 _USE_PANDAS = True
 try:
     import pandas as pd
@@ -55,7 +55,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.21.2'
+__version__ = '0.22.0'
 __author__ = 'Jose Manuel Martí'
 __date__ = 'Oct 2018'
 
@@ -86,6 +86,11 @@ def _debug_dummy_plot(taxonomy: Taxonomy,
 
 def main():
     """Main entry point to Recentrifuge."""
+
+    def vprint(*arguments) -> None:
+        """Print only if verbose/debug mode is enabled"""
+        if args.debug:
+            print(*arguments)
 
     def configure_parser():
         """Argument Parser Configuration"""
@@ -158,13 +163,13 @@ def main():
                  'inferred from input files)'
         )
         parser_out.add_argument(
-            '-e', '--excel',
+            '-e', '--extra',
             action='store',
             metavar='OUTPUT_TYPE',
-            choices=[str(excel) for excel in Excel],
-            default=str(Excel(0)),
-            help=(f'type of excel report to be generated, and can be one of '
-                  f'{[str(excel) for excel in Excel]}')
+            choices=[str(extra) for extra in Extra],
+            default=str(Extra(0)),
+            help=(f'type of extra output to be generated, and can be one of '
+                  f'{[str(extra) for extra in Extra]}')
         )
         parser_coarse = parser.add_argument_group(
             'tuning',
@@ -511,25 +516,58 @@ def main():
         krona.tohtml(htmlfile, pretty=False)
         print(green('OK!'))
 
-    def generate_excel():
-        """Generate Excel with results via pandas DataFrame"""
+    def save_extra_output():
+        """Save extra output with results via pandas DataFrame"""
 
-        xlsx_name: Filename = Filename(htmlfile.split('.html')[0] + '.xlsx')
-        print(gray(f'Generating Excel {str(excel).lower()} summary (') +
-              magenta(xlsx_name) + gray(')... '), end='')
-        sys.stdout.flush()
-        xlsxwriter = pd.ExcelWriter(xlsx_name)
+        # Initial check and info
+        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+            vprint(blue('INFO:'),
+                   gray('Saving extra output as an Excel file.'))
+        elif extra is Extra.CSV:
+            vprint(blue('INFO:'),
+                   gray('Saving extra output as CSV files.'))
+        elif extra is Extra.TSV:
+            vprint(blue('INFO:'),
+                   gray('Saving extra output as TSV files.'))
+        else:
+            raise Exception(red('\nERROR!'), f'Unknown Extra option "{extra}"')
+
+        # Setup of extra file name
+        xlsxwriter: pd.ExcelWriter = None
+        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+            xlsx_name: Filename = Filename(htmlfile.split('.html')[0] +
+                                           '.xlsx')
+            print(gray(f'Generating Excel {str(extra).lower()} summary (') +
+                  magenta(xlsx_name) + gray(')... '), end='')
+            sys.stdout.flush()
+            xlsxwriter = pd.ExcelWriter(xlsx_name)
+        elif extra is Extra.CSV or Extra.TSV:
+            sv_base: Filename = Filename(htmlfile.split('.html')[0])
+            sv_ext: Filename
+            sv_kargs: Dict[str, str]
+            if extra is Extra.CSV:
+                sv_ext = 'csv'
+                sv_kargs = {}
+            elif extra is Extra.TSV:
+                sv_ext = 'tsv'
+                sv_kargs = {'sep': '\t'}
+            print(gray(f'Generating {str(extra).lower()} extra output (') +
+                  magenta(sv_base + '.*.' + sv_ext) + gray(')... '), end='')
+            sys.stdout.flush()
         list_rows: List = []
 
-        # Save raw samples basic statistics
+        # Save basic statistics of raw samples
         data_frame: pd.DataFrame = pd.DataFrame.from_dict(
             {raw: stats[raw].to_dict() for raw in raw_samples})
-        data_frame.to_excel(xlsxwriter, sheet_name='_sample_stats')
+        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+            data_frame.to_excel(xlsxwriter, sheet_name='_sample_stats')
+        elif extra is Extra.CSV or extra is Extra.TSV:
+            data_frame.to_csv(sv_base + '.stat.' + sv_ext, **sv_kargs)
 
         # Save taxid related statistics per sample
-        if excel is Excel.FULL:
+        if extra is Extra.FULL or extra is Extra.CSV or extra is Extra.TSV:
             polytree.to_items(ontology=ncbi, items=list_rows)
-            # Generate the pandas DataFrame from items and export to Excel
+            # Generate the pandas DataFrame from items and export to Extra
             iterable_1 = [samples, [COUNT, UNASSIGNED, SCORE]]
             cols1 = pd.MultiIndex.from_product(iterable_1,
                                                names=['Samples', 'Stats'])
@@ -540,10 +578,13 @@ def main():
                                                  orient='index',
                                                  columns=cols)
             data_frame.index.names = ['Id']
-            data_frame.to_excel(xlsxwriter, sheet_name=str(excel))
-        elif excel is Excel.CMPLXCRUNCHER:
+            if extra is Extra.CSV or extra is Extra.TSV:
+                data_frame.to_csv(sv_base + '.data.' + sv_ext, **sv_kargs)
+            else:
+                data_frame.to_excel(xlsxwriter, sheet_name=str(extra))
+        elif extra is Extra.CMPLXCRUNCHER:
             target_ranks: List = [Rank.NO_RANK]
-            if args.controls: # if controls, add specific sheet for rank
+            if args.controls:  # if controls, add specific sheet for rank
                 target_ranks.extend(Rank.selected_ranks)
             for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
                 indexes: List[int]
@@ -572,9 +613,9 @@ def main():
                 data_frame.index.names = ['Id']
                 data_frame.to_excel(xlsxwriter, sheet_name=sheet_name)
         else:
-            raise Exception(red('\nERROR!'),
-                            f'Unknown Excel option "{excel}"')
-        xlsxwriter.save()
+            raise Exception(red('\nERROR!'), f'Unknown Extra option "{extra}"')
+        if xlsxwriter is not None:
+            xlsxwriter.save()
         print(green('OK!'))
 
     # timing initialization
@@ -599,7 +640,7 @@ def main():
     excluding: Set[Id] = set(args.exclude)
     including: Set[Id] = set(args.include)
     scoring: Scoring = Scoring[args.scoring]
-    excel: Excel = Excel[args.excel]
+    extra: Extra = Extra[args.extra]
 
     check_debug()
 
@@ -660,10 +701,10 @@ def main():
     polytree: MultiTree = MultiTree(samples=samples)
     generate_krona()
     if _USE_PANDAS:
-        generate_excel()
+        save_extra_output()
     else:
         print(yellow('WARNING!'),
-              'Pandas not installed: Excel cannot be created.')
+              'Pandas not installed: Extra output cannot be saved.')
 
     # Timing results
     print(gray('Total elapsed time:'), time.strftime(
