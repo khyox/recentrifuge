@@ -55,7 +55,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.22.0'
+__version__ = '0.22.1'
 __author__ = 'Jose Manuel Martí'
 __date__ = 'Oct 2018'
 
@@ -589,7 +589,7 @@ def main():
             for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
                 indexes: List[int]
                 sheet_name: str
-                columns: List[str]
+                columns: List[str] = ['__Rank', '__Name']
                 if args.controls:
                     indexes = [i for i in range(len(raw_samples), len(samples))
                                # Check if sample ends in _(STR_CONTROL)_(rank)
@@ -597,13 +597,13 @@ def main():
                                    and rank.name.lower() in
                                    samples[i].split('_')[-1:])]
                     sheet_name = f'{STR_CONTROL}_{rank.name.lower()}'
-                    columns = [samples[i].replace('_' + STR_CONTROL + '_' +
-                                                  rank.name.lower(), '')
-                               for i in indexes]
+                    columns.extend([samples[i].replace(
+                        '_' + STR_CONTROL + '_' + rank.name.lower(), '')
+                        for i in indexes])
                 if rank is Rank.NO_RANK:  # No rank dependency
                     indexes = list(range(len(raw_samples)))
                     sheet_name = f'raw_samples_{rank.name.lower()}'
-                    columns = raw_samples
+                    columns.extend(raw_samples)
                 list_rows = []
                 polytree.to_items(ontology=ncbi, items=list_rows,
                                   sample_indexes=indexes)

@@ -843,16 +843,18 @@ class MultiTree(dict):
         """
         for tid in self:
             list_row: List = []
-            if sample_indexes:
+            if sample_indexes:  # This is cmplxCruncher case
+                list_row.extend([ontology.get_rank(tid).name.lower(),
+                                 ontology.get_name(tid)])  # Add metadata 1st
                 for i in sample_indexes:
                     list_row.append(self[tid].counts[i])
-            else:
+            else: # This is the general case
                 for i in range(len(self.samples)):
                     list_row.extend([self[tid].accs[i],
                                      self[tid].counts[i],
                                      self[tid].score[i]])
                 list_row.extend([ontology.get_rank(tid).name.lower(),
-                                 ontology.get_name(tid)])
+                                 ontology.get_name(tid)])  # Add metadata last
             items.append((tid, list_row))
             if self[tid]:
                 self[tid].to_items(ontology=ontology, items=items,
