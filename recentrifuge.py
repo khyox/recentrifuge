@@ -30,9 +30,9 @@ from typing import Counter, List, Dict, Set, Callable, Tuple
 
 from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.clark import select_clark_inputs
-from recentrifuge.config import LICENSE, Err, Classifier
 from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Excel
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
+from recentrifuge.config import LICENSE, Err, Classifier
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_CONTROL_SHARED
@@ -55,9 +55,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.21.1'
+__version__ = '0.21.2'
 __author__ = 'Jose Manuel Martí'
-__date__ = 'Sep 2018'
+__date__ = 'Oct 2018'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -543,23 +543,26 @@ def main():
             data_frame.to_excel(xlsxwriter, sheet_name=str(excel))
         elif excel is Excel.CMPLXCRUNCHER:
             target_ranks: List = [Rank.NO_RANK]
-            if args.controls:
-                target_ranks = [Rank.SPECIES, Rank.GENUS,  # Ranks of interest
-                                Rank.FAMILY, Rank.ORDER]  # for cmplxcruncher
+            if args.controls: # if controls, add specific sheet for rank
+                target_ranks.extend(Rank.selected_ranks)
             for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
                 indexes: List[int]
                 sheet_name: str
                 columns: List[str]
                 if args.controls:
                     indexes = [i for i in range(len(raw_samples), len(samples))
-                               if (samples[i].startswith(STR_CONTROL)
-                                   and rank.name.lower() in samples[i])]
+                               # Check if sample ends in _(STR_CONTROL)_(rank)
+                               if (STR_CONTROL in samples[i].split('_')[-2:]
+                                   and rank.name.lower() in
+                                   samples[i].split('_')[-1:])]
                     sheet_name = f'{STR_CONTROL}_{rank.name.lower()}'
-                    columns = [samples[i].split('_')[2] for i in indexes]
-                else:  # No rank dependency
+                    columns = [samples[i].replace('_' + STR_CONTROL + '_' +
+                                                  rank.name.lower(), '')
+                               for i in indexes]
+                if rank is Rank.NO_RANK:  # No rank dependency
                     indexes = list(range(len(raw_samples)))
                     sheet_name = f'raw_samples_{rank.name.lower()}'
-                    columns = [samples[i].split('_')[0] for i in indexes]
+                    columns = raw_samples
                 list_rows = []
                 polytree.to_items(ontology=ncbi, items=list_rows,
                                   sample_indexes=indexes)
