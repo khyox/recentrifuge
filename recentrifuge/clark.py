@@ -15,6 +15,7 @@ from recentrifuge.stats import SampleStats
 
 # CLARK_C specific constants
 UNCLASSIFIED: Id = Id('NA')
+K_MER_SIZE: int = 31  # Default k-mer size for CLARK(S)
 
 
 def read_clark_output(output_file: Filename,
@@ -91,7 +92,7 @@ def read_clark_output(output_file: Filename,
                         score = score2
                         conf = Score(1 - conf)  # Get CLARK_C's h2/(h1+h2)
                 # From CLARK_C(S) score get "single hit equivalent length"
-                shel: Score = Score(score)
+                shel: Score = Score(score) + K_MER_SIZE
                 if minscore is not None:  # Decide if ignore read if low score
                     if scoring is Scoring.CLARK_C:
                         if conf < minscore:
@@ -163,7 +164,8 @@ def read_clark_output(output_file: Filename,
     if scoring is Scoring.SHEL:
         out_scores = {tid: Score(mean(all_scores[tid])) for tid in all_scores}
     elif scoring is Scoring.CLARK_C:
-        out_scores = {tid: Score(mean(all_confs[tid])) for tid in all_confs}
+        out_scores = {tid: Score(mean(all_confs[tid]) * 100)
+                      for tid in all_confs}
     elif scoring is Scoring.CLARK_G:
         out_scores = {tid: Score(mean(all_gammas[tid])) for tid in all_gammas}
     elif scoring is Scoring.LENGTH:

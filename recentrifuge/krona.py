@@ -163,7 +163,7 @@ class KronaTree(ETree.ElementTree):
             elif scoring is Scoring.LMAT:
                 display = 'LMAT score (avg)'
             elif scoring is Scoring.CLARK_C:
-                display = 'CLARK conf (avg)'
+                display = 'CLARK conf (%)'
             elif scoring is Scoring.CLARK_G:
                 display = 'CLARK gamma (avg)'
             else:
