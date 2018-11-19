@@ -14,19 +14,20 @@ from typing import Counter, List, Dict, Set
 
 from recentrifuge.config import DEFMINGENE, GODUMP_PATH, NODES_FILE, NAMES_FILE
 from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Chart
-from recentrifuge.config import HTML_SUFFIX, Excel
+from recentrifuge.config import HTML_SUFFIX, Extra, Err
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
-from recentrifuge.config import STR_CONTROL_SHARED, Err, SampleStats
-from recentrifuge.config import gray, red, green, magenta, yellow
+from recentrifuge.config import STR_CONTROL_SHARED
+from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.core import process_rank, summarize_analysis
 from recentrifuge.gene_ontology import GeneOntology
 from recentrifuge.go import process_goutput
 from recentrifuge.krona import KronaTree
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.rank import Rank, TaxLevels
+from recentrifuge.stats import SampleStats
 from recentrifuge.trees import TaxTree, MultiTree
 
-# optional package pandas (to generate Excel output)
+# optional package pandas (to generate Extra output)
 _USE_PANDAS = True
 try:
     import pandas as pd
@@ -34,9 +35,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 __author__ = 'Jose Manuel Marti'
-__date__ = 'June 2018'
+__date__ = 'Nov 2018'
 
 
 def _debug_dummy_plot(geno: GeneOntology,
@@ -65,6 +66,11 @@ def _debug_dummy_plot(geno: GeneOntology,
 
 def main():
     """Main entry point to Regentrifuge."""
+
+    def vprint(*arguments) -> None:
+        """Print only if verbose/debug mode is enabled"""
+        if args.debug:
+            print(*arguments)
 
     def configure_parser():
         """Argument Parser Configuration"""
@@ -116,13 +122,13 @@ def main():
         parser_output = parser.add_argument_group(
             'output', 'Related to the output files')
         parser_output.add_argument(
-            '-e', '--excel',
+            '-e', '--extra',
             action='store',
             metavar='OUTPUT_TYPE',
-            choices=[str(excel) for excel in Excel],
-            default=str(Excel(0)),
+            choices=[str(extra) for extra in Extra],
+            default=str(Extra(0)),
             help=(f'type of scoring to be applied, and can be one of '
-                  f'{[str(excel) for excel in Excel]}')
+                  f'{[str(extra) for extra in Extra]}')
         )
         parser_output.add_argument(
             '-o', '--outhtml',
@@ -371,25 +377,58 @@ def main():
         krona.tohtml(htmlfile, pretty=False)
         print(green('OK!'))
 
-    def generate_excel():
-        """Generate Excel with results via pandas DataFrame"""
+    def save_extra_output():
+        """Save extra output with results via pandas DataFrame"""
 
-        xlsx_name: Filename = Filename(htmlfile.split('.html')[0] + '.xlsx')
-        print(gray(f'Generating Excel {str(excel).lower()} summary (') +
-              magenta(xlsx_name) + gray(')... '), end='')
-        sys.stdout.flush()
-        xlsxwriter = pd.ExcelWriter(xlsx_name)
+        # Initial check and info
+        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+            vprint(blue('INFO:'),
+                   gray('Saving extra output as an Excel file.'))
+        elif extra is Extra.CSV:
+            vprint(blue('INFO:'),
+                   gray('Saving extra output as CSV files.'))
+        elif extra is Extra.TSV:
+            vprint(blue('INFO:'),
+                   gray('Saving extra output as TSV files.'))
+        else:
+            raise Exception(red('\nERROR!'), f'Unknown Extra option "{extra}"')
+
+        # Setup of extra file name
+        xlsxwriter: pd.ExcelWriter = None
+        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+            xlsx_name: Filename = Filename(htmlfile.split('.html')[0] +
+                                           '.xlsx')
+            print(gray(f'Generating Excel {str(extra).lower()} summary (') +
+                  magenta(xlsx_name) + gray(')... '), end='')
+            sys.stdout.flush()
+            xlsxwriter = pd.ExcelWriter(xlsx_name)
+        elif extra is Extra.CSV or Extra.TSV:
+            sv_base: Filename = Filename(htmlfile.split('.html')[0])
+            sv_ext: Filename
+            sv_kargs: Dict[str, str]
+            if extra is Extra.CSV:
+                sv_ext = 'csv'
+                sv_kargs = {}
+            elif extra is Extra.TSV:
+                sv_ext = 'tsv'
+                sv_kargs = {'sep': '\t'}
+            print(gray(f'Generating {str(extra).lower()} extra output (') +
+                  magenta(sv_base + '.*.' + sv_ext) + gray(')... '), end='')
+            sys.stdout.flush()
         list_rows: List = []
 
         # Save raw samples basic statistics
         data_frame: pd.DataFrame = pd.DataFrame.from_dict(
             {raw: stats[raw].to_dict() for raw in raw_samples})
-        data_frame.to_excel(xlsxwriter, sheet_name='_sample_stats')
+        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+            data_frame.to_excel(xlsxwriter, sheet_name='_sample_stats')
+        elif extra is Extra.CSV or extra is Extra.TSV:
+            data_frame.to_csv(sv_base + '.stat.' + sv_ext, **sv_kargs)
 
         # Save taxid related statistics per sample
-        if excel is Excel.FULL:
+        if extra is Extra.FULL or extra is Extra.CSV or extra is Extra.TSV:
             polytree.to_items(ontology=geno, items=list_rows)
-            # Generate the pandas DataFrame from items and export to Excel
+            # Generate the pandas DataFrame from items and export to Extra
             iterable_1 = [samples, [COUNT, UNASSIGNED, SCORE]]
             cols1 = pd.MultiIndex.from_product(iterable_1,
                                                names=['Samples', 'Stats'])
@@ -400,26 +439,34 @@ def main():
                                                  orient='index',
                                                  columns=cols)
             data_frame.index.names = ['Id']
-            data_frame.to_excel(xlsxwriter, sheet_name=str(excel))
-        elif excel is Excel.CMPLXCRUNCHER:
+            if extra is Extra.CSV or extra is Extra.TSV:
+                data_frame.to_csv(sv_base + '.data.' + sv_ext, **sv_kargs)
+            else:
+                data_frame.to_excel(xlsxwriter, sheet_name=str(extra))
+
+        elif extra is Extra.CMPLXCRUNCHER:
             target_ranks: List = [Rank.NO_RANK]
-            if args.controls:
-                target_ranks = [Rank.GO7, Rank.GO6,  # Ranks of interest
-                                Rank.GO5, Rank.GO4]  # for cmplxcruncher
+            if args.controls:  # if controls, add specific sheet for rank
+                target_ranks.extend([Rank.GO7, Rank.GO6,  # Ranks of interest
+                                    Rank.GO5, Rank.GO4])  # for cmplxcruncher
             for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
                 indexes: List[int]
                 sheet_name: str
-                columns: List[str]
+                columns: List[str] = ['__Rank', '__Name']
                 if args.controls:
                     indexes = [i for i in range(len(raw_samples), len(samples))
-                               if (samples[i].startswith(STR_CONTROL)
-                                   and rank.name.lower() in samples[i])]
+                               # Check if sample ends in _(STR_CONTROL)_(rank)
+                               if (STR_CONTROL in samples[i].split('_')[-2:]
+                                   and rank.name.lower() in
+                                   samples[i].split('_')[-1:])]
                     sheet_name = f'{STR_CONTROL}_{rank.name.lower()}'
-                    columns = [samples[i].split('_')[2] for i in indexes]
-                else:  # No rank dependency
+                    columns.extend([samples[i].replace(
+                        '_' + STR_CONTROL + '_' + rank.name.lower(), '')
+                        for i in indexes])
+                if rank is Rank.NO_RANK:  # No rank dependency
                     indexes = list(range(len(raw_samples)))
                     sheet_name = f'raw_samples_{rank.name.lower()}'
-                    columns = ['_'.join(samples[i].split('_')[0:-1]) for i in indexes]
+                    columns.extend(raw_samples)
                 list_rows = []
                 polytree.to_items(ontology=geno, items=list_rows,
                                   sample_indexes=indexes)
@@ -428,10 +475,11 @@ def main():
                                                      columns=columns)
                 data_frame.index.names = ['Id']
                 data_frame.to_excel(xlsxwriter, sheet_name=sheet_name)
+
         else:
-            raise Exception(red('\nERROR!'),
-                            f'Unknown Excel option "{excel}"')
-        xlsxwriter.save()
+            raise Exception(red('\nERROR!'), f'Unknown Extra option "{extra}"')
+        if xlsxwriter is not None:
+            xlsxwriter.save()
         print(green('OK!'))
 
     # timing initialization
@@ -453,7 +501,7 @@ def main():
     args.ctrlmingene = None
     excluding: Set[Id] = set(args.exclude)
     including: Set[Id] = set(args.include)
-    excel: Excel = Excel[args.excel]
+    extra: Extra = Extra[args.extra]
 
     check_debug()
     input_files = outputs  # Done by select_inputs() in recentrifuge
@@ -508,10 +556,10 @@ def main():
     polytree: MultiTree = MultiTree(samples=samples)
     generate_krona()
     if _USE_PANDAS:
-        generate_excel()
+        save_extra_output()
     else:
         print(yellow('WARNING!'),
-              'Pandas not installed: Excel cannot be created.')
+              'Pandas not installed: Extra cannot be created.')
 
     # Timing results
     print(gray('Total elapsed time:'), time.strftime(

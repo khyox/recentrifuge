@@ -11,11 +11,10 @@ from math import log10, isclose
 from statistics import mean
 from typing import Tuple, Counter, Set, Dict, List
 
-from recentrifuge.config import Err, SampleStats
-from recentrifuge.config import Filename, Id, Score, Scoring, Sample
-from recentrifuge.config import UNCLASSIFIED
+from recentrifuge.config import Filename, Id, Score, Scoring, Sample, Err
 from recentrifuge.config import gray, red, green, yellow, blue
 from recentrifuge.ontology import Ontology
+from recentrifuge.stats import SampleStats
 from recentrifuge.trees import TaxTree, SampleDataById
 from recentrifuge.rank import Rank, Ranks
 
