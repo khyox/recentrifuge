@@ -174,7 +174,7 @@ class TaxTree(dict):
                 included (except explicitly excluded).
             exclude: root taxid of the subtrees to be excluded
             out: Optional I/O object, at 1st entry should be empty.
-            _path: list used by the recursive algorithm to avoid loops
+            _path: list used to avoid loops and for including to work
 
         Returns: Accumulated counts of new node (or None for no node)
 

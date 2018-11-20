@@ -10,7 +10,7 @@ import sys
 from typing import List, Set, Counter, Tuple, Union, Dict
 
 from recentrifuge.config import Filename, Sample, Id, Parents, Score, Scores
-from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS, ROOT
+from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_SUMMARY, STR_CONTROL_SHARED
 from recentrifuge.config import UnionCounter, UnionScores
@@ -210,9 +210,11 @@ def process_rank(*args,
             vwrite(gray('Robust contamination removal: '
                         'Searching for contaminants...\n'))
             for tid in exclude_candidates:
-                relfreq_ctrl: List[float] = [accs[ctrl][tid] / accs[ctrl][ROOT]
+                relfreq_ctrl: List[float] = [accs[ctrl][tid]
+                                             / accs[ctrl][ontology.ROOT]
                                              for ctrl in raws[:controls]]
-                relfreq_smpl: List[float] = [accs[smpl][tid] / accs[smpl][ROOT]
+                relfreq_smpl: List[float] = [accs[smpl][tid]
+                                             / accs[smpl][ontology.ROOT]
                                              for smpl in raws[controls:]]
                 relfreq: List[float] = relfreq_ctrl + relfreq_smpl
                 crossover: List[bool] = None  # Crossover source (yes/no)
@@ -436,11 +438,11 @@ def summarize_analysis(*args,
     tree.shape()
     summary_counts.clear()
     summary_score.clear()
+    # Avoid including/excluding here as get_taxa is not as 'clever' as allin1
+    #  and taxa are already included/excluded in the derived samples
     tree.get_taxa(counts=summary_counts,
                   accs=summary_acc,
-                  scores=summary_score,
-                  include=including,
-                  exclude=excluding)
+                  scores=summary_score)
     summary_counts = +summary_counts  # remove counts <= 0
     if summary_counts:  # Avoid returning empty sample (summary would be None)
         summary = Sample(f'{analysis}_{STR_SUMMARY}')
@@ -480,6 +482,7 @@ def write_lineage(ontology: Ontology,
     log, taxids_dic = tree.get_lineage(ontology, parents, iter(nodes))
     output: io.StringIO = io.StringIO(newline='')
     output.write(log)
+    # TODO: Generalize this for non-NCBI taxonomies (collapse is specific)
     if collapse:  # Collapse taxid 131567 (cellular organisms) if desired
         for tid in taxids_dic:
             if len(taxids_dic[tid]) > 2:  # Not collapse for unclassified

@@ -109,8 +109,8 @@ class Rank(Enum):
     @classproperty
     def genomic_ranks(cls):  # pylint: disable=no-self-argument
         """GO ranks selected for deep analysis and comparisons"""
-        _selected_golevels: List['Rank'] = [cls.GO8, cls.GO7, cls.GO6, cls.GO5,
-                                            cls.GO4, cls.GO3, cls.GO2, cls.GO1]
+        _selected_golevels: List['Rank'] = [cls.GO9, cls.GO8, cls.GO7, cls.GO6,
+                                            cls.GO5, cls.GO4, cls.GO3, cls.GO2]
         return _selected_golevels
 
     @classmethod

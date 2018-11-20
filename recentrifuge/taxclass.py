@@ -15,7 +15,7 @@ from recentrifuge.clark import read_clark_output
 from recentrifuge.config import Sample, Err, Filename, Score, Id
 from recentrifuge.stats import SampleStats
 from recentrifuge.config import Scoring, Classifier
-from recentrifuge.config import CELLULAR_ORGANISMS, ROOT, NO_SCORE
+from recentrifuge.config import CELLULAR_ORGANISMS, NO_SCORE
 from recentrifuge.config import gray, blue, green, yellow, red
 from recentrifuge.lmat import read_lmat_output
 from recentrifuge.ontology import Ontology
@@ -79,24 +79,25 @@ def process_output(*args, **kwargs
     if ontology.collapse and counts[CELLULAR_ORGANISMS]:
         vwrite(gray('Moving'), counts[CELLULAR_ORGANISMS],
                gray('"CELLULAR_ORGANISMS" reads to "ROOT"... '))
-        if counts[ROOT]:
+        if counts[ontology.ROOT]:
             stat.num_taxa -= 1
-            scores[ROOT] = (
+            scores[ontology.ROOT] = (
                     (scores[CELLULAR_ORGANISMS] * counts[CELLULAR_ORGANISMS] +
-                     scores[ROOT] * counts[ROOT])
-                    / (counts[CELLULAR_ORGANISMS] + counts[ROOT]))
+                     scores[ontology.ROOT] * counts[ontology.ROOT])
+                    / (counts[CELLULAR_ORGANISMS] + counts[ontology.ROOT]))
         else:
-            scores[ROOT] = scores[CELLULAR_ORGANISMS]
-        counts[ROOT] += counts[CELLULAR_ORGANISMS]
+            scores[ontology.ROOT] = scores[CELLULAR_ORGANISMS]
+        counts[ontology.ROOT] += counts[CELLULAR_ORGANISMS]
         counts[CELLULAR_ORGANISMS] = 0
         scores[CELLULAR_ORGANISMS] = NO_SCORE
     # Remove root counts, in case
-    if kwargs['root'] and counts[ROOT]:
-        vwrite(gray('Removing'), counts[ROOT], gray('"ROOT" reads... '))
-        stat.seq = stat.seq._replace(filt=stat.seq.filt-counts[ROOT])
+    if kwargs['root'] and counts[ontology.ROOT]:
+        vwrite(gray('Removing'), counts[ontology.ROOT],
+               gray('"ROOT" reads... '))
+        stat.seq = stat.seq._replace(filt=stat.seq.filt-counts[ontology.ROOT])
         stat.num_taxa -= 1
-        counts[ROOT] = 0
-        scores[ROOT] = NO_SCORE
+        counts[ontology.ROOT] = 0
+        scores[ontology.ROOT] = NO_SCORE
         vwrite(green('OK!'), '\n')
 
     # Building ontology tree
@@ -194,8 +195,9 @@ def process_report(*args, **kwargs
     output.write(log)
     # Remove root counts, in case
     if kwargs['root']:
-        vwrite(gray('Removing'), abundances[ROOT], gray('"ROOT" reads... '))
-        abundances[ROOT] = 0
+        vwrite(gray('Removing'), abundances[ontology.ROOT],
+               gray('"ROOT" reads... '))
+        abundances[ontology.ROOT] = 0
         vwrite(green('OK!'), '\n')
 
     # Build ontology tree
