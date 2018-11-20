@@ -11,12 +11,13 @@ from math import log10, isclose
 from statistics import mean
 from typing import Tuple, Counter, Set, Dict, List
 
-from recentrifuge.config import Filename, Id, Score, Scoring, Sample, Err
+from recentrifuge.config import Filename, Id, Score, Scoring, Sample
+from recentrifuge.config import Err, NO_SCORE
 from recentrifuge.config import gray, red, green, yellow, blue
 from recentrifuge.ontology import Ontology
 from recentrifuge.stats import SampleStats
 from recentrifuge.trees import TaxTree, SampleDataById
-from recentrifuge.rank import Rank, Ranks
+from recentrifuge.rank import Ranks
 
 
 def read_go(output_file: Filename,
@@ -183,26 +184,45 @@ def process_goutput(*args, **kwargs
     # Update field in stat about control nature of the sample
     stat.is_ctrl = is_ctrl
 
+    # Remove root counts, in case
+    if kwargs['root'] and counts[ontology.ROOT]:
+        vwrite(gray('Removing'), counts[ontology.ROOT],
+               gray('"ROOT" reads... '))
+        stat.seq = stat.seq._replace(filt=stat.seq.filt-counts[ontology.ROOT])
+        stat.num_taxa -= 1
+        counts[ontology.ROOT] = 0
+        scores[ontology.ROOT] = NO_SCORE
+        vwrite(green('OK!'), '\n')
+
     # Building ontology tree
-    output.write(gray('Building tree from raw data... '))
+    output.write(gray('Building from raw data... '))
+    vwrite(gray('\n  Building ontology tree with all-in-1... '))
     tree = TaxTree()
     ancestors: Set[Id]
     orphans: Set[Id]
     ancestors, orphans = ontology.get_ancestors(counts.keys())
     out = SampleDataById(['all'])
-    # Grow tree and shape it
-    tree.grow(ontology=ontology, counts=counts, scores=scores,
-              ancestors=ancestors)
-    tree.shape()
-    tree.prune(min_taxa=mintaxa)
-    # Get and save updated data from shaped tree
-    counts.clear()
-    accs: Counter[Id] = Counter()
-    scores.clear()
-    tree.get_taxa(counts=counts, accs=accs, scores=scores, ranks=ranks)
-    out.set(counts=counts, accs=accs, scores=scores, ranks=ranks)
+    tree.allin1(ontology=ontology, counts=counts, scores=scores,
+                ancestors=ancestors, min_taxa=mintaxa,
+                include=including, exclude=excluding, out=out)
     out.purge_counters()
     vwrite(green('OK!'), '\n')
+
+    # Give stats about orphan taxid
+    if debug:
+        vwrite(gray('  Checking taxid loss (orphans)... '))
+        lost: int = 0
+        if orphans:
+            for orphan in orphans:
+                vwrite(yellow('Warning!'), f'Orphan taxid={orphan}\n')
+                lost += counts[orphan]
+            vwrite(yellow('WARNING!'),
+                   f'{len(orphans)} orphan taxids ('
+                   f'{len(orphans)/len(counts):.2%} of total)\n'
+                   f'{lost} orphan sequences ('
+                   f'{lost/sum(counts.values()):.3%} of total)\n')
+        else:
+            vwrite(green('OK!\n'))
 
     # Print last message and check if the sample is void
     if out.counts:

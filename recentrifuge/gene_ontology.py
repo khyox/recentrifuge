@@ -82,7 +82,7 @@ class GeneOntology(Ontology):
             self.parents[GOid('GO:0005554')] = GO_ROOT  # ... alternate ID
             self.parents[GOid('GO:0005575')] = GO_ROOT  # Cellular component
             self.parents[GOid('GO:0008372')] = GO_ROOT  # ... alternate ID
-            self.parents[GOid('GO:0008150')] = GO_ROOT  # Cellular component
+            self.parents[GOid('GO:0008150')] = GO_ROOT  # Biological process
             self.parents[GOid('GO:0000004')] = GO_ROOT  # ... alternate ID
             self.parents[GOid('GO:0007582')] = GO_ROOT  # ... alternate ID
             self.parents[GOid('GO:0044699')] = GO_ROOT  # ... alternate ID

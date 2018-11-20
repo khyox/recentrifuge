@@ -35,7 +35,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.1.1'
+__version__ = '0.2.0'
 __author__ = 'Jose Manuel Marti'
 __date__ = 'Nov 2018'
 
@@ -203,6 +203,11 @@ def main():
             default='add',
             help=('select to "add" summary samples to other samples, or to '
                   '"only" show summary samples or to "avoid" summaries at all')
+        )
+        parser_tuning.add_argument(
+            '-t', '--takeoutroot',
+            action='store_true',
+            help='remove counts directly assigned to the "root" level'
         )
         parser_tuning.add_argument(
             '-y', '--minscore',
@@ -447,8 +452,7 @@ def main():
         elif extra is Extra.CMPLXCRUNCHER:
             target_ranks: List = [Rank.NO_RANK]
             if args.controls:  # if controls, add specific sheet for rank
-                target_ranks.extend([Rank.GO7, Rank.GO6,  # Ranks of interest
-                                    Rank.GO5, Rank.GO4])  # for cmplxcruncher
+                target_ranks.extend(Rank.genomic_ranks)
             for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
                 indexes: List[int]
                 sheet_name: str
@@ -535,7 +539,7 @@ def main():
               'ctrlmintaxa': (
                   args.ctrlmintaxa
                   if args.ctrlmingene is not None else args.mingene),
-              'debug': args.debug,
+              'debug': args.debug, 'root': args.takeoutroot,
               'minscore': args.minscore,
               'mintaxa': args.mingene, 'scoring': scoring, 'ontology': geno,
               }
