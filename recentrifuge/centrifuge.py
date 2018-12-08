@@ -13,9 +13,9 @@ from typing import Tuple, Counter, Dict, List
 from Bio import SeqIO
 
 from recentrifuge.config import Filename, Id, Score, Scoring
-from recentrifuge.stats import SampleStats
 from recentrifuge.config import gray, red, green, yellow
 from recentrifuge.rank import Rank
+from recentrifuge.stats import SampleStats
 
 # Centrifuge specific constants
 UNCLASSIFIED: Id = Id('0')
@@ -86,7 +86,7 @@ def read_output(output_file: Filename,
                         '\t')
                 except ValueError:
                     print(red('Error'), f'parsing line: ({output_line}) '
-                                        f'in {output_file}. Ignoring line!')
+                    f'in {output_file}. Ignoring line!')
                     error_read = num_read + 1
                     continue
                 tid = Id(_tid)
@@ -119,8 +119,8 @@ def read_output(output_file: Filename,
         raise Exception(red('\nERROR! ') + f'Cannot read "{output_file}"')
     if error_read == num_read + 1:  # Check if error in last line: truncated!
         print(yellow('Warning!'), f'{output_file} seems truncated!')
-    counts: Counter[Id] = Counter({tid: len(all_scores[tid])
-                                   for tid in all_scores})
+    counts: Counter[Id] = col.Counter({tid: len(all_scores[tid])
+                                       for tid in all_scores})
     output.write(green('OK!\n'))
     if num_read == 0:
         raise Exception(red('\nERROR! ')
@@ -201,4 +201,3 @@ def select_centrifuge_inputs(outputs: List[Filename],
                     outputs.append(Filename(fil.name))
     outputs.sort()
     print(gray(f'Centrifuge {ext} files to analyze:'), outputs)
-

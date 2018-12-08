@@ -3,6 +3,7 @@ Functions directly related with CLARK_C(S).
 
 """
 
+import collections as col
 import io
 import os
 from math import log10
@@ -124,7 +125,7 @@ def read_clark_output(output_file: Filename,
         raise Exception(red('\nERROR! ') + f'Cannot read "{output_file}"')
     if error_read == num_read + 1:  # Check if error in last line: truncated!
         print(yellow('Warning!'), f'{output_file} seems truncated!')
-    counts: Counter[Id] = Counter({tid: len(all_scores[tid])
+    counts: Counter[Id] = col.Counter({tid: len(all_scores[tid])
                                    for tid in all_scores})
     output.write(green('OK!\n'))
     if num_read == 0:

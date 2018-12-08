@@ -2,12 +2,13 @@
 Recentrifuge core functions.
 
 """
+import collections as col
 import csv
 import io
 import statistics
 import subprocess
 import sys
-from typing import List, Set, Counter, Tuple, Union, Dict
+from typing import List, Set, Tuple, Union, Dict, Counter
 
 from recentrifuge.config import Filename, Sample, Id, Parents, Score, Scores
 from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS
@@ -415,8 +416,8 @@ def summarize_analysis(*args,
     output: io.StringIO = io.StringIO(newline='')
 
     # Declare/define variables
-    summary_counts: Counter[Id] = Counter()
-    summary_acc: Counter[Id] = Counter()
+    summary_counts: Counter[Id] = col.Counter()
+    summary_acc: Counter[Id] = col.Counter()
     summary_score: Scores = Scores({})
     summary: Sample = None
 

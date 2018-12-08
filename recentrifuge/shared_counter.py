@@ -3,7 +3,7 @@ Contains class useful with operations with shared counters of taxa
 """
 
 import collections as col
-from typing import Counter
+# from typing import Counter
 
 
 class SharedCounter(col.Counter):
@@ -88,4 +88,4 @@ class SharedCounter(col.Counter):
 
     def __pos__(self):
         """+d just remove non-positive counts."""
-        return SharedCounter(Counter.__pos__(self))
+        return SharedCounter(col.Counter.__pos__(self))

@@ -136,7 +136,7 @@ class Rank(Enum):
     @property
     def ranks_from_specific(self) -> Iterator['Rank']:
         """Generator returning selected taxlevels from specific to general."""
-        for rank in List(Rank.selected_ranks):
+        for rank in list(Rank.selected_ranks):
             yield rank
             if rank is self:
                 break
@@ -144,7 +144,7 @@ class Rank(Enum):
     @property
     def ranks_from_general(self) -> Iterator['Rank']:
         """Generator returning selected taxlevels from general to specific."""
-        for rank in reversed(List(Rank.selected_ranks)):
+        for rank in reversed(list(Rank.selected_ranks)):
             yield rank
             if rank is self:
                 break

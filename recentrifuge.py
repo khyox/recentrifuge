@@ -55,9 +55,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.22.3'
+__version__ = '0.23.0'
 __author__ = 'Jose Manuel Martí'
-__date__ = 'Nov 2018'
+__date__ = 'Dec 2018'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
@@ -554,7 +554,7 @@ def main():
             print(gray(f'Generating {str(extra).lower()} extra output (') +
                   magenta(sv_base + '.*.' + sv_ext) + gray(')... '), end='')
             sys.stdout.flush()
-        list_rows: List = []
+        odict_rows: Dict[Id, List] = col.OrderedDict()
 
         # Save basic statistics of raw samples
         data_frame: pd.DataFrame = pd.DataFrame.from_dict(
@@ -566,7 +566,7 @@ def main():
 
         # Save taxid related statistics per sample
         if extra is Extra.FULL or extra is Extra.CSV or extra is Extra.TSV:
-            polytree.to_items(ontology=ncbi, items=list_rows)
+            polytree.to_odict(ontology=ncbi, odict=odict_rows)
             # Generate the pandas DataFrame from items and export to Extra
             iterable_1 = [samples, [COUNT, UNASSIGNED, SCORE]]
             cols1 = pd.MultiIndex.from_product(iterable_1,
@@ -574,9 +574,9 @@ def main():
             iterable_2 = [['Details'], ['Rank', 'Name']]
             cols2 = pd.MultiIndex.from_product(iterable_2)
             cols = cols1.append(cols2)
-            data_frame = pd.DataFrame.from_items(list_rows,
-                                                 orient='index',
-                                                 columns=cols)
+            data_frame = pd.DataFrame.from_dict(odict_rows,
+                                                orient='index',
+                                                columns=cols)
             data_frame.index.names = ['Id']
             if extra is Extra.CSV or extra is Extra.TSV:
                 data_frame.to_csv(sv_base + '.data.' + sv_ext, **sv_kargs)
@@ -604,12 +604,12 @@ def main():
                     indexes = list(range(len(raw_samples)))
                     sheet_name = f'raw_samples_{rank.name.lower()}'
                     columns.extend(raw_samples)
-                list_rows = []
-                polytree.to_items(ontology=ncbi, items=list_rows,
+                polytree.to_odict(ontology=ncbi, odict=odict_rows,
+                                  cmplxcruncher=True,
                                   sample_indexes=indexes)
-                data_frame = pd.DataFrame.from_items(list_rows,
-                                                     orient='index',
-                                                     columns=columns)
+                data_frame = pd.DataFrame.from_dict(odict_rows,
+                                                    orient='index',
+                                                    columns=columns)
                 data_frame.index.names = ['Id']
                 data_frame.to_excel(xlsxwriter, sheet_name=sheet_name)
         else:

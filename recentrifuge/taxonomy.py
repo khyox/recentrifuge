@@ -2,6 +2,7 @@
 Taxonomy class, currently representing the NCBI taxonomy.
 
 """
+import collections as col
 import re
 import sys
 from typing import Set, Counter, Iterable, Tuple
@@ -119,7 +120,7 @@ class Taxonomy(Ontology):
         pattern2 = re.compile(
             r"""(^(?:[A-Za-z0-9/=\-\.{},]*(?: |.)){1,8})"""
         )
-        match: Counter = Counter()
+        match: Counter = col.Counter()
         try:
             with open(plasmid_file, 'r') as file:
                 for line in file:

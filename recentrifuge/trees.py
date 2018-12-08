@@ -32,13 +32,13 @@ class SampleDataById(object):
         self.scores: UnionScores = None
         self.accs: Counter[Id] = None
         if 'counts' in init or 'all' in init:
-            self.counts = Counter()
+            self.counts = col.Counter()
         if 'ranks' in init or 'all' in init:
             self.ranks = Ranks({})
         if 'scores' in init or 'all' in init:
             self.scores = Scores({})
         if 'accs' in init or 'all' in init:
-            self.accs = Counter()
+            self.accs = col.Counter()
         if 'shared_counts' in init or 'shared' in init:
             self.counts = SharedCounter()
         if 'shared_scores' in init or 'shared' in init:
@@ -825,17 +825,19 @@ class MultiTree(dict):
                                 krona=krona,
                                 node=new_node)
 
-    def to_items(self,
+    def to_odict(self,
                  ontology: Ontology,
-                 items: List[Tuple[Id, List]],
+                 odict: Dict[Id, List],
+                 cmplxcruncher: bool = False,
                  sample_indexes: List[int] = None
                  ) -> None:
         """
-        Recursive method to populate a list (used to feed a DataFrame).
+        Recursive method to populate an OrderedDict (used to feed a DataFrame).
 
         Args:
             ontology: Ontology object.
-            items: Input/Output list to be populated.
+            odict: Input/Output OrderedDict to be populated.
+            cmplxcruncher: Boolean indicating if the output is for cC
             sample_indexes: Indexes of the samples of interest (for cC)
 
         Returns: None
@@ -843,19 +845,20 @@ class MultiTree(dict):
         """
         for tid in self:
             list_row: List = []
-            if sample_indexes:  # This is cmplxCruncher case
+            if cmplxcruncher:  # This is cmplxCruncher case
                 list_row.extend([ontology.get_rank(tid).name.lower(),
                                  ontology.get_name(tid)])  # Add metadata 1st
                 for i in sample_indexes:
                     list_row.append(self[tid].counts[i])
-            else: # This is the general case
+            else:  # This is the general case
                 for i in range(len(self.samples)):
                     list_row.extend([self[tid].accs[i],
                                      self[tid].counts[i],
                                      self[tid].score[i]])
                 list_row.extend([ontology.get_rank(tid).name.lower(),
                                  ontology.get_name(tid)])  # Add metadata last
-            items.append((tid, list_row))
+            odict[tid] = list_row
             if self[tid]:
-                self[tid].to_items(ontology=ontology, items=items,
+                self[tid].to_odict(ontology=ontology, odict=odict,
+                                   cmplxcruncher=cmplxcruncher,
                                    sample_indexes=sample_indexes)
