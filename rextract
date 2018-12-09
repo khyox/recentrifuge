@@ -35,9 +35,9 @@ from recentrifuge.rank import Rank, Ranks, TaxLevels
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree
 
-__version__ = '0.4.2'
+__version__ = '0.4.3'
 __author__ = 'Jose Manuel Martí'
-__date__ = 'Aug 2018'
+__date__ = 'Dec 2018'
 
 MAX_LENGTH_TAXID_LIST = 32
 

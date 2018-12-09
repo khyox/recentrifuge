@@ -27,9 +27,9 @@ from zipfile import ZipFile
 from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, ZIPFILE
 from recentrifuge.config import TAXDUMP_PATH
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 __author__ = 'Jose Manuel Martí'
-__date__ = 'Aug 2018'
+__date__ = 'Dec 2018'
 
 
 def main():

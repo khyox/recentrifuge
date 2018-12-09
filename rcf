@@ -62,7 +62,7 @@ else:
     except ImportError:
         _USE_OPENPYXL = False
 
-__version__ = '0.23.1'
+__version__ = '0.23.2'
 __author__ = 'Jose Manuel Martí'
 __date__ = 'Dec 2018'
 

@@ -41,9 +41,9 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
-__version__ = '0.2.2'
+__version__ = '0.2.3'
 __author__ = 'Jose Manuel Martí'
-__date__ = 'Aug 2018'
+__date__ = 'Dec 2018'
 
 MAX_HIT_LENGTH: int = 200  # Max hit length for random score generation
 
