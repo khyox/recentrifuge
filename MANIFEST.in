@@ -1,0 +1,3 @@
+include recentrifuge/krona.js
+include recentrifuge/img/*.uri
+recursive-include recentrifuge/test *.mck *.xlsx
