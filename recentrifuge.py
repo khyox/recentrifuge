@@ -49,13 +49,20 @@ from recentrifuge.trees import TaxTree, MultiTree, SampleDataById
 
 # optional package pandas (to generate extra output)
 _USE_PANDAS = True
+# optional package openpyxl (for pandas to generate excel output)
+_USE_OPENPYXL = True
 try:
     import pandas as pd
 except ImportError:
     pd = None
     _USE_PANDAS = False
+else:
+    try:
+        import openpyxl
+    except ImportError:
+        _USE_OPENPYXL = False
 
-__version__ = '0.23.0'
+__version__ = '0.23.1'
 __author__ = 'Jose Manuel Martí'
 __date__ = 'Dec 2018'
 
@@ -701,10 +708,17 @@ def main():
     polytree: MultiTree = MultiTree(samples=samples)
     generate_krona()
     if _USE_PANDAS:
+        if not _USE_OPENPYXL and (
+                extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER):
+            extra = Extra.CSV
+            print(yellow('WARNING!'),
+                  'Openpyxl python package not installed:\n\tExtra output '
+                  'cannot be saved as Excel. Falling back to CSV format.')
         save_extra_output()
     else:
         print(yellow('WARNING!'),
-              'Pandas not installed: Extra output cannot be saved.')
+              'Pandas python package not installed:\n'
+              '\tExtra output cannot be saved.')
 
     # Timing results
     print(gray('Total elapsed time:'), time.strftime(

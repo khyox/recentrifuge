@@ -3451,7 +3451,7 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
         logoImage = logoElement.src;
     }
     else {
-        logoImage = 'http://khyox.github.io/recentrifuge/img/logo-med.png';
+        logoImage = 'https://raw.githubusercontent.com/khyox/recentrifuge/master/recentrifuge/img/logo-rcf-mini.uri';
     }
     var placeholderTit;
     if (chart === ChartEnum.GENOMIC) {

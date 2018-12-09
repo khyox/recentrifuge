@@ -32,6 +32,9 @@ HREFBASE_TAX = 'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=In
 HREFBASE_GEN = 'http://amigo.geneontology.org/amigo/term/'
 LOGO_RCF = '/img/logo-rcf-mini.uri'
 LOGO_RGF = '/img/logo-rgf-mini.uri'
+HIDDEN = '/img/hidden.uri'
+LOADING = '/img/loading.uri'
+FAVICON = '/img/favicon.uri'
 
 # Define encoding dialect for TSV files expected by Krona
 csv.register_dialect('krona', 'unix', delimiter='\t', quoting=csv.QUOTE_NONE)
@@ -294,11 +297,11 @@ class KronaTree(ETree.ElementTree):
 
         # Read aux files
         path = os.path.dirname(os.path.realpath(__file__))
-        with open(path + '/img/hidden.uri', 'r') as file:
+        with open(path + HIDDEN, 'r') as file:
             hidden_image = file.read()
-        with open(path + '/img/loading.uri', 'r') as file:
+        with open(path + LOADING, 'r') as file:
             loading_image = file.read()
-        with open(path + '/img/favicon.uri', 'r') as file:
+        with open(path + FAVICON, 'r') as file:
             favicon = file.read()
         path_logo: str
         if self.chart == Chart.TAXOMIC:

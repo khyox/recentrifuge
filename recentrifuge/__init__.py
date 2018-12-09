@@ -24,7 +24,8 @@ which will import this library.
 """
 
 __all__ = ['config', 'shared_counter', 'taxonomy', 'trees', 'rank',
-           'core', 'centrifuge', 'lmat', 'krona']
+           'core', 'centrifuge', 'lmat', 'clark', 'krona', 'ontology',
+           'params', 'stats', 'taxclass']
 __author__ = 'Jose Manuel Martí'
 __copyright__ = 'Copyright (C) 2017, 2018, Jose Manuel Martí Martínez'
 __license__ = 'GNU Affero General Public License Version 3'
