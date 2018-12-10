@@ -28,6 +28,7 @@ import sys
 import time
 from typing import Counter, List, Dict, Set, Callable, Tuple
 
+from recentrifuge import __version__, __author__, __date__
 from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.clark import select_clark_inputs
 from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Extra
@@ -61,10 +62,6 @@ else:
         import openpyxl
     except ImportError:
         _USE_OPENPYXL = False
-
-__version__ = '0.23.3'
-__author__ = 'Jose Manuel Martí'
-__date__ = 'Dec 2018'
 
 
 def _debug_dummy_plot(taxonomy: Taxonomy,
