@@ -25,7 +25,7 @@ import sys
 
 from recentrifuge import __version__, __author__, __date__
 from recentrifuge.mock import generate_mock
-from recentrifuge.config import Filename, gray
+from recentrifuge.config import Filename, gray, blue
 from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, TAXDUMP_PATH
 from recentrifuge.taxonomy import Taxonomy
 
@@ -89,6 +89,11 @@ def main():
                 type=Filename,
                 help='Excel file with the mock layout.'
             )
+            parser_input.add_argument(
+                '-t', '--test',
+                action='store_true',
+                help='generate mock data ready for testing Recentrifuge'
+            )
         parser.add_argument(
             '-n', '--nodespath',
             action='store',
@@ -107,7 +112,11 @@ def main():
     def check_debug():
         """Check debugging mode"""
         if args.debug:
-            print(gray('INFO: Debugging mode activated\n'))
+            print(blue('INFO:'), gray('Debugging mode activated'))
+            print(blue('INFO:'), gray('Active parameters:'))
+            for key, value in vars(args).items():
+                if value:
+                    print(gray(f'\t{key} ='), f'{value}')
 
     # Program header
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} - {__date__}'

@@ -24,6 +24,7 @@ except ImportError:
 
 
 MAX_HIT_LENGTH: int = 200  # Max hit length for random score generation
+TEST_MOCK_XLS = 'test/mock.xlsx'
 
 
 def generate_mock(ncbi: Taxonomy,
@@ -131,4 +132,9 @@ def generate_mock(ncbi: Taxonomy,
     if mocks:
         by_mock_files()
     elif xcel:
+        by_excel_file()
+    else:  # Test mode
+        path = os.path.dirname(os.path.realpath(__file__))
+        xcel: Filename = Filename(os.path.join(path, TEST_MOCK_XLS))
+        vprint(gray('Test mode! Processing'), xcel, '\n')
         by_excel_file()
