@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+#
+#     Copyright (C) 2018, Jose Manuel Martí Martínez
+#
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU Affero General Public License as
+#     published by the Free Software Foundation, either version 3 of the
+#     License, or (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#     GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+"""
+Launch Recentrifuge tests
+"""
+
+import argparse
+import os
+import subprocess as sp
+import sys
+
+from recentrifuge import __version__, __author__, __date__
+from recentrifuge.config import LICENSE, TAXDUMP_PATH
+from recentrifuge.config import gray, blue, Filename
+
+# optional package pandas (to read Excel with mock layout)
+_USE_PANDAS = True
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+    _USE_PANDAS = False
+
+F_TAX = '-n=' + TAXDUMP_PATH
+PATH = os.path.dirname(os.path.realpath(__file__))
+PATH_TEST: Filename = Filename(os.path.join(PATH, 'recentrifuge/test'))
+F_FIL = '-f=' + PATH_TEST
+F_OUT = '-o=TEST.rcf.html'
+F_CTR = '-c=3'
+F_MHL = '-y=35'
+F_MIN = '-m=5'
+F_G = '-g'
+F_CC = '--extra=CMPLXCRUNCHER'
+
+def main():
+    """Main entry point to script."""
+
+    def configure_parser():
+        """Argument Parser Configuration"""
+        parser = argparse.ArgumentParser(
+            description='Launch Recentrifuge tests',
+            epilog=f'%(prog)s  - Release {__version__} - {__date__}' + LICENSE,
+            formatter_class=argparse.RawDescriptionHelpFormatter
+        )
+        parser.add_argument(
+            '-g', '--debug',
+            action='store_true',
+            help='increase output verbosity and perform additional checks'
+        )
+        parser.add_argument(
+            '-V', '--version',
+            action='version',
+            version=f'%(prog)s release {__version__} ({__date__})'
+        )
+        return parser
+
+    def check_debug():
+        """Check debugging mode"""
+        if args.debug:
+            print(blue('INFO:'), gray('Debugging mode activated'))
+            print(blue('INFO:'), gray('Active parameters:'))
+            for key, value in vars(args).items():
+                if value:
+                    print(gray(f'\t{key} ='), f'{value}')
+
+    # Program header
+    print(f'\n=-= {sys.argv[0]} =-= v{__version__} - {__date__}'
+          f' =-= by {__author__} =-=\n')
+    sys.stdout.flush()
+
+    # Parse arguments
+    argparser = configure_parser()
+    args = argparser.parse_args()
+
+    check_debug()
+
+    argums = ['rcf', F_TAX, F_FIL, F_OUT, F_CTR, F_MHL, F_MIN, F_G]
+    sub = sp.run(argums, stdout=None, stderr=None,
+                 universal_newlines=True)
+
+
+if __name__ == '__main__':
+    main()

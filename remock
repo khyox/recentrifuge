@@ -16,7 +16,7 @@
 #     along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 """
-Generate mock samples for Recentrifuge testing
+Generate mock samples for Recentrifuge
 """
 
 import argparse
@@ -44,7 +44,7 @@ def main():
     def configure_parser():
         """Argument Parser Configuration"""
         parser = argparse.ArgumentParser(
-            description='Generate mock samples for Recentrifuge testing',
+            description='Generate mock samples for Recentrifuge',
             epilog=f'%(prog)s  - Release {__version__} - {__date__}' + LICENSE,
             formatter_class=argparse.RawDescriptionHelpFormatter
         )
