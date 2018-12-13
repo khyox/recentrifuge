@@ -21,12 +21,13 @@ Launch Recentrifuge tests
 
 import argparse
 import os
+import re
 import subprocess as sp
 import sys
 
 from recentrifuge import __version__, __author__, __date__
 from recentrifuge.config import LICENSE, TAXDUMP_PATH
-from recentrifuge.config import gray, blue, Filename
+from recentrifuge.config import gray, blue, magenta, green, red, Filename
 
 # optional package pandas (to read Excel with mock layout)
 _USE_PANDAS = True
@@ -36,6 +37,7 @@ except ImportError:
     pd = None
     _USE_PANDAS = False
 
+F_V = '-V'
 F_TAX = '-n=' + TAXDUMP_PATH
 PATH = os.path.dirname(os.path.realpath(__file__))
 PATH_TEST: Filename = Filename(os.path.join(PATH, 'recentrifuge/test'))
@@ -45,7 +47,8 @@ F_CTR = '-c=3'
 F_MHL = '-y=35'
 F_MIN = '-m=5'
 F_G = '-g'
-F_CC = '--extra=CMPLXCRUNCHER'
+F_CC = '-e=CMPLXCRUNCHER'
+
 
 def main():
     """Main entry point to script."""
@@ -61,6 +64,11 @@ def main():
             '-g', '--debug',
             action='store_true',
             help='increase output verbosity and perform additional checks'
+        )
+        parser.add_argument(
+            '-i', '--ignore',
+            action='store_true',
+            help='continue testing even if there are errors'
         )
         parser.add_argument(
             '-V', '--version',
@@ -89,9 +97,44 @@ def main():
 
     check_debug()
 
-    argums = ['rcf', F_TAX, F_FIL, F_OUT, F_CTR, F_MHL, F_MIN, F_G]
-    sub = sp.run(argums, stdout=None, stderr=None,
-                 universal_newlines=True)
+    prog = 'rcf'
+    print(magenta(f'\n>>> TESTING VERSION ... '), end='')
+    sys.stdout.flush()
+    cproc = sp.run([prog, F_V], stdout=sp.PIPE, stderr=sp.STDOUT,
+                   universal_newlines=True)
+    match = re.search(r'(\d+\.\d+\.\d+[a-z]*\d*)\s', cproc.stdout)
+    if match.group(1) == __version__:
+        print(green('OK!'))
+    else:
+        print(red('FAILED!'))
+        print(blue('INFO:'), f'Installed recentrifuge is v{match.group(1)} '
+              f'while these tests are for version {__version__}')
+        if not args.ignore:
+            sys.exit(1)
+
+    prog = 'retaxdump'
+    print(magenta(f'\n>>> TESTING {prog} ...'))
+    sys.stdout.flush()
+    cproc = sp.run([prog], universal_newlines=True)
+    print(magenta(f'\n<<< END {prog} TEST: '), end='')
+    if cproc.returncode == 0:
+        print(green('OK!'))
+    else:
+        print(red('FAILED!'))
+        if not args.ignore:
+            sys.exit(2)
+
+    prog = 'rcf'
+    print(magenta(f'\n>>> TESTING {prog} ...'))
+    argums = [prog, F_TAX, F_FIL, F_OUT, F_CTR, F_MHL, F_MIN, F_G]
+    cproc = sp.run(argums, universal_newlines=True)
+    print(magenta(f'\n<<< END {prog} TEST: '), end='')
+    if cproc.returncode == 0:
+        print(green('OK!'))
+    else:
+        print(red('FAILED!'))
+        if not args.ignore:
+            sys.exit(3)
 
 
 if __name__ == '__main__':
