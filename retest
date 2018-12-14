@@ -36,6 +36,7 @@ try:
 except ImportError:
     pd = None
     _USE_PANDAS = False
+    # TODO: Exit if pandas is not installed with explanatory message
 
 F_V = '-V'
 F_TAX = '-n=' + TAXDUMP_PATH
