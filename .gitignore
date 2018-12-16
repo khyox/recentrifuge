@@ -60,3 +60,7 @@ Thumbs.db
 taxdump/
 aux/
 mypy_wrapper.sh
+rcf_test/
+build/
+dist/
+emg/

@@ -33,7 +33,7 @@ from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.clark import select_clark_inputs
 from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Extra
 from recentrifuge.config import HTML_SUFFIX, DEFMINTAXA, TAXDUMP_PATH
-from recentrifuge.config import LICENSE, Err, Classifier
+from recentrifuge.config import STATS_SHEET_NAME, LICENSE, Err, Classifier
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_CONTROL_SHARED
@@ -564,7 +564,7 @@ def main():
         data_frame: pd.DataFrame = pd.DataFrame.from_dict(
             {raw: stats[raw].to_dict() for raw in raw_samples})
         if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
-            data_frame.to_excel(xlsxwriter, sheet_name='_sample_stats')
+            data_frame.to_excel(xlsxwriter, sheet_name=STATS_SHEET_NAME)
         elif extra is Extra.CSV or extra is Extra.TSV:
             data_frame.to_csv(sv_base + '.stat.' + sv_ext, **sv_kargs)
 

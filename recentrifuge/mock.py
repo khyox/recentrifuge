@@ -11,6 +11,7 @@ from typing import Counter, List
 
 from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.config import Id, Filename
+from recentrifuge.config import TEST_INPUT_DIR, TEST_OUTPUT_DIR, MOCK_XLSX
 from recentrifuge.config import gray, blue, green, red, yellow, cyan
 from recentrifuge.taxonomy import Taxonomy
 
@@ -24,7 +25,7 @@ except ImportError:
 
 
 MAX_HIT_LENGTH: int = 200  # Max hit length for random score generation
-TEST_MOCK_XLS = 'test/mock.xlsx'
+TEST_MOCK_XLSX = os.path.join(TEST_INPUT_DIR, MOCK_XLSX)
 
 
 def generate_mock(ncbi: Taxonomy,
@@ -111,9 +112,11 @@ def generate_mock(ncbi: Taxonomy,
             else:
                 mock_from_scratch(test, mock_layout)
 
-    def by_excel_file() -> None:
+    def by_excel_file(dirname: Filename = None) -> None:
         """Do the job in case of Excel file with all the details"""
-        dirname = os.path.dirname(xcel)
+        if dirname is None:
+            dirname = os.path.dirname(xcel)
+        os.makedirs(dirname, exist_ok=True)
         # Expected index (taxids) in column after taxa name, and last row will
         #  be removed (reserved for sum of reads in Excel file)
         mock_df = pd.read_excel(xcel, index_col=1, skipfooter=1,
@@ -135,6 +138,7 @@ def generate_mock(ncbi: Taxonomy,
         by_excel_file()
     else:  # Test mode
         path = os.path.dirname(os.path.realpath(__file__))
-        xcel: Filename = Filename(os.path.join(path, TEST_MOCK_XLS))
+        xcel: Filename = Filename(os.path.join(path, TEST_MOCK_XLSX))
         vprint(gray('Test mode! Processing'), xcel, '\n')
-        by_excel_file()
+        random.seed(18490)
+        by_excel_file(dirname=TEST_OUTPUT_DIR)

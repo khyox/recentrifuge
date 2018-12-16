@@ -16,7 +16,18 @@
 #     along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 """
-Launch Recentrifuge tests
+Launch tests for the whole Recentrifuge package.
+
+Meaning of retest exit codes:
+ Code   Explanation
+ ----   ----------------------------------------------
+    0   All tests passed
+    1   Problem with required dependencies
+    2   Failed the version check
+    3   Failed the retaxdump test
+    4   Failed the remock test
+    5   Failed the recentrifuge test
+    >5  Failed a multiple comparison between test data and test standard
 """
 
 import argparse
@@ -24,31 +35,50 @@ import os
 import re
 import subprocess as sp
 import sys
+import time
+
+from distutils.version import StrictVersion
 
 from recentrifuge import __version__, __author__, __date__
-from recentrifuge.config import LICENSE, TAXDUMP_PATH
-from recentrifuge.config import gray, blue, magenta, green, red, Filename
+from recentrifuge.config import Filename, Score, Extra
+from recentrifuge.config import LICENSE, TAXDUMP_PATH, HTML_SUFFIX, XLSX_SUFFIX
+from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR
+from recentrifuge.config import gray, blue, magenta, green, red
 
-# optional package pandas (to read Excel with mock layout)
-_USE_PANDAS = True
+# pandas (to read Excel with mock layout)
 try:
     import pandas as pd
+    if StrictVersion(pd.__version__) < StrictVersion('0.23.2'):
+        print(red('ERROR!'), 'Please upgrade pandas to v0.23.2 or higher for '
+                             'testing recentrifuge.')
+        sys.exit(1)
 except ImportError:
     pd = None
-    _USE_PANDAS = False
-    # TODO: Exit if pandas is not installed with explanatory message
+    print(red('ERROR!'), 'Please install pandas (v0.23.2 or higher) for '
+                         'testing recentrifuge.')
+    sys.exit(1)
 
+# Local constants
+MHL_DEFAULT = 35
+EPS = 1e-16  # Local epsilon for floating point comparisons
 F_V = '-V'
 F_TAX = '-n=' + TAXDUMP_PATH
 PATH = os.path.dirname(os.path.realpath(__file__))
 PATH_TEST: Filename = Filename(os.path.join(PATH, 'recentrifuge/test'))
-F_FIL = '-f=' + PATH_TEST
-F_OUT = '-o=TEST.rcf.html'
+F_FIL = '-f=' + TEST_OUTPUT_DIR
+TEST_PREFIX = 'TEST'
+HTML_FIL: Filename = TEST_PREFIX + HTML_SUFFIX
+XLSX_FIL: Filename = TEST_PREFIX + XLSX_SUFFIX
+F_OUT = '-o=' + os.path.join(TEST_OUTPUT_DIR, HTML_FIL)
 F_CTR = '-c=3'
-F_MHL = '-y=35'
+F_MHL = '-y='
+F_RND = '-r='
 F_MIN = '-m=5'
 F_G = '-g'
+F_T = '-t'
 F_CC = '-e=CMPLXCRUNCHER'
+XLSX_PATH: Filename = Filename(os.path.join(TEST_OUTPUT_DIR, XLSX_FIL))
+STND_PATH: Filename = Filename(os.path.join(PATH_TEST, XLSX_FIL))
 
 
 def main():
@@ -72,6 +102,15 @@ def main():
             help='continue testing even if there are errors'
         )
         parser.add_argument(
+            '-y', '--minscore',
+            action='store',
+            metavar='NUMBER',
+            type=lambda txt: Score(float(txt)),
+            default=Score(MHL_DEFAULT),
+            help=('minimum score/confidence of the classification of a read '
+                  f'to pass the quality filter; {MHL_DEFAULT} by default')
+        )
+        parser.add_argument(
             '-V', '--version',
             action='version',
             version=f'%(prog)s release {__version__} ({__date__})'
@@ -87,6 +126,9 @@ def main():
                 if value:
                     print(gray(f'\t{key} ='), f'{value}')
 
+    # Timing initialization
+    start_time: float = time.time()
+
     # Program header
     print(f'\n=-= {sys.argv[0]} =-= v{__version__} - {__date__}'
           f' =-= by {__author__} =-=\n')
@@ -95,6 +137,7 @@ def main():
     # Parse arguments
     argparser = configure_parser()
     args = argparser.parse_args()
+    minscore: Score = args.minscore
 
     check_debug()
 
@@ -109,9 +152,9 @@ def main():
     else:
         print(red('FAILED!'))
         print(blue('INFO:'), f'Installed recentrifuge is v{match.group(1)} '
-              f'while these tests are for version {__version__}')
+        f'while these tests are for version {__version__}')
         if not args.ignore:
-            sys.exit(1)
+            sys.exit(2)
 
     prog = 'retaxdump'
     print(magenta(f'\n>>> TESTING {prog} ...'))
@@ -123,11 +166,11 @@ def main():
     else:
         print(red('FAILED!'))
         if not args.ignore:
-            sys.exit(2)
+            sys.exit(3)
 
-    prog = 'rcf'
+    prog = 'remock'
     print(magenta(f'\n>>> TESTING {prog} ...'))
-    argums = [prog, F_TAX, F_FIL, F_OUT, F_CTR, F_MHL, F_MIN, F_G]
+    argums = [prog, F_TAX, F_RND + str(minscore), F_T, F_G]
     cproc = sp.run(argums, universal_newlines=True)
     print(magenta(f'\n<<< END {prog} TEST: '), end='')
     if cproc.returncode == 0:
@@ -135,7 +178,48 @@ def main():
     else:
         print(red('FAILED!'))
         if not args.ignore:
-            sys.exit(3)
+            sys.exit(4)
+
+    prog = 'rcf'
+    print(magenta(f'\n>>> TESTING {prog} ...'))
+    argums = [prog, F_TAX, F_FIL, F_OUT, F_CTR, F_MHL + str(minscore),
+              F_MIN, F_G]
+    cproc = sp.run(argums, universal_newlines=True)
+    print(magenta(f'\n<<< END {prog} TEST: '), end='')
+    if cproc.returncode == 0:
+        print(green('OK!'))
+    else:
+        print(red('FAILED!'))
+        if not args.ignore:
+            sys.exit(5)
+
+    print(magenta(f'\n>>> COMPARING {prog} RESULTS WITH STANDARD:'))
+    for sheet in [STATS_SHEET_NAME, str(Extra.FULL)]:
+        print(magenta(f'>> TEST FOR {sheet}... '), end='')
+        pd_stnd = pd.ExcelFile(STND_PATH)
+        df_stat_stnd = pd_stnd.parse(
+            sheet_name=sheet, header=0,
+            skiprows=None, index_col=0
+        )
+
+        pd_xlsx = pd.ExcelFile(XLSX_PATH)
+        df_stat_xlsx = pd_xlsx.parse(
+            sheet_name=sheet, header=0,
+            skiprows=None, index_col=0
+        )
+        df_stat_xlsx.columns = df_stat_stnd.columns
+        if df_stat_xlsx.equals(df_stat_stnd):
+            print(green('OK!'))
+        else:
+            print(red('FAILED!'))
+            print('Difference between test results and test standard?')
+            print(df_stat_xlsx.where(df_stat_xlsx != df_stat_stnd, False))
+            if not args.ignore:
+                sys.exit(6)
+
+    # Timing results
+    print(gray('Total test time:'), time.strftime(
+        "%H:%M:%S", time.gmtime(time.time() - start_time)))
 
 
 if __name__ == '__main__':
