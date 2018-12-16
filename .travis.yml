@@ -8,6 +8,4 @@ install:
 # command to run tests
 script:
   - ls -l
-  - cd recentrifuge
-  - ls -l
   - ./retest -g -l
