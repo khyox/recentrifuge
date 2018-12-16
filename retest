@@ -39,7 +39,7 @@ import time
 
 from distutils.version import StrictVersion
 
-from recentrifuge import __version__, __author__, __date__
+from recentrifuge import __version__, __author__, __date__, __path__
 from recentrifuge.config import Filename, Score, Extra
 from recentrifuge.config import LICENSE, TAXDUMP_PATH, HTML_SUFFIX, XLSX_SUFFIX
 from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR
@@ -64,7 +64,7 @@ EPS = 1e-16  # Local epsilon for floating point comparisons
 F_V = '-V'
 F_TAX = '-n=' + TAXDUMP_PATH
 PATH = os.path.dirname(os.path.realpath(__file__))
-PATH_TEST: Filename = Filename(os.path.join(PATH, 'recentrifuge/test'))
+PATH_TEST: Filename = Filename(os.path.join(__path__[0], 'test/'))
 F_FIL = '-f=' + TEST_OUTPUT_DIR
 TEST_PREFIX = 'TEST'
 HTML_FIL: Filename = TEST_PREFIX + HTML_SUFFIX
@@ -77,6 +77,7 @@ F_MIN = '-m=5'
 F_G = '-g'
 F_T = '-t'
 F_CC = '-e=CMPLXCRUNCHER'
+
 XLSX_PATH: Filename = Filename(os.path.join(TEST_OUTPUT_DIR, XLSX_FIL))
 STND_PATH: Filename = Filename(os.path.join(PATH_TEST, XLSX_FIL))
 
@@ -99,7 +100,12 @@ def main():
         parser.add_argument(
             '-i', '--ignore',
             action='store_true',
-            help='continue testing even if there are errors'
+            help='continue testing even if errors arise'
+        )
+        parser.add_argument(
+            '-l', '--local',
+            action='store_true',
+            help='test local directory scripts instead of pip installed'
         )
         parser.add_argument(
             '-y', '--minscore',
@@ -125,6 +131,10 @@ def main():
             for key, value in vars(args).items():
                 if value:
                     print(gray(f'\t{key} ='), f'{value}')
+            print(blue('INFO:'), gray('Relevant paths:'))
+            for var in ['TAXDUMP_PATH', 'PATH', 'PATH_TEST',
+                        'XLSX_PATH', 'STND_PATH']:
+                print(gray(f'\t{var} ='), f'{eval(var)}')
 
     # Timing initialization
     start_time: float = time.time()
@@ -138,10 +148,13 @@ def main():
     argparser = configure_parser()
     args = argparser.parse_args()
     minscore: Score = args.minscore
+    prefix: Filename = Filename('')
+    if args.local:
+        prefix = Filename('./')
 
     check_debug()
 
-    prog = 'rcf'
+    prog: Filename = Filename(prefix + 'rcf')
     print(magenta(f'\n>>> TESTING VERSION ... '), end='')
     sys.stdout.flush()
     cproc = sp.run([prog, F_V], stdout=sp.PIPE, stderr=sp.STDOUT,
@@ -156,7 +169,7 @@ def main():
         if not args.ignore:
             sys.exit(2)
 
-    prog = 'retaxdump'
+    prog = Filename(prefix + 'retaxdump')
     print(magenta(f'\n>>> TESTING {prog} ...'))
     sys.stdout.flush()
     cproc = sp.run([prog], universal_newlines=True)
@@ -168,7 +181,7 @@ def main():
         if not args.ignore:
             sys.exit(3)
 
-    prog = 'remock'
+    prog = Filename(prefix + 'remock')
     print(magenta(f'\n>>> TESTING {prog} ...'))
     argums = [prog, F_TAX, F_RND + str(minscore), F_T, F_G]
     cproc = sp.run(argums, universal_newlines=True)
@@ -180,7 +193,7 @@ def main():
         if not args.ignore:
             sys.exit(4)
 
-    prog = 'rcf'
+    prog = Filename(prefix + 'rcf')
     print(magenta(f'\n>>> TESTING {prog} ...'))
     argums = [prog, F_TAX, F_FIL, F_OUT, F_CTR, F_MHL + str(minscore),
               F_MIN, F_G]
