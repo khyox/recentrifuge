@@ -20,13 +20,20 @@ Get needed taxdump files from NCBI.
 """
 
 import argparse
-from ftplib import FTP
 import sys
+import time
+
+from ftplib import FTP, error_temp, error_proto, error_reply
 from zipfile import ZipFile
 
 from recentrifuge import __version__, __author__, __date__
+from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, ZIPFILE
 from recentrifuge.config import TAXDUMP_PATH
+
+RETRY_TIMES = [0, 5, 15, 30, 60, 120]
+EXCEPTS = (OSError, EOFError, error_temp, error_proto, error_reply)
+FTP_SERVER = 'ftp.ncbi.nlm.nih.gov'
 
 
 def main():
@@ -62,22 +69,49 @@ def main():
     # Load NCBI nodes, names and build children
     print(f'\033[90mDownloading {ZIPFILE} from NCBI...\033[0m', end='')
     sys.stdout.flush()
-    ftp = FTP('ftp.ncbi.nlm.nih.gov')
-    ftp.login()
-    ftp.cwd('/pub/taxonomy/')
-    ftp.retrbinary('RETR ' + ZIPFILE, open(ZIPFILE, 'wb').write)
-    ftp.quit()
-    print('\033[92m OK! \033[0m\n')
-
+    ftp = None
+    error = None
+    for retry_time in RETRY_TIMES:
+        if retry_time:
+            print(gray(' Retrying in %s seconds...' % retry_time),
+                  end='', flush=True)
+        time.sleep(retry_time)
+        try:
+            ftp = FTP(FTP_SERVER, timeout=30)
+            ftp.login()
+            ftp.cwd('/pub/taxonomy/')
+            ftp.retrbinary('RETR ' + ZIPFILE, open(ZIPFILE, 'wb').write)
+        except EXCEPTS as err:
+            print(yellow(' PROBLEM!'))
+            error = err
+        except KeyboardInterrupt:
+            print(gray(' User'), yellow('interrupted!'))
+            exit(9)
+        else:
+            break
+    else:  # Too many problems, quit
+        print(red(' FAILED!'),
+              gray('Exceeded number of attempts!'))
+        print(gray('Error message:'), error)
+        exit(5)
+    print(green(' OK!'))
+    if ftp:
+        try:
+            ftp.quit()
+        except EXCEPTS:
+            try:
+                ftp.close()
+            except EXCEPTS:
+                pass
     filezip = ZipFile(ZIPFILE)
     for filename in [NODES_FILE, NAMES_FILE]:
-        print(f'\033[90mExtracting "{filename}"...', end='')
+        print(gray(f'Extracting {filename}... '), end='')
         try:
             filezip.extract(filename, path=args.nodespath)
         except KeyError:
-            print('\n\033[91mERROR!\033[0m')
+            print(red('ERROR!'))
         else:
-            print('\033[92m OK! \033[0m')
+            print(green('OK!'))
 
 
 if __name__ == '__main__':
