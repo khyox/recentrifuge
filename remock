@@ -29,10 +29,15 @@ from recentrifuge.config import Filename, gray, blue
 from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, TAXDUMP_PATH
 from recentrifuge.taxonomy import Taxonomy
 
-# optional package pandas (to read Excel with mock layout)
+# optional package pandas with xlrd (to read Excel with mock layout)
 _USE_PANDAS = True
 try:
     import pandas as pd
+except ImportError:
+    pd = None
+    _USE_PANDAS = False
+try:
+    import xlrd
 except ImportError:
     pd = None
     _USE_PANDAS = False

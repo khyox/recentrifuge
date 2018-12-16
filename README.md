@@ -1,6 +1,7 @@
 # Recentrifuge
 **Robust comparative analysis and contamination removal for metagenomics**
 ____
+[![Build Status](https://travis-ci.org/khyox/recentrifuge.svg?branch=master)](https://travis-ci.org/khyox/recentrifuge)
 
 ### Robust comparative analysis
 
