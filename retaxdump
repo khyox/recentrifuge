@@ -31,7 +31,7 @@ from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, ZIPFILE
 from recentrifuge.config import TAXDUMP_PATH
 
-RETRY_TIMES = [0, 5, 15, 30, 60, 120]
+RETRY_TIMES = [0, 5, 15, 30, 60, 120, 300]
 EXCEPTS = (OSError, EOFError, error_temp, error_proto, error_reply)
 FTP_SERVER = 'ftp.ncbi.nlm.nih.gov'
 

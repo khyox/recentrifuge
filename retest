@@ -74,7 +74,7 @@ F_CTR = '-c=3'
 F_MHL = '-y='
 F_RND = '-r='
 F_MIN = '-m=5'
-F_G = '-g'
+F_D = '-d'
 F_T = '-t'
 F_CC = '-e=CMPLXCRUNCHER'
 
@@ -93,7 +93,7 @@ def main():
             formatter_class=argparse.RawDescriptionHelpFormatter
         )
         parser.add_argument(
-            '-g', '--debug',
+            '-d', '--debug',
             action='store_true',
             help='increase output verbosity and perform additional checks'
         )
@@ -183,7 +183,7 @@ def main():
 
     prog = Filename(prefix + 'remock')
     print(magenta(f'\n>>> TESTING {prog} ...'))
-    argums = [prog, F_TAX, F_RND + str(minscore), F_T, F_G]
+    argums = [prog, F_TAX, F_RND + str(minscore), F_T, F_D]
     cproc = sp.run(argums, universal_newlines=True)
     print(magenta(f'\n<<< END {prog} TEST: '), end='')
     if cproc.returncode == 0:
@@ -196,7 +196,7 @@ def main():
     prog = Filename(prefix + 'rcf')
     print(magenta(f'\n>>> TESTING {prog} ...'))
     argums = [prog, F_TAX, F_FIL, F_OUT, F_CTR, F_MHL + str(minscore),
-              F_MIN, F_G]
+              F_MIN, F_D]
     cproc = sp.run(argums, universal_newlines=True)
     print(magenta(f'\n<<< END {prog} TEST: '), end='')
     if cproc.returncode == 0:

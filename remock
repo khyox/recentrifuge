@@ -71,7 +71,7 @@ def main():
                   'length (mhl) of the classification; 15 by default')
         )
         parser.add_argument(
-            '-g', '--debug',
+            '-d', '--debug',
             action='store_true',
             help='increase output verbosity and perform additional checks'
         )

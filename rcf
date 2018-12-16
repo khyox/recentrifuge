@@ -288,7 +288,7 @@ def main():
             help=argparse.SUPPRESS
         )
         parser_mode.add_argument(
-            '-g', '--debug',
+            '-d', '--debug',
             action='store_true',
             help='increase output verbosity and perform additional checks'
         )
