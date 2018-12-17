@@ -31,23 +31,29 @@ Meaning of retest exit codes:
 """
 
 import argparse
+import collections as col
 import os
 import re
 import subprocess as sp
 import sys
 import time
-
 from distutils.version import StrictVersion
+from typing import Counter, List, Dict, Any
+from warnings import filterwarnings
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 from recentrifuge import __version__, __author__, __date__, __path__
-from recentrifuge.config import Filename, Score, Extra
+from recentrifuge.config import Filename, Score, Extra, Id, Sample
 from recentrifuge.config import LICENSE, TAXDUMP_PATH, HTML_SUFFIX, XLSX_SUFFIX
-from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR
-from recentrifuge.config import gray, blue, magenta, green, red
+from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR, STR_CONTROL
+from recentrifuge.config import gray, blue, magenta, green, red, yellow
 
 # pandas (to read Excel with mock layout)
 try:
     import pandas as pd
+
     if StrictVersion(pd.__version__) < StrictVersion('0.23.2'):
         print(red('ERROR!'), 'Please upgrade pandas to v0.23.2 or higher for '
                              'testing recentrifuge.')
@@ -69,6 +75,7 @@ F_FIL = '-f=' + TEST_OUTPUT_DIR
 TEST_PREFIX = 'TEST'
 HTML_FIL: Filename = TEST_PREFIX + HTML_SUFFIX
 XLSX_FIL: Filename = TEST_PREFIX + XLSX_SUFFIX
+PDF_FILE: Filename = TEST_PREFIX + '.rcf.pdf'
 F_OUT = '-o=' + os.path.join(TEST_OUTPUT_DIR, HTML_FIL)
 F_CTR = '-c=3'
 F_MHL = '-y='
@@ -77,9 +84,50 @@ F_MIN = '-m=5'
 F_D = '-d'
 F_T = '-t'
 F_CC = '-e=CMPLXCRUNCHER'
-
 XLSX_PATH: Filename = Filename(os.path.join(TEST_OUTPUT_DIR, XLSX_FIL))
 STND_PATH: Filename = Filename(os.path.join(PATH_TEST, XLSX_FIL))
+SAMPLES: List[Sample] = [
+    Sample(spl) for spl in ['ctrl1', 'ctrl2', 'ctrl3',
+                            'smpl1', 'smpl2', 'smpl3', 'smpl4']
+]
+STR_CTRL_SP = '_' + STR_CONTROL + '_species'
+CTRL_SP: List[Sample] = [
+    Sample(spl + STR_CTRL_SP) for spl in ['smpl1', 'smpl2', 'smpl3', 'smpl4']]
+TAXA: Dict[Id, str] = col.OrderedDict({
+    Id(4577): [r'$\mathit{Zea\; mays}$ [just-control contaminant]',
+               'c', 'x'],
+    Id(9606): [r'$\mathit{Homo\; sapiens}$ [critical contaminant]',
+               'r', ''],
+    Id(1747): [r'$\mathit{Cutibacterium\; acnes}$ [severe contaminant]',
+               'y', ''],
+    Id(59201): [r'$\mathit{Salmonella\; enterica}$ subs. enterica [native]',
+                'g', '-'],
+    Id(28901): [r'$\mathit{Salmonella\; enterica}$ [native]',
+                'g', 'O'],
+    Id(562): [r'$\mathit{Escherichia\; coli}$ [mild contaminant]',
+              [0, 0, 0.5], '//'],
+    Id(2209): [r'$\mathit{Methanosarcina\; mazei}$ [CROSSOVER contaminant]',
+               'm', ''],
+    Id(1587): [r'$\mathit{Lactobacillus\; helveticus}$ [native]',
+               'g', ''],
+    Id(2208): [r'$\mathit{Methanosarcina\; barkeri}$ [CROSSOVER contaminant]',
+               'm', '.'],
+    Id(1540099): [r'$\mathit{Salmonella\; virus\; Stitch}$ [native]',
+                  'g', '/'],
+    Id(425265): [r'$\mathit{Malassezia\; globosa}$ CBS 7966 [other cont.]',
+                 '0.5', ''],
+    Id(54736): [r'$\mathit{Salmonella\; bongori}$ [native]',
+                'g', 'x'],
+    Id(9598): [r'$\mathit{Pan\; troglodytes}$ [mild contaminant]',
+               'b', ''],
+    Id(398578): [r'$\mathit{Delftia\; acidovorans}$ SPH-1 [native]',
+                 'g', '\\'],
+    Id(1655020): [r'$\mathit{Propionibacterium\; phage}$ SKKY [other cont.]',
+                  '0.5', 'o'],
+    Id(4565): [r'$\mathit{Triticum\; aestivum}$ [just-control contaminant]',
+               'c', ''],
+})
+COLORS: List[Any] = [taxa[1] for taxa in TAXA.values()]
 
 
 def main():
@@ -136,6 +184,237 @@ def main():
                         'XLSX_PATH', 'STND_PATH']:
                 print(gray(f'\t{var} ='), f'{eval(var)}')
 
+    def test_version():
+        """Test version matching"""
+        prog: Filename = Filename(prefix + 'rcf')
+        print(magenta(f'\n>>> TESTING VERSION ... '), end='')
+        sys.stdout.flush()
+        cproc = sp.run([prog, F_V], stdout=sp.PIPE, stderr=sp.STDOUT,
+                       universal_newlines=True)
+        match = re.search(r'(\d+\.\d+\.\d+[a-z]*\d*)\s', cproc.stdout)
+        if match.group(1) == __version__:
+            print(green('OK!'))
+        else:
+            print(red('FAILED!'))
+            print(blue('INFO:'),
+                  f'Installed recentrifuge is v{match.group(1)} '
+                  f'while these tests are for version {__version__}')
+            if not args.ignore:
+                sys.exit(2)
+
+    def test_retaxdump():
+        """Test retaxdump"""
+        prog: Filename = Filename(prefix + 'retaxdump')
+        print(magenta(f'\n>>> TESTING {prog} ...'))
+        sys.stdout.flush()
+        cproc = sp.run([prog], universal_newlines=True)
+        print(magenta(f'\n<<< END {prog} TEST: '), end='')
+        if cproc.returncode == 0:
+            print(green('OK!'))
+        else:
+            print(red('FAILED!'))
+            if not args.ignore:
+                sys.exit(3)
+
+    def test_remock():
+        """Test remock"""
+        prog: Filename = Filename(prefix + 'remock')
+        print(magenta(f'\n>>> TESTING {prog} ...'))
+        argums = [prog, F_TAX, F_RND + str(minscore), F_T, F_D]
+        cproc = sp.run(argums, universal_newlines=True)
+        print(magenta(f'\n<<< END {prog} TEST: '), end='')
+        if cproc.returncode == 0:
+            print(green('OK!'))
+        else:
+            print(red('FAILED!'))
+            if not args.ignore:
+                sys.exit(4)
+
+    def test_rcf():
+        """Test recentrifuge"""
+        prog: Filename = Filename(prefix + 'rcf')
+        print(magenta(f'\n>>> TESTING {prog} ...'))
+        argums = [prog, F_TAX, F_FIL, F_OUT, F_CTR, F_MHL + str(minscore),
+                  F_MIN, F_D]
+        cproc = sp.run(argums, universal_newlines=True)
+        print(magenta(f'\n<<< END {prog} TEST: '), end='')
+        if cproc.returncode == 0:
+            print(green('OK!'))
+        else:
+            print(red('FAILED!'))
+            if not args.ignore:
+                sys.exit(5)
+
+    def load_excels():
+        """Load excels from standard and recentrifuge results"""
+        nonlocal pd_xlsx, pd_stnd
+        print(magenta(f'\n>>> LOADING TEST RESULTS ... '), end='')
+        try:
+            pd_xlsx = pd.ExcelFile(XLSX_PATH)
+        except OSError:
+            print(red('FAILED!\nERROR!'), 'Results for test not found!')
+            raise
+        else:
+            print(green('OK!'))
+        print(magenta(f'>>> LOADING STANDARD RESULTS ... '), end='')
+        try:
+            pd_stnd = pd.ExcelFile(STND_PATH)
+        except OSError:
+            print(red('FAILED!\nERROR!'), 'Missing standard results for test')
+            raise
+        else:
+            print(green('OK!'))
+
+    def analyze_results():
+        """Analyze recentrifuge results"""
+        prog: Filename = Filename(prefix + 'rcf')
+        print(magenta(f'\n>>> ANALYZING {prog} RESULTS ... '), end='')
+
+        # Data initialization
+        datasets = len(TAXA)  # sets of measurements for any taxon
+        n = len(SAMPLES)
+        ind = np.arange(n)  # the x locations for all the samples
+        width = 0.80 / datasets  # the width of the bars
+        ymax = 1e+5
+        ymin = 1e+0
+
+        # Figure initialization
+        filterwarnings("ignore", category=UserWarning, module="matplotlib")
+        fig, ax = plt.subplots(
+            nrows=2, ncols=1, squeeze=False, sharey='col', sharex='col',
+            figsize=(20, 12)
+        )
+        fig.set_tight_layout({'rect': [0.0, 0.0, 1.0, 1.0],
+                              'w_pad': 0, 'h_pad': 0.1})
+        ax_raw = ax[0, 0]
+        ax_ctr = ax[1, 0]
+
+        # Load data sheets as pandas DataFrames
+        df_stnd = pd_stnd.parse(
+            sheet_name=str(Extra.FULL), header=[0, 1],
+            skiprows=None, index_col=0
+        )
+        df_xlsx = pd_xlsx.parse(
+            sheet_name=str(Extra.FULL), header=[0, 1],
+            skiprows=None, index_col=0
+        )
+        df_xlsx.columns = df_stnd.columns  # Normalize columns name
+
+        # Generate bar plot
+        rects: List[Any] = []
+        for num, (taxon, (name, color, hatch)) in enumerate(TAXA.items()):
+            rects.append(
+                ax_raw.bar(ind + num * width,
+                           [df_xlsx[s]['count'][int(taxon)] for s in SAMPLES],
+                           width, color=[color], hatch=hatch,
+                           alpha=0.5, label=name)
+            )
+            ax_ctr.bar(ind + num * width,
+                       [0.1, 0.1, 0.1] +
+                       [df_xlsx[s]['count'][int(taxon)] for s in CTRL_SP],
+                       width, color=[color], hatch=hatch,
+                       alpha=0.5, label=name)
+
+        # Set scale, axis lims, ticks, and grid
+        ax_raw.set_yscale("log", nonposy='clip')
+        ax_raw.set_ylim(top=ymax, bottom=ymin)
+        xmin = ind[0] - 0.5 + width * (datasets - 1) / 2
+        xmax = ind[-1] + 0.5 + width * (datasets - 1) / 2
+        ax_raw.set_xlim(left=xmin, right=xmax)
+        ax_raw.set_xticks(ind + width * (datasets - 1) / 2)
+        ax_raw.set_xticks(ind[:-1] + 0.5 +
+                          width * (datasets - 1) / 2, minor=True)
+        ax_raw.xaxis.grid(True, which='minor', linewidth=5, color='k')
+        ax_raw.yaxis.grid(True, alpha=0.5)
+        ax_ctr.xaxis.grid(True, which='minor', linewidth=5, color='k')
+        ax_ctr.yaxis.grid(True, alpha=0.5)
+        ax_ctr.set_xticklabels(SAMPLES, fontdict={'fontsize': 'xx-large'})
+        ax_ctr.legend(rects,
+                      [lst[0] for lst in TAXA.values()], loc='best',
+                      prop={'family': 'sans-serif', 'size': 'large'},
+                      framealpha=0.9)
+
+        # Add inner titles
+        ax_raw.text(
+            ind[n - 2] + width * (datasets - 1) / 2, ymax / 1.3,
+            'Species or below in raw samples', size=20,
+            ha="center", va="center",
+            bbox=dict(
+                boxstyle="round", ec=(1., 0.4, 0.4),
+                fc=(1., 0.7, 0.7)
+            )
+        )
+        ax_ctr.text(
+            ind[n - 2] + width * (datasets - 1) / 2, ymax / 1.3,
+            'Species after robust contamination removal', size=20,
+            ha="center", va="center",
+            bbox=dict(
+                boxstyle="round", ec=(0.2, 0.8, 0.2),
+                fc=(0.5, 0.8, 0.5)
+            )
+        )
+
+        # Label negative controls
+        ax_raw.fill_between([xmin, ind[2] + 0.5 + width * (datasets - 1) / 2],
+                            ymax, color='c', alpha=0.1)
+        ax_raw.text(
+            ind[2] + 0.4 + width * (datasets - 1) / 2, ymax / 10,
+            'negative controls', ha="center", va="center",
+            rotation=-90, fontsize='x-large', color='b'
+        )
+        ax_ctr.fill_between([xmin, ind[2] + 0.5 + width * (datasets - 1) / 2],
+                            ymax, color='c', alpha=0.1)
+        ax_ctr.text(
+            ind[2] + 0.4 + width * (datasets - 1) / 2, ymax / 10,
+            'negative controls', ha="center", va="center",
+            rotation=-90, fontsize='x-large', color='b'
+        )
+
+        # Save and show figure
+        fig.savefig(os.path.join(TEST_OUTPUT_DIR, PDF_FILE),
+                    bbox_inches='tight')
+        try:
+            fig.show()
+        except KeyboardInterrupt:
+            print(gray(' User'), yellow('interrupted!'))
+            raise
+        except:
+            print(yellow('WARNING!'), 'Unable to show plot.')
+        try:
+            plt.close(fig)
+        except KeyboardInterrupt:
+            print(gray(' User'), yellow('interrupted!'))
+            raise
+        except:
+            print(yellow('WARNING!'), 'Unable to close figure.')
+        else:
+            print(green('OK!'))
+
+    def test_results():
+        prog: Filename = Filename(prefix + 'rcf')
+        """Test recentrifuge results against standard"""
+        print(magenta(f'\n>>> COMPARING {prog} RESULTS WITH STANDARD:'))
+
+        for sheet in [STATS_SHEET_NAME, str(Extra.FULL)]:
+            print(magenta(f'>> TEST FOR {sheet}... '), end='')
+            df_stnd = pd_stnd.parse(
+                sheet_name=sheet, header=[0, 1],
+                skiprows=None, index_col=0
+            )
+            df_xlsx = pd_xlsx.parse(
+                sheet_name=sheet, header=[0, 1],
+                skiprows=None, index_col=0
+            )
+            df_xlsx.columns = df_stnd.columns  # Normalize columns name
+            if df_xlsx.equals(df_stnd):
+                print(green('OK!'))
+            else:
+                print(red('FAILED!'))
+                print('Difference between test results and test standard?')
+                print(df_xlsx.where(df_xlsx != df_stnd, False))
+                if not args.ignore:
+                    sys.exit(6)
+
     # Timing initialization
     start_time: float = time.time()
 
@@ -153,82 +432,17 @@ def main():
         prefix = Filename('./')
 
     check_debug()
+    test_version()
+    test_retaxdump()
+    test_remock()
+    test_rcf()
 
-    prog: Filename = Filename(prefix + 'rcf')
-    print(magenta(f'\n>>> TESTING VERSION ... '), end='')
-    sys.stdout.flush()
-    cproc = sp.run([prog, F_V], stdout=sp.PIPE, stderr=sp.STDOUT,
-                   universal_newlines=True)
-    match = re.search(r'(\d+\.\d+\.\d+[a-z]*\d*)\s', cproc.stdout)
-    if match.group(1) == __version__:
-        print(green('OK!'))
-    else:
-        print(red('FAILED!'))
-        print(blue('INFO:'), f'Installed recentrifuge is v{match.group(1)} '
-        f'while these tests are for version {__version__}')
-        if not args.ignore:
-            sys.exit(2)
+    pd_xlsx: pd.ExcelFile = None
+    pd_stnd: pd.ExcelFile = None
 
-    prog = Filename(prefix + 'retaxdump')
-    print(magenta(f'\n>>> TESTING {prog} ...'))
-    sys.stdout.flush()
-    cproc = sp.run([prog], universal_newlines=True)
-    print(magenta(f'\n<<< END {prog} TEST: '), end='')
-    if cproc.returncode == 0:
-        print(green('OK!'))
-    else:
-        print(red('FAILED!'))
-        if not args.ignore:
-            sys.exit(3)
-
-    prog = Filename(prefix + 'remock')
-    print(magenta(f'\n>>> TESTING {prog} ...'))
-    argums = [prog, F_TAX, F_RND + str(minscore), F_T, F_D]
-    cproc = sp.run(argums, universal_newlines=True)
-    print(magenta(f'\n<<< END {prog} TEST: '), end='')
-    if cproc.returncode == 0:
-        print(green('OK!'))
-    else:
-        print(red('FAILED!'))
-        if not args.ignore:
-            sys.exit(4)
-
-    prog = Filename(prefix + 'rcf')
-    print(magenta(f'\n>>> TESTING {prog} ...'))
-    argums = [prog, F_TAX, F_FIL, F_OUT, F_CTR, F_MHL + str(minscore),
-              F_MIN, F_D]
-    cproc = sp.run(argums, universal_newlines=True)
-    print(magenta(f'\n<<< END {prog} TEST: '), end='')
-    if cproc.returncode == 0:
-        print(green('OK!'))
-    else:
-        print(red('FAILED!'))
-        if not args.ignore:
-            sys.exit(5)
-
-    print(magenta(f'\n>>> COMPARING {prog} RESULTS WITH STANDARD:'))
-    for sheet in [STATS_SHEET_NAME, str(Extra.FULL)]:
-        print(magenta(f'>> TEST FOR {sheet}... '), end='')
-        pd_stnd = pd.ExcelFile(STND_PATH)
-        df_stat_stnd = pd_stnd.parse(
-            sheet_name=sheet, header=0,
-            skiprows=None, index_col=0
-        )
-
-        pd_xlsx = pd.ExcelFile(XLSX_PATH)
-        df_stat_xlsx = pd_xlsx.parse(
-            sheet_name=sheet, header=0,
-            skiprows=None, index_col=0
-        )
-        df_stat_xlsx.columns = df_stat_stnd.columns
-        if df_stat_xlsx.equals(df_stat_stnd):
-            print(green('OK!'))
-        else:
-            print(red('FAILED!'))
-            print('Difference between test results and test standard?')
-            print(df_stat_xlsx.where(df_stat_xlsx != df_stat_stnd, False))
-            if not args.ignore:
-                sys.exit(6)
+    load_excels()
+    analyze_results()
+    test_results()
 
     # Timing results
     print(gray('Total test time:'), time.strftime(
