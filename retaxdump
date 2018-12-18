@@ -91,7 +91,7 @@ def main():
             print(gray(' Retrying with HTTPS...'), end='', flush=True)
             try:
                 url = 'https://' + FTP_SERVER + PATH_NCBI + ZIPFILE
-                https = urllib.request.urlopen(url, 30)
+                https = urllib.request.urlopen(url, timeout=30)
                 zipfile = open(ZIPFILE, 'wb')
                 while True:
                     buff = https.read(BUFF_SIZE)
@@ -104,6 +104,8 @@ def main():
             except KeyboardInterrupt:
                 print(gray(' User'), yellow('interrupted!'))
                 exit(9)
+            else:
+                break
         except KeyboardInterrupt:
             print(gray(' User'), yellow('interrupted!'))
             exit(9)
