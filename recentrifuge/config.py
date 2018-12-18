@@ -53,6 +53,7 @@ JSLIB: Filename = Filename('krona.js')
 HTML_SUFFIX: Filename = Filename('.rcf.html')
 XLSX_SUFFIX: Filename = Filename('.rcf.xlsx')
 MOCK_XLSX: Filename = Filename('mock.xlsx')
+MOCK_SHEET: Filename = Filename('mock')
 TEST_INPUT_DIR: Filename = Filename('test/')
 TEST_OUTPUT_DIR: Filename = Filename('rcf_test/')
 STATS_SHEET_NAME: str = '_sample_stats'
