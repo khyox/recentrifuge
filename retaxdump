@@ -22,6 +22,7 @@ Get needed taxdump files from NCBI.
 import argparse
 import sys
 import time
+import urllib.request
 
 from ftplib import FTP, error_temp, error_proto, error_reply
 from zipfile import ZipFile
@@ -34,6 +35,9 @@ from recentrifuge.config import TAXDUMP_PATH
 RETRY_TIMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 30, 60, 120, 300]
 EXCEPTS = (OSError, EOFError, error_temp, error_proto, error_reply)
 FTP_SERVER = 'ftp.ncbi.nlm.nih.gov'
+PATH_NCBI = '/pub/taxonomy/'
+CONN_TIMEOUT = 30
+BUFF_SIZE = 2**20
 
 
 def main():
@@ -67,7 +71,7 @@ def main():
     sys.stdout.flush()
 
     # Load NCBI nodes, names and build children
-    print(f'\033[90mDownloading {ZIPFILE} from NCBI...\033[0m', end='')
+    print(f'\033[90mDownloading {ZIPFILE} from NCBI FTP...\033[0m', end='')
     sys.stdout.flush()
     ftp = None
     error = None
@@ -79,11 +83,27 @@ def main():
         try:
             ftp = FTP(FTP_SERVER, timeout=30)
             ftp.login()
-            ftp.cwd('/pub/taxonomy/')
+            ftp.cwd(PATH_NCBI)
             ftp.retrbinary('RETR ' + ZIPFILE, open(ZIPFILE, 'wb').write)
         except EXCEPTS as err:
             print(yellow(' PROBLEM!'))
             error = err
+            print(gray(' Retrying with HTTPS...'), end='', flush=True)
+            try:
+                url = 'https://' + FTP_SERVER + PATH_NCBI + ZIPFILE
+                https = urllib.request.urlopen(url, 30)
+                zipfile = open(ZIPFILE, 'wb')
+                while True:
+                    buff = https.read(BUFF_SIZE)
+                    if not buff:
+                        break
+                    zipfile.write(buff)
+            except EXCEPTS as err:
+                print(yellow(' PROBLEM!'))
+                error = err
+            except KeyboardInterrupt:
+                print(gray(' User'), yellow('interrupted!'))
+                exit(9)
         except KeyboardInterrupt:
             print(gray(' User'), yellow('interrupted!'))
             exit(9)

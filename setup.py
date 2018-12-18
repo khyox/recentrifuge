@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='recentrifuge',
-    version='0.24.8',
+    version='0.24.9',
     packages=['recentrifuge'],
     url='http://www.recentrifuge.org',
     license='AGPL except krona.js, with its own license by BNBI',
