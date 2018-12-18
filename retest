@@ -517,11 +517,11 @@ def main():
     if args.local:
         prefix = Filename('./')
 
-    # check_debug()
-    # test_version()
-    # test_retaxdump()
-    # test_remock()
-    # test_rcf()
+    check_debug()
+    test_version()
+    test_retaxdump()
+    test_remock()
+    test_rcf()
 
     pd_xlsx: pd.ExcelFile = None
     pd_stnd: pd.ExcelFile = None
