@@ -104,7 +104,7 @@ TAXA: Dict[Id, str] = col.OrderedDict({
     Id(1747): [r'$\mathit{Cutibacterium\; acnes}$ [severe contaminant]',
                'y', '', [], 'species'],
     Id(59201): [r'$\mathit{Salmonella\; enterica}$ subs. enterica [native]',
-                'g', '-', ['smpl2', 'smpl4'], 'subspecies'],
+                [0, 1, 0], 'O', ['smpl2', 'smpl4'], 'subspecies'],
     Id(28901): [r'$\mathit{Salmonella\; enterica}$ [native]',
                 'g', 'O', ['smpl2', 'smpl4'], 'species'],
     Id(562): [r'$\mathit{Escherichia\; coli}$ [mild contaminant]',
@@ -120,15 +120,17 @@ TAXA: Dict[Id, str] = col.OrderedDict({
     Id(1540099): [r'$\mathit{Salmonella\; virus\; Stitch}$ [native]',
                   'g', '/', ['smpl2', 'smpl4'], 'species'],
     Id(425265): [r'$\mathit{Malassezia\; globosa}$ CBS 7966 [other cont.]',
-                 '0.5', '', [], 'no_rank'],
+                 '0.5', '', [], 'no_rank_species'],
     Id(54736): [r'$\mathit{Salmonella\; bongori}$ [native]',
                 'g', 'x', ['smpl2'], 'species'],
     Id(9598): [r'$\mathit{Pan\; troglodytes}$ [mild contaminant]',
                'b', '', [], 'species'],
     Id(398578): [r'$\mathit{Delftia\; acidovorans}$ SPH-1 [native]',
-                 'g', '\\', ['smpl3', 'smpl4'], 'no_rank'],
+                 [0, 1, 0], '\\', ['smpl3', 'smpl4'], 'no_rank_species'],
+    Id(80866): [r'$\mathit{Delftia\; acidovorans}$ [SPH-1 strain native]',
+                'g', '\\', ['smpl3', 'smpl4'], 'species'],
     Id(1655020): [r'$\mathit{Propionibacterium\; phage}$ SKKY [other cont.]',
-                  '0.5', 'o', [], 'no_rank'],
+                  '0.5', 'o', [], 'no_rank_species'],
     Id(4565): [r'$\mathit{Triticum\; aestivum}$ [just-control contaminant]',
                'c', '', [], 'species'],
 })
@@ -137,6 +139,11 @@ COLORS: List[Any] = [taxa[1] for taxa in TAXA.values()]
 
 def main():
     """Main entry point to script."""
+
+    def vprint(*arguments) -> None:
+        """Print only if verbose/debug mode is enabled"""
+        if args.debug:
+            print(*arguments)
 
     def configure_parser():
         """Argument Parser Configuration"""
@@ -159,6 +166,11 @@ def main():
             '-l', '--local',
             action='store_true',
             help='test local directory scripts instead of pip installed'
+        )
+        parser.add_argument(
+            '-r', '--roc',
+            action='store_true',
+            help='Perform additional tests and get ROC figures'
         )
         parser.add_argument(
             '-y', '--minscore',
@@ -317,14 +329,15 @@ def main():
         rects: List[Any] = []
         for num, (taxon, (name, color, hatch, *_)) in enumerate(TAXA.items()):
             rects.append(
-                ax_raw.bar(ind + num * width,
-                           [df_xlsx[s]['count'][int(taxon)] for s in SAMPLES],
-                           width, color=[color], hatch=hatch,
-                           alpha=0.5, label=name)
+                ax_raw.bar(
+                    ind + num * width,
+                    [df_xlsx[s]['unassigned'][int(taxon)] for s in SAMPLES],
+                    width, color=[color], hatch=hatch,
+                    alpha=0.5, label=name)
             )
             ax_ctr.bar(ind + num * width,
                        [0.1, 0.1, 0.1] +
-                       [df_xlsx[s]['count'][int(taxon)] for s in CTRL_SP],
+                       [df_xlsx[s]['unassigned'][int(taxon)] for s in CTRL_SP],
                        width, color=[color], hatch=hatch,
                        alpha=0.5, label=name)
 
@@ -430,51 +443,60 @@ def main():
         # Get data
         positives: Counter[Sample] = col.Counter()
         negatives: Counter[Sample] = col.Counter()
-        true_positives_raw: Counter[Sample] = col.Counter()
-        false_positives_raw: Counter[Sample] = col.Counter()
-        true_positives_ctr: Counter[Sample] = col.Counter()
-        false_positives_ctr: Counter[Sample] = col.Counter()
+        true_pos_raw: Counter[Sample] = col.Counter()
+        fake_pos_raw: Counter[Sample] = col.Counter()
+        true_pos_ctr: Counter[Sample] = col.Counter()
+        fake_pos_ctr: Counter[Sample] = col.Counter()
+        cnt_mck: int
+        cnt_raw: int
+        cnt_ctr: int
+        for (taxon, (name, color, hatch, natives, rank)) in TAXA.items():
+            if 'species' not in rank:
+                continue
+            for spl in SAMPLES[3:]:
+                try:
+                    cnt_mck = df_mock[spl][int(taxon)]
+                except KeyError:
+                    cnt_mck = 0
+                cnt_raw = df_xlsx[spl]['unassigned'][int(taxon)]
+                cnt_ctr = df_xlsx[spl + STR_CTRL_SP]['unassigned'][int(taxon)]
+                if spl in natives:
+                    positives[spl] += cnt_mck
+                    true_pos_raw[spl] += cnt_raw
+                    true_pos_ctr[spl] += cnt_ctr
+                else:
+                    negatives[spl] += cnt_mck
+                    fake_pos_raw[spl] += cnt_raw
+                    fake_pos_ctr[spl] += cnt_ctr
+        # Get TPR and FPR
         tpr_raw: Dict[Sample, float] = {}
         fpr_raw: Dict[Sample, float] = {}
         tpr_ctr: Dict[Sample, float] = {}
         fpr_ctr: Dict[Sample, float] = {}
-
-        for (taxon, (name, color, hatch, natives, rank)) in TAXA.items():
-            if rank is not 'species':
-                continue
-            for spl in SAMPLES[3:]:
-                if spl in natives:
-                    cnt_mck = df_mock[spl][int(taxon)]
-                    cnt_raw = df_xlsx[spl]['count'][int(taxon)]
-                    cnt_ctr = df_xlsx[spl + STR_CTRL_SP]['count'][int(taxon)]
-                    positives[spl] += cnt_mck
-                    true_positives_raw[spl] += min(cnt_mck, cnt_raw)
-                    true_positives_ctr[spl] += min(cnt_mck, cnt_ctr)
-                    tpr_raw[spl] = true_positives_raw[spl] / positives[spl]
-                    tpr_ctr[spl] = true_positives_ctr[spl] / positives[spl]
-                    false_positives_raw[spl] += (
-                        cnt_raw - cnt_mck if cnt_raw > cnt_mck else 0)
-                    false_positives_ctr[spl] += (
-                        cnt_ctr - cnt_mck if cnt_ctr > cnt_mck else 0)
-                else:
-                    negatives[spl] += df_mock[spl][int(taxon)]
-                    false_positives_raw[spl] += (
-                        df_xlsx[spl]['count'][int(taxon)])
-                    false_positives_ctr[spl] += (
-                        df_xlsx[spl + STR_CTRL_SP]['count'][int(taxon)])
-                    fpr_raw[spl] = false_positives_raw[spl] / negatives[spl]
-                    fpr_ctr[spl] = false_positives_ctr[spl] / negatives[spl]
+        for spl in SAMPLES[3:]:
+            # For raw samples
+            if true_pos_raw[spl] > positives[spl]:
+                fake_pos_raw[spl] += (true_pos_raw[spl] - positives[spl])
+                true_pos_raw[spl] = positives[spl]
+            tpr_raw[spl] = true_pos_raw[spl] / positives[spl]
+            fpr_raw[spl] = fake_pos_raw[spl] / negatives[spl]
+            # For CTRL samples
+            if true_pos_ctr[spl] > positives[spl]:
+                fake_pos_ctr[spl] += (true_pos_ctr[spl] - positives[spl])
+                true_pos_ctr[spl] = positives[spl]
+            tpr_ctr[spl] = true_pos_ctr[spl] / positives[spl]
+            fpr_ctr[spl] = fake_pos_ctr[spl] / negatives[spl]
         print(green('OK!'))
-        print('TPR (raw samples) =', tpr_raw)
-        print('FPR (raw samples) =', fpr_raw)
-        print('TPR (CTRL samples) =', tpr_ctr)
-        print('FPR (CTRL samples) =', fpr_ctr)
-        # print(positives['smpl3'])
-        # print(negatives['smpl3'])
-        # print(true_positives_raw['smpl3'])
-        # print(false_positives_raw['smpl3'])
-        # print(true_positives_ctr['smpl3'])
-        # print(false_positives_ctr['smpl3'])
+        vprint('TPR (raw samples) =', tpr_raw)
+        vprint('FPR (raw samples) =', fpr_raw)
+        vprint('TPR (CTRL samples) =', tpr_ctr)
+        vprint('FPR (CTRL samples) =', fpr_ctr)
+        vprint('P (for smpl4) =', positives['smpl4'])
+        vprint('N (for smpl4) =', negatives['smpl4'])
+        vprint('TP (...raw) =', true_pos_raw['smpl4'])
+        vprint('FP (...raw) =', fake_pos_raw['smpl4'])
+        vprint('TP (...CTRL) =', true_pos_ctr['smpl4'])
+        vprint('FP (...CTRL) =', fake_pos_ctr['smpl4'])
 
     def test_results():
         prog: Filename = Filename(prefix + 'rcf')
@@ -529,7 +551,8 @@ def main():
 
     load_excels()
     analyze_robust_contam_removal()
-    plot_roc()
+    if args.roc:
+        plot_roc()
     test_results()
 
     # Timing results
