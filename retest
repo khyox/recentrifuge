@@ -38,10 +38,12 @@ import subprocess as sp
 import sys
 import time
 from distutils.version import StrictVersion
-from typing import Counter, List, Dict, Any
+from typing import Counter, List, Dict, Any, Tuple
 from warnings import filterwarnings
 
+from matplotlib.collections import LineCollection
 import matplotlib.pyplot as plt
+from matplotlib.ticker import NullFormatter  # useful for `logit` scale
 import numpy as np
 
 from recentrifuge import __version__, __author__, __date__, __path__
@@ -67,7 +69,7 @@ except ImportError:
 
 # Local constants
 MHL_DEFAULT = 35
-EPS = 1e-16  # Local epsilon for floating point comparisons
+EPS = 1e-6  # Local epsilon for floating point comparisons
 F_V = '-V'
 F_TAX = '-n=' + TAXDUMP_PATH
 PATH = os.path.dirname(os.path.realpath(__file__))
@@ -101,6 +103,10 @@ TAXA: Dict[Id, str] = col.OrderedDict({
                'c', 'x', [], 'species'],
     Id(9606): [r'$\mathit{Homo\; sapiens}$ [critical contaminant]',
                'r', '', [], 'species'],
+    Id(398578): [r'$\mathit{Delftia\; acidovorans}$ SPH-1 [native]',
+                 [0, 1, 0], '\\', ['smpl3', 'smpl4'], 'no_rank_species'],
+    Id(80866): [r'$\mathit{Delftia\; acidovorans}$ [SPH-1 strain native]',
+                'g', '\\', ['smpl3', 'smpl4'], 'species'],
     Id(1747): [r'$\mathit{Cutibacterium\; acnes}$ [severe contaminant]',
                'y', '', [], 'species'],
     Id(59201): [r'$\mathit{Salmonella\; enterica}$ subs. enterica [native]',
@@ -125,10 +131,13 @@ TAXA: Dict[Id, str] = col.OrderedDict({
                 'g', 'x', ['smpl2'], 'species'],
     Id(9598): [r'$\mathit{Pan\; troglodytes}$ [mild contaminant]',
                'b', '', [], 'species'],
-    Id(398578): [r'$\mathit{Delftia\; acidovorans}$ SPH-1 [native]',
-                 [0, 1, 0], '\\', ['smpl3', 'smpl4'], 'no_rank_species'],
-    Id(80866): [r'$\mathit{Delftia\; acidovorans}$ [SPH-1 strain native]',
-                'g', '\\', ['smpl3', 'smpl4'], 'species'],
+    Id(1204725): [r'$\mathit{Methanobacterium\; formicicum}$ DSM3637 [native]',
+                  [0, 1, 0], '+', ['smpl1', 'smpl2', 'smpl3', 'smpl4'],
+                  'no_rank_species'],
+    Id(1300163): [r'$\mathit{M.\; formicicum}$ JCM 10132 [other cont.]',
+                  [0, 1, 0], '-', [], 'no_rank_species'],
+    Id(2162): [r'$\mathit{M.\; formicicum}$ [DSM3637 strain native]',
+               'g', '+', ['smpl1', 'smpl2', 'smpl3', 'smpl4'], 'species'],
     Id(1655020): [r'$\mathit{Propionibacterium\; phage}$ SKKY [other cont.]',
                   '0.5', 'o', [], 'no_rank_species'],
     Id(4565): [r'$\mathit{Triticum\; aestivum}$ [just-control contaminant]',
@@ -299,7 +308,7 @@ def main():
         datasets = len(TAXA)  # sets of measurements for any taxon
         n = len(SAMPLES)
         ind = np.arange(n)  # the x locations for all the samples
-        width = 0.80 / datasets  # the width of the bars
+        width = 0.90 / datasets  # the width of the bars regarding space
         ymax = 1e+5
         ymin = 1e+0
 
@@ -357,7 +366,7 @@ def main():
         ax_ctr.set_xticklabels(SAMPLES, fontdict={'fontsize': 'xx-large'})
         ax_ctr.legend(rects,
                       [lst[0] for lst in TAXA.values()], loc='best',
-                      prop={'family': 'sans-serif', 'size': 'large'},
+                      prop={'family': 'sans-serif', 'size': 10.5},
                       framealpha=0.9)
 
         # Add inner titles
@@ -473,6 +482,7 @@ def main():
         fpr_raw: Dict[Sample, float] = {}
         tpr_ctr: Dict[Sample, float] = {}
         fpr_ctr: Dict[Sample, float] = {}
+        segs: List[List[Tuple[float, float]]] = []
         for spl in SAMPLES[3:]:
             # For raw samples
             if true_pos_raw[spl] > positives[spl]:
@@ -486,17 +496,57 @@ def main():
                 true_pos_ctr[spl] = positives[spl]
             tpr_ctr[spl] = true_pos_ctr[spl] / positives[spl]
             fpr_ctr[spl] = fake_pos_ctr[spl] / negatives[spl]
+            for rate in [tpr_raw, fpr_raw, tpr_ctr, fpr_ctr]:
+                if rate[spl] < EPS:
+                    rate[spl] = EPS
+                elif rate[spl] > 1-EPS:
+                    rate[spl] = 1-EPS
+            segs.append([(fpr_raw[spl], tpr_raw[spl]),
+                         (fpr_ctr[spl], tpr_ctr[spl])])
         print(green('OK!'))
         vprint('TPR (raw samples) =', tpr_raw)
         vprint('FPR (raw samples) =', fpr_raw)
         vprint('TPR (CTRL samples) =', tpr_ctr)
         vprint('FPR (CTRL samples) =', fpr_ctr)
+        vprint('Coordinates (for smpl4) =', segs[3])
         vprint('P (for smpl4) =', positives['smpl4'])
         vprint('N (for smpl4) =', negatives['smpl4'])
         vprint('TP (...raw) =', true_pos_raw['smpl4'])
         vprint('FP (...raw) =', fake_pos_raw['smpl4'])
         vprint('TP (...CTRL) =', true_pos_ctr['smpl4'])
         vprint('FP (...CTRL) =', fake_pos_ctr['smpl4'])
+
+        # Figure initialization
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.set_xlim(1e-1, 1-1e-5)
+        ax.set_ylim(1e-1, 1-1e-6)
+        ax.set_yscale('logit')
+        ax.set_xscale('logit')
+#        ax.set_xlim(min(fpr_raw.values()), max(fpr_ctr.values()))
+#        ax.set_ylim(min(tpr_ctr.values()), max(tpr_raw.values()))
+        ax.yaxis.set_minor_formatter(NullFormatter())
+        ax.xaxis.set_minor_formatter(NullFormatter())
+
+        line_segments = LineCollection(segs, linewidths=(2, 2, 2, 2),
+                                       colors=['r', 'g', 'b', 'm'],
+                                       linestyle='solid')
+        ax.add_collection(line_segments)
+        try:
+            fig.show()
+        except KeyboardInterrupt:
+            print(gray(' User'), yellow('interrupted!'))
+            raise
+        except:
+            print(yellow('WARNING!'), 'Unable to show plot.')
+        try:
+            plt.close(fig)
+        except KeyboardInterrupt:
+            print(gray(' User'), yellow('interrupted!'))
+            raise
+        except:
+            print(yellow('WARNING!'), 'Unable to close figure.')
+        else:
+            print(green('OK!'))
 
     def test_results():
         prog: Filename = Filename(prefix + 'rcf')
