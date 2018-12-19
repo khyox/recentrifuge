@@ -67,7 +67,7 @@ except ImportError:
 
 # Local constants
 MHL_DEFAULT = 35
-MINSCORE_DEFAULT = 5
+MINTAXA_DEFAULT = 5
 EPS = 1e-16  # Local epsilon for floating point comparisons
 F_V = '-V'
 F_TAX = '-n=' + TAXDUMP_PATH
@@ -124,7 +124,7 @@ TAXA: Dict[Id, str] = col.OrderedDict({
     Id(2208): [r'$\mathit{Methanosarcina\; barkeri}$ [CROSSOVER contaminant]',
                'm', '.', ['smpl3'], 'species'],
     Id(1540099): [r'$\mathit{Salmonella\; virus\; Stitch}$ [native]',
-                  'g', '/', ['smpl2', 'smpl4'], 'species'],
+                  'g', '//', ['smpl2', 'smpl4'], 'species'],
     Id(425265): [r'$\mathit{Malassezia\; globosa}$ CBS 7966 [other cont.]',
                  '0.5', '', [], 'no_rank_species'],
     Id(54736): [r'$\mathit{Salmonella\; bongori}$ [native]',
@@ -132,12 +132,12 @@ TAXA: Dict[Id, str] = col.OrderedDict({
     Id(9598): [r'$\mathit{Pan\; troglodytes}$ [mild contaminant]',
                'b', '', [], 'species'],
     Id(1204725): [r'$\mathit{Methanobacterium\; formicicum}$ DSM3637 [native]',
-                  [0, 1, 0], '+', ['smpl1', 'smpl2', 'smpl3', 'smpl4'],
+                  [0, 1, 0], '/', ['smpl1', 'smpl2', 'smpl3', 'smpl4'],
                   'no_rank_species'],
     Id(1300163): [r'$\mathit{M.\; formicicum}$ JCM 10132 [other cont.]',
-                  [0, 1, 0], '-', [], 'no_rank_species'],
+                  '0.5', '-', [], 'no_rank_species'],
     Id(2162): [r'$\mathit{M.\; formicicum}$ [DSM3637 strain native]',
-               'g', '+', ['smpl1', 'smpl2', 'smpl3', 'smpl4'], 'species'],
+               'g', '/', ['smpl1', 'smpl2', 'smpl3', 'smpl4'], 'species'],
     Id(1655020): [r'$\mathit{Propionibacterium\; phage}$ SKKY [other cont.]',
                   '0.5', 'o', [], 'no_rank_species'],
     Id(4565): [r'$\mathit{Triticum\; aestivum}$ [just-control contaminant]',
@@ -261,7 +261,7 @@ def main():
         prog: Filename = Filename(prefix + 'rcf')
         print(magenta(f'\n>>> TESTING {prog} ...'))
         argums = [prog, F_TAX, F_FIL, F_OUT, F_CTR, F_MHL + str(minscore),
-                  F_MIN + str(MINSCORE_DEFAULT), F_D]
+                  F_MIN + str(MINTAXA_DEFAULT), F_D]
         cproc = sp.run(argums, universal_newlines=True)
         print(magenta(f'\n<<< END {prog} TEST: '), end='')
         if cproc.returncode == 0:
@@ -349,7 +349,9 @@ def main():
                        [df_xlsx[s]['unassigned'][int(taxon)] for s in CTRL_SP],
                        width, color=[color], hatch=hatch,
                        alpha=0.5, label=name)
-
+        # Add mintaxa threshold
+        rects.append(ax_raw.axhline(y=MINTAXA_DEFAULT, color='r', lw=1))
+        rects.append(ax_ctr.axhline(y=MINTAXA_DEFAULT, color='r', lw=1))
         # Set scale, axis lims, ticks, and grid
         ax_raw.set_yscale("log", nonposy='clip')
         ax_raw.set_ylim(top=ymax, bottom=ymin)
@@ -365,9 +367,10 @@ def main():
         ax_ctr.yaxis.grid(True, alpha=0.5)
         ax_ctr.set_xticklabels(SAMPLES, fontdict={'fontsize': 'xx-large'})
         ax_ctr.legend(rects,
-                      [lst[0] for lst in TAXA.values()], loc='best',
-                      prop={'family': 'sans-serif', 'size': 10.5},
-                      framealpha=0.9)
+                      [lst[0] for lst in TAXA.values()] +
+                      [r'$\mathtt{mintaxa}$'],
+                      loc='best',framealpha=0.9,
+                      prop={'family': 'sans-serif', 'size': 'medium'})
 
         # Add inner titles
         ax_raw.text(
@@ -535,7 +538,7 @@ def main():
                      head_width=0, head_length=0, color='0.5', alpha=0.5))
         ax.legend(arrows,
                   SAMPLES[3:] + ['ROC plot diagonal'], loc='lower right',
-                  prop={'family': 'sans-serif', 'size': 10.5},
+                  prop={'family': 'sans-serif', 'size': 'medium'},
                   framealpha=0.9)
         # Save and show figure
         fig.savefig(os.path.join(TEST_OUTPUT_DIR, ROC_CTRL_PDF_FILE),
