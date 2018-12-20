@@ -79,7 +79,7 @@ HTML_FIL: Filename = TEST_PREFIX + HTML_SUFFIX
 XLSX_FIL: Filename = TEST_PREFIX + XLSX_SUFFIX
 TEST_PDF_FILE: Filename = TEST_PREFIX + '.rcf.pdf'
 ROC_CTRL_PDF_FILE: Filename = 'ROC_CTRL.rcf.pdf'
-F_OUT = '-o=' + os.path.join(TEST_OUTPUT_DIR, HTML_FIL)
+F_OUT = '-o='
 F_CTR = '-c=3'
 F_MHL = '-y='
 F_RND = '-r='
@@ -177,6 +177,11 @@ def main():
             help='test local directory scripts instead of pip installed'
         )
         parser.add_argument(
+            '-m', '--mintaxa',
+            action='store_true',
+            help='Perform additional tests for mintaxa dependency'
+        )
+        parser.add_argument(
             '-r', '--roc',
             action='store_true',
             help='Perform additional tests and get ROC figures'
@@ -208,7 +213,7 @@ def main():
             print(blue('INFO:'), gray('Relevant paths:'))
             for var in ['TAXDUMP_PATH', 'PATH', 'PATH_TEST',
                         'XLSX_PATH', 'STND_PATH', 'MOCK_PATH']:
-                print(gray(f'\t{var} ='), f'{eval(var)}')
+                print(gray(f'\t{var} ='), f'{eval(var)}')  # Safe eval of const
 
     def test_version():
         """Test version matching"""
@@ -256,12 +261,15 @@ def main():
             if not args.ignore:
                 sys.exit(4)
 
-    def test_rcf():
+    def test_rcf(html_filename: Filename = HTML_FIL,
+                 mintaxa: int = MINTAXA_DEFAULT):
         """Test recentrifuge"""
         prog: Filename = Filename(prefix + 'rcf')
-        print(magenta(f'\n>>> TESTING {prog} ...'))
-        argums = [prog, F_TAX, F_FIL, F_OUT, F_CTR, F_MHL + str(minscore),
-                  F_MIN + str(MINTAXA_DEFAULT), F_D]
+        print(magenta(f'\n>>> TESTING {prog} WITH MINTAXA {mintaxa} ...'))
+        argums = [prog, F_TAX, F_FIL,
+                  F_OUT + os.path.join(TEST_OUTPUT_DIR, html_filename),
+                  F_CTR, F_MHL + str(minscore),
+                  F_MIN + str(mintaxa), F_D]
         cproc = sp.run(argums, universal_newlines=True)
         print(magenta(f'\n<<< END {prog} TEST: '), end='')
         if cproc.returncode == 0:
@@ -416,14 +424,14 @@ def main():
         except KeyboardInterrupt:
             print(gray(' User'), yellow('interrupted!'))
             raise
-        except:
+        except Exception:
             print(yellow('WARNING!'), 'Unable to show plot.')
         try:
             plt.close(fig)
         except KeyboardInterrupt:
             print(gray(' User'), yellow('interrupted!'))
             raise
-        except:
+        except Exception:
             print(yellow('WARNING!'), 'Unable to close figure.')
         else:
             print(green('OK!'))
@@ -462,7 +470,7 @@ def main():
         cnt_mck: int
         cnt_raw: int
         cnt_ctr: int
-        for (taxon, (name, color, hatch, natives, rank)) in TAXA.items():
+        for (taxon, (_, _, _, natives, rank)) in TAXA.items():
             if 'species' not in rank:
                 continue
             for spl in SAMPLES[3:]:
@@ -524,7 +532,7 @@ def main():
         ax.set_title('Evolution from raw samples to CTRL_species samples')
 
         # Generate arrow plot
-        arrows: List[ax.arrow] = []
+        arrows: List[Any] = []
         for spl, color in zip(SAMPLES[3:], ['r', 'g', 'b', 'm']):
             arrows.append(
                 ax.arrow(fpr_raw[spl], tpr_raw[spl],
@@ -548,21 +556,21 @@ def main():
         except KeyboardInterrupt:
             print(gray(' User'), yellow('interrupted!'))
             raise
-        except:
+        except Exception:
             print(yellow('WARNING!'), 'Unable to show plot.')
         try:
             plt.close(fig)
         except KeyboardInterrupt:
             print(gray(' User'), yellow('interrupted!'))
             raise
-        except:
+        except Exception:
             print(yellow('WARNING!'), 'Unable to close figure.')
         else:
             print(green('OK!'))
 
     def test_results():
-        prog: Filename = Filename(prefix + 'rcf')
         """Test recentrifuge results against standard"""
+        prog: Filename = Filename(prefix + 'rcf')
         print(magenta(f'\n>>> COMPARING {prog} RESULTS WITH STANDARD:'))
 
         for sheet in [STATS_SHEET_NAME, str(Extra.FULL)]:
@@ -615,6 +623,12 @@ def main():
     analyze_robust_contam_removal()
     if args.roc:
         plot_roc()
+    if args.mintaxa:
+        values = [1, 3, 4, 5, 10, 25, 100, 250, 500, 1000, 2500, 5000, 10000]
+        html_name = [Filename(TEST_PREFIX + '_mintaxa' + str(v) + HTML_SUFFIX)
+                     for v in values]
+        for mintax, html in zip(values, html_name):
+            test_rcf(html_filename=html, mintaxa=mintax)
     test_results()
 
     # Timing results
