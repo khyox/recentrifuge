@@ -125,8 +125,8 @@ TAXA: Dict[Id, str] = col.OrderedDict({
                'm', '.', ['smpl3'], 'species'],
     Id(1540099): [r'$\mathit{Salmonella\; virus\; Stitch}$ [native]',
                   'g', '//', ['smpl2', 'smpl4'], 'species'],
-    Id(425265): [r'$\mathit{Malassezia\; globosa}$ CBS 7966 [other cont.]',
-                 '0.5', '', [], 'no_rank_species'],
+    Id(76773): [r'$\mathit{Malassezia\; globosa}$ [other contaminant]',
+                '0.5', '', [], 'species'],
     Id(54736): [r'$\mathit{Salmonella\; bongori}$ [native]',
                 'g', 'x', ['smpl2'], 'species'],
     Id(9598): [r'$\mathit{Pan\; troglodytes}$ [mild contaminant]',
@@ -138,8 +138,8 @@ TAXA: Dict[Id, str] = col.OrderedDict({
                   '0.5', '-', [], 'no_rank_species'],
     Id(2162): [r'$\mathit{M.\; formicicum}$ [DSM3637 strain native]',
                'g', '/', ['smpl1', 'smpl2', 'smpl3', 'smpl4'], 'species'],
-    Id(1655020): [r'$\mathit{Propionibacterium\; phage}$ SKKY [other cont.]',
-                  '0.5', 'o', [], 'no_rank_species'],
+    Id(1982305): [r'$\mathit{Propionibacterium\; virus}$ SKKY [other cont.]',
+                  '0.5', 'o', [], 'species'],
     Id(4565): [r'$\mathit{Triticum\; aestivum}$ [just-control contaminant]',
                'c', '', [], 'species'],
 })
@@ -279,33 +279,40 @@ def main():
             if not args.ignore:
                 sys.exit(5)
 
-    def load_excels():
+    def load_excels(just_excel: Filename = None):
         """Load excels from standard and recentrifuge results"""
         nonlocal pd_xlsx, pd_stnd, pd_mock
         print(magenta(f'\n>>> LOADING TEST RESULTS ... '), end='')
         try:
-            pd_xlsx = pd.ExcelFile(XLSX_PATH)
+            if just_excel is None:
+                pd_xlsx = pd.ExcelFile(XLSX_PATH)
+            else:
+                pd_xlsx = pd.ExcelFile(just_excel)
         except OSError:
-            print(red('FAILED!\nERROR!'), 'Results for test not found!')
+            if just_excel is None:
+                print(red('FAILED!\nERROR!'), 'Results for test not found!')
+            else:
+                print(red('FAILED!\nERROR!'), f'Problem with {just_excel}.')
             raise
         else:
             print(green('OK!'))
-        print(magenta(f'>>> LOADING STANDARD RESULTS ... '), end='')
-        try:
-            pd_stnd = pd.ExcelFile(STND_PATH)
-        except OSError:
-            print(red('FAILED!\nERROR!'), 'Missing standard results for test!')
-            raise
-        else:
-            print(green('OK!'))
-        print(magenta(f'>>> LOADING MOCK DATA ... '), end='')
-        try:
-            pd_mock = pd.ExcelFile(MOCK_PATH)
-        except OSError:
-            print(red('FAILED!\nERROR!'), 'Missing mock xlsx file!')
-            raise
-        else:
-            print(green('OK!'))
+        if just_excel is None:
+            print(magenta(f'>>> LOADING STANDARD RESULTS ... '), end='')
+            try:
+                pd_stnd = pd.ExcelFile(STND_PATH)
+            except OSError:
+                print(red('FAILED!\nERROR!'), 'Missing standard test results!')
+                raise
+            else:
+                print(green('OK!'))
+            print(magenta(f'>>> LOADING MOCK DATA ... '), end='')
+            try:
+                pd_mock = pd.ExcelFile(MOCK_PATH)
+            except OSError:
+                print(red('FAILED!\nERROR!'), 'Missing mock xlsx file!')
+                raise
+            else:
+                print(green('OK!'))
 
     def analyze_robust_contam_removal():
         """Analyze recentrifuge results for robust contamination removal"""
@@ -377,7 +384,7 @@ def main():
         ax_ctr.legend(rects,
                       [lst[0] for lst in TAXA.values()] +
                       [r'$\mathtt{mintaxa}$'],
-                      loc='best',framealpha=0.9,
+                      loc='best', framealpha=0.9,
                       prop={'family': 'sans-serif', 'size': 'medium'})
 
         # Add inner titles
@@ -436,13 +443,11 @@ def main():
         else:
             print(green('OK!'))
 
-    def plot_roc():
-        """Plot ROC"""
-        print(magenta(f'\n>>> GET ROC ... '), end='')
-
-        # Figure initialization
-        filterwarnings("ignore", category=UserWarning, module="matplotlib")
-        fig, ax = plt.subplots(figsize=(6, 6))
+    def get_roc(plot_roc: bool = True
+                ) -> Tuple[Dict[Sample, float], Dict[Sample, float]]:
+        """Get ROC parameters and plot ROC"""
+        print(magenta(f'\n>>> GET ROC ... '))
+        print(magenta(f'>> GET PARAMETERS... '), end='', flush=True)
 
         # Load data sheets as pandas DataFrames
         df_stnd = pd_stnd.parse(
@@ -453,12 +458,16 @@ def main():
             sheet_name=str(Extra.FULL), header=[0, 1],
             skiprows=None, index_col=0
         )
-        df_xlsx.columns = df_stnd.columns  # Normalize columns name
         df_mock = pd_mock.parse(
             sheet_name=MOCK_SHEET, header=[0],
             index_col=1, skipfooter=1,
         )
         del df_mock['RECENTRIFUGE MOCK']
+
+        # Normalize column names to the standard names (without directory)
+        stnd_samples = df_stnd.columns.get_level_values(0)
+        rename_cols = {TEST_OUTPUT_DIR + spl: spl for spl in stnd_samples}
+        df_xlsx.rename(columns=rename_cols, inplace=True, level=0)
 
         # Get data
         positives: Counter[Sample] = col.Counter()
@@ -478,8 +487,15 @@ def main():
                     cnt_mck = df_mock[spl][int(taxon)]
                 except KeyError:
                     cnt_mck = 0
-                cnt_raw = df_xlsx[spl]['unassigned'][int(taxon)]
-                cnt_ctr = df_xlsx[spl + STR_CTRL_SP]['unassigned'][int(taxon)]
+                try:
+                    cnt_raw = df_xlsx[spl]['unassigned'][int(taxon)]
+                except KeyError:
+                    cnt_raw = 0
+                try:
+                    cnt_ctr = df_xlsx[spl
+                                      + STR_CTRL_SP]['unassigned'][int(taxon)]
+                except KeyError:
+                    cnt_ctr = 0
                 if spl in natives:
                     positives[spl] += cnt_mck
                     true_pos_raw[spl] += cnt_raw
@@ -521,52 +537,59 @@ def main():
         vprint('FP (...raw) =', fake_pos_raw['smpl4'])
         vprint('TP (...CTRL) =', true_pos_ctr['smpl4'])
         vprint('FP (...CTRL) =', fake_pos_ctr['smpl4'])
+        print(green('OK!'), flush=True)
 
-        # Figure initialization
-        fig, ax = plt.subplots(figsize=(6, 6))
-        ax.set_xlim(-0.02, 1.02)
-        ax.set_ylim(-0.02, 1.02)
-        ax.set_aspect('equal')
-        ax.set_xlabel('FPR | (1 - specificity)')
-        ax.set_ylabel('TPR | Sensitivity | Recall')
-        ax.set_title('Evolution from raw samples to CTRL_species samples')
+        if plot_roc:
+            print(magenta(f'>> PLOT ROC... '), end='', flush=True)
+            # Figure initialization
+            filterwarnings("ignore", category=UserWarning, module="matplotlib")
+            fig, ax = plt.subplots(figsize=(6, 6))
+            ax.set_xlim(-0.02, 1.02)
+            ax.set_ylim(-0.02, 1.02)
+            ax.set_aspect('equal')
+            ax.set_xlabel('FPR | (1 - specificity)')
+            ax.set_ylabel('TPR | Sensitivity | Recall')
+            ax.set_title('Evolution from raw samples to CTRL_species samples')
 
-        # Generate arrow plot
-        arrows: List[Any] = []
-        for spl, color in zip(SAMPLES[3:], ['r', 'g', 'b', 'm']):
+            # Generate arrow plot
+            arrows: List[Any] = []
+            for spl, color in zip(SAMPLES[3:], ['r', 'g', 'b', 'm']):
+                arrows.append(
+                    ax.arrow(fpr_raw[spl], tpr_raw[spl],
+                             fpr_ctr[spl] - fpr_raw[spl],
+                             tpr_ctr[spl] - tpr_raw[spl],
+                             shape='full', lw=1, length_includes_head=True,
+                             head_width=0.02, head_length=0.01, color=color)
+                )
             arrows.append(
-                ax.arrow(fpr_raw[spl], tpr_raw[spl],
-                         fpr_ctr[spl] - fpr_raw[spl],
-                         tpr_ctr[spl] - tpr_raw[spl],
-                         shape='full', lw=2, length_includes_head=True,
-                         head_width=0.01, head_length=0.01, color=color)
-            )
-        arrows.append(
-            ax.arrow(1.2, 1.2, -1.4, -1.4, shape='full', lw=1, linestyle=':',
-                     head_width=0, head_length=0, color='0.5', alpha=0.5))
-        ax.legend(arrows,
-                  SAMPLES[3:] + ['ROC plot diagonal'], loc='lower right',
-                  prop={'family': 'sans-serif', 'size': 'medium'},
-                  framealpha=0.9)
-        # Save and show figure
-        fig.savefig(os.path.join(TEST_OUTPUT_DIR, ROC_CTRL_PDF_FILE),
-                    bbox_inches='tight')
-        try:
-            fig.show()
-        except KeyboardInterrupt:
-            print(gray(' User'), yellow('interrupted!'))
-            raise
-        except Exception:
-            print(yellow('WARNING!'), 'Unable to show plot.')
-        try:
-            plt.close(fig)
-        except KeyboardInterrupt:
-            print(gray(' User'), yellow('interrupted!'))
-            raise
-        except Exception:
-            print(yellow('WARNING!'), 'Unable to close figure.')
-        else:
-            print(green('OK!'))
+                ax.arrow(1.2, 1.2, -1.4, -1.4, lw=1, linestyle=':',
+                         head_width=0, head_length=0, color='0.5', alpha=0.5))
+            ax.legend(arrows,
+                      SAMPLES[3:] + ['ROC plot diagonal'], loc='lower right',
+                      prop={'family': 'sans-serif', 'size': 'medium'},
+                      framealpha=0.9)
+            # Save and show figure
+            fig.savefig(os.path.join(TEST_OUTPUT_DIR, ROC_CTRL_PDF_FILE),
+                        bbox_inches='tight')
+            try:
+                fig.show()
+            except KeyboardInterrupt:
+                print(gray(' User'), yellow('interrupted!'))
+                raise
+            except Exception:
+                print(yellow('WARNING!'), 'Unable to show plot.')
+            try:
+                plt.close(fig)
+            except KeyboardInterrupt:
+                print(gray(' User'), yellow('interrupted!'))
+                raise
+            except Exception:
+                print(yellow('WARNING!'), 'Unable to close figure.')
+            else:
+                print(green('OK!'), flush=True)
+
+        # Return ROC values
+        return tpr_ctr, fpr_ctr
 
     def test_results():
         """Test recentrifuge results against standard"""
@@ -622,13 +645,26 @@ def main():
     load_excels()
     analyze_robust_contam_removal()
     if args.roc:
-        plot_roc()
+        get_roc(plot_roc=True)
     if args.mintaxa:
-        values = [1, 3, 4, 5, 10, 25, 100, 250, 500, 1000, 2500, 5000, 10000]
+        values = list(range(11)) + [
+            12, 15, 25, 50, 100, 150, 200, 250, 400, 500, 800, 1000, 1500,
+            2000, 2500, 4000, 5000, 8000, 10000, 15000, 20000, 40000, 80000]
         html_name = [Filename(TEST_PREFIX + '_mintaxa' + str(v) + HTML_SUFFIX)
                      for v in values]
         for mintax, html in zip(values, html_name):
+            print(magenta(f'\n--> GET ROC PARAMS FOR MINTAXA = {mintax} ...'))
             test_rcf(html_filename=html, mintaxa=mintax)
+            xlsx_test_filename: Filename = Filename(
+                TEST_PREFIX + '_mintaxa' + str(mintax) + XLSX_SUFFIX)
+            load_excels(just_excel=Filename(
+                os.path.join(TEST_OUTPUT_DIR, xlsx_test_filename)))
+            (tpr_ctr, fpr_ctr) = get_roc(plot_roc=False)
+            print('For mintaxa =', mintax)
+            print('\t TPR =', tpr_ctr)
+            print('\t FPR =', fpr_ctr)
+
+    load_excels()
     test_results()
 
     # Timing results
