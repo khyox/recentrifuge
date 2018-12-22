@@ -189,6 +189,12 @@ def main():
             help='Perform additional tests and get ROC figures'
         )
         parser.add_argument(
+            '-s', '--skip',
+            action='store_true',
+            help='Skip the recentrifuge calls and just load the results to '
+                 'plot ROC figure by mintaxa (results should be available)'
+        )
+        parser.add_argument(
             '-y', '--minscore',
             action='store',
             metavar='NUMBER',
@@ -297,6 +303,9 @@ def main():
                 print(red('FAILED!\nERROR!'), 'Results for test not found!')
             else:
                 print(red('FAILED!\nERROR!'), f'Problem with {just_excel}.')
+                if args.skip:
+                    print(blue('HINT:'),
+                          'You probably want to rerun without the skip flag')
             raise
         else:
             if just_excel is None:
@@ -570,7 +579,7 @@ def main():
                 )
             arrows.append(
                 ax.arrow(1.2, 1.2, -1.4, -1.4, lw=1, linestyle=':',
-                         head_width=0, head_length=0, color='0.5', alpha=0.5))
+                         head_width=0, head_length=0, color='0.8', alpha=0.5))
             ax.legend(arrows,
                       SAMPLES[3:] + ['ROC plot diagonal'], loc='lower right',
                       prop={'family': 'sans-serif', 'size': 'medium'},
@@ -611,7 +620,8 @@ def main():
                      for v in vals]
         for mintax, html in zip(vals, html_name):
             print(magenta(f' {mintax},'), end='', flush=True)
-            test_rcf(html_filename=html, mintaxa=mintax)
+            if not args.skip:
+                test_rcf(html_filename=html, mintaxa=mintax)
             xlsx_test_filename: Filename = Filename(
                 TEST_PREFIX + '_mintaxa' + str(mintax) + XLSX_SUFFIX)
             load_excels(just_excel=Filename(
@@ -642,10 +652,10 @@ def main():
         y_tpr_avg = [mean(tpr_mintax[mintax].values()) for mintax in vals]
         rocs.append(  # Append element 0 of axis.plot
             ax.plot(x_fpr_avg, y_tpr_avg, color='orange',
-                    linestyle=':', marker='', linewidth=5, label='MEAN')[0])
+                    linestyle=':', marker='', linewidth=3, label='MEAN')[0])
         rocs.append(
             ax.arrow(1.2, 1.2, -1.4, -1.4, lw=1, linestyle=':',
-                     head_width=0, head_length=0, color='0.25',
+                     head_width=0, head_length=0, color='0.8',
                      alpha=0.5, label='ROC plot diagonal'))
         ax.legend(rocs, SAMPLES[3:] + ['Mean of samples', 'ROC plot diagonal'],
                   prop={'family': 'sans-serif', 'size': 'medium'},
@@ -656,21 +666,25 @@ def main():
             x_pos = mean(fpr_mintax[mintax].values())
             y_pos = mean(tpr_mintax[mintax].values())
             ax.annotate(str(mintax), xy=(x_pos, y_pos),
-                        xytext=(x_pos+0.4+0.02*num,
-                                y_pos-0.05*(len(vals_show)-num)),
-                        ha="center", va="center",
-                        arrowprops=dict(color='0.7', shrink=0.05,
-                                        width=0.1, headwidth=3)
+                        xytext=(x_pos+0.4+0.01*num,
+                                y_pos-0.04*(len(vals_show)-num)),
+                        ha="center", va="center", color='0.2',
+                        fontsize='small', fontfamily='monospace',
+                        arrowprops=dict(color='0.2', shrink=0.02,
+                                        width=0, headwidth=2,
+                                        linestyle='-', linewidth=0.1)
                         )
         vals_show = [4000, 5000, 8000, 15000, 40000]
         for num, mintax in enumerate(vals_show):
             x_pos = mean(fpr_mintax[mintax].values())
             y_pos = mean(tpr_mintax[mintax].values())
             ax.annotate(str(mintax), xy=(x_pos, y_pos),
-                        xytext=(x_pos+0.18+0.02*num,
-                                y_pos), ha="center", va="center",
-                        arrowprops=dict(color='0.7', shrink=0.05,
-                                        width=0.1, headwidth=3)
+                        xytext=(x_pos+0.15+0.04*(len(vals_show)-num),
+                                y_pos), ha="center", va="center", color='0.2',
+                        fontsize='small', fontfamily='monospace',
+                        arrowprops=dict(color='0.2', shrink=0.02,
+                                        width=0, headwidth=2,
+                                        linestyle='-', linewidth=0.1)
                         )
 
     # Save and show figure
