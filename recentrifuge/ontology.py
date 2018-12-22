@@ -3,7 +3,7 @@ Taxonomy class, currently representing the Gene Ontology.
 
 """
 from abc import ABCMeta, abstractmethod
-from typing import Set, Counter, Iterable, Tuple
+from typing import Set, Optional, Iterable, Tuple
 
 from recentrifuge.config import Id, Parents, Children
 from recentrifuge.rank import Rank
@@ -19,8 +19,8 @@ class Ontology(metaclass=ABCMeta):
 
     # Default attributes
     collapse: bool = True
-    excluding: Set[Id] = None
-    including: Set[Id] = None
+    excluding: Optional[Set[Id]] = None
+    including: Optional[Set[Id]] = None
     debug: bool = False
 
     @abstractmethod

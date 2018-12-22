@@ -76,8 +76,9 @@ class KronaTree(ETree.ElementTree):
                                      for sample in self.samples}
         for sample in self.samples:
             counts_value: Optional[str] = counts[sample]
-            if int(counts_value) == 0:  # Save space (warning! empty tags)
-                counts_value = None  # Empty instead of 0 inside <val></val>
+            # Save space (warning! Empty tag instead of 0 inside <val></val>)
+            if counts_value is not None and int(counts_value) == 0:
+                counts_value = None
             self.sub(count_node, 'val', None, counts_value)
         if values.get(UNASSIGNED) and any(values[UNASSIGNED].values()):
             # Avoid including and save space if all the unassigned values are 0
@@ -86,8 +87,9 @@ class KronaTree(ETree.ElementTree):
                                              for sample in self.samples}
             for sample in self.samples:
                 unassigned_value: Optional[str] = unassigned[sample]
-                if int(unassigned_value) == 0:  # Save space (empty tags!)
-                    unassigned_value = None  # Empty and not 0 after <val>
+                # Save space (warning! Empty and not 0 after <val>)
+                if unassigned_value is not None and int(unassigned_value) == 0:
+                    unassigned_value = None
                 self.sub(unassigned_node, 'val', None, unassigned_value)
         if values.get(TID):
             tid_node = self.sub(subnode, TID)

@@ -3,6 +3,7 @@ Classes with statistical data
 
 """
 
+from math import log10
 from statistics import mean
 from typing import NamedTuple, Dict, List, Union, Type, Optional, overload
 
@@ -10,7 +11,7 @@ from recentrifuge.config import Score, NO_SCORE, Id
 
 
 class NT(int):
-    """Class representing any chain of nucleotides"""
+    """Class representing the length of a chain of nucleotides"""
 
     def __str__(self) -> str:
         """Format nucleotides number with SI prefixes and units"""
@@ -42,7 +43,6 @@ class SeqsStats(NamedTuple):
     unclas: int = 0
     clas: int = 0
     filt: int = 0
-
 
 
 class ScoreStats(NamedTuple):
@@ -93,7 +93,8 @@ class SampleStats(object):
     """Sample statistics"""
 
     def __init__(self, is_ctrl: bool = False,
-                 minscore: Score = None, nt_read: int = 0,
+                 minscore: Score = None, mintaxa: int = None,
+                 nt_read: int = 0,
                  seq_read: int = 0, seq_filt: int = 0,
                  seq_clas: int = None, seq_unclas: int = 0,
                  lens: Dict[Id, List[int]] = None,
@@ -114,6 +115,11 @@ class SampleStats(object):
             self.seq = SeqsStats(
                 read=seq_read, unclas=seq_unclas,
                 clas=seq_read - seq_unclas, filt=seq_filt)
+        self.mintaxa: int
+        if mintaxa is not None:
+            self.mintaxa = mintaxa
+        else:
+            self.mintaxa = self.guess_mintaxa()
         if lens is not None:
             self.len: LengthStats = stats(lens, LengthStats, NT)
         else:
@@ -166,3 +172,7 @@ class SampleStats(object):
     def get_reject_ratio(self) -> float:
         """Get ratio of rejected sequences by filtering"""
         return 1 - self.seq.filt / self.seq.clas
+
+    def guess_mintaxa(self) -> int:
+        """Automatically guess a good value for mintaxa"""
+        return round(log10(self.seq.filt))

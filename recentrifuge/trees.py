@@ -5,15 +5,15 @@ TaxTree and MultiTree classes.
 
 import collections as col
 import io
-from typing import Counter, Union, Dict, List, Iterable, Tuple, Set
+from typing import Counter, Union, Dict, List, Iterable, Tuple, Set, Optional
 
-from recentrifuge.config import NO_SCORE, UnionCounter, UnionScores
 from recentrifuge.config import Id, Parents, Sample, Score, Scores
+from recentrifuge.config import NO_SCORE, UnionCounter, UnionScores
 from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
 from recentrifuge.krona import KronaTree, Elm
+from recentrifuge.ontology import Ontology
 from recentrifuge.rank import Rank, Ranks, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
-from recentrifuge.ontology import Ontology
 
 
 class SampleDataById(object):
@@ -27,10 +27,12 @@ class SampleDataById(object):
         Group options: 'all' initialize all non-shared, and
            'shared' initializes both counts and scores with
             SharedCounter."""
-        self.counts: UnionCounter = None
-        self.ranks: Ranks = None
-        self.scores: UnionScores = None
-        self.accs: Counter[Id] = None
+        self.counts: Optional[UnionCounter] = None
+        self.ranks: Optional[Ranks] = None
+        self.scores: Optional[UnionScores] = None
+        self.accs: Optional[Counter[Id]] = None
+        if init is None:
+            return
         if 'counts' in init or 'all' in init:
             self.counts = col.Counter()
         if 'ranks' in init or 'all' in init:
@@ -89,15 +91,15 @@ class SampleDataById(object):
             return self.accs
         raise TypeError
 
-    def clear(self, fields: List[str] = None) -> None:
+    def clear(self, fields: List[str]) -> None:
         """Clear the data field"""
-        if 'counts' in fields or 'all' in fields and self.counts is not None:
+        if ('counts' in fields or 'all' in fields) and self.counts is not None:
             self.counts.clear()
-        if 'ranks' in fields or 'all' in fields and self.ranks is not None:
+        if ('ranks' in fields or 'all' in fields) and self.ranks is not None:
             self.ranks.clear()
-        if 'scores' in fields or 'all' in fields and self.scores is not None:
+        if ('scores' in fields or 'all' in fields) and self.scores is not None:
             self.scores.clear()
-        if 'accs' in fields or 'all' in fields and self.accs is not None:
+        if ('accs' in fields or 'all' in fields) and self.accs is not None:
             self.accs.clear()
 
     def purge_counters(self) -> None:
@@ -130,7 +132,12 @@ class TaxTree(dict):
         self.acc: int = acc
 
     def __str__(self, num_min: int = 0) -> str:
-        """Recursively print populated nodes of the ontology tree"""
+        """
+        Recursively print populated nodes of the ontology tree
+
+        Args:
+            num_min: minimum abundance of a node to be printed
+        """
         output: io.StringIO = io.StringIO(newline='')
         for tid in self:
             if self[tid].counts >= num_min:
@@ -183,6 +190,8 @@ class TaxTree(dict):
         def populate_output(taxid: Id, source: TaxTree) -> None:
             """Populate the output structure"""
             nonlocal out
+            if out is None:  # If not defined out, do nothing
+                return
             if out.counts is not None:
                 out.counts[taxid] = source[taxid].counts
             if out.ranks is not None:
@@ -193,24 +202,24 @@ class TaxTree(dict):
                 out.accs[taxid] = source[taxid].acc
 
         # Checks and initializations in the first call to the function
-        if not _path:
+        if _path is None:
             _path = []
-            if not tid:
-                tid = ontology.ROOT
-            if not counts:
-                counts = col.Counter({ontology.ROOT: 1})
-            if not scores:
-                scores = {}
-            if min_rank is None and just_min_rank:
-                raise RuntimeError('allin1: just_min_rank without min_rank')
-            if not ancestors:
-                ancestors, _ = ontology.get_ancestors(counts.keys())
+        if tid is None:
+            tid = ontology.ROOT
+        if counts is None:
+            counts = col.Counter({ontology.ROOT: 1})
+        if scores is None:
+            scores = {}
+        if min_rank is None and just_min_rank:
+            raise RuntimeError('allin1: just_min_rank without min_rank')
+        if ancestors is None:
+            ancestors, _ = ontology.get_ancestors(counts.keys())
 
         if tid in _path:  # Return if loop for repeated taxid (like root)
             return None
 
         rank: Rank = ontology.get_rank(tid)
-        parent_rank: Rank = None
+        parent_rank: Rank
         if min_rank:  # Get parent rank (NO_RANK is not an option)
             if tid == ontology.ROOT:
                 parent_rank = Rank.ROOT
@@ -286,8 +295,7 @@ class TaxTree(dict):
                 continue
             # Do for non-pruned leafs
             update_score_and_acc(chld, child_acc)
-            if out:
-                populate_output(chld, self[tid])
+            populate_output(chld, self[tid])
         # If not counts, calculate score from leaves
         # if not abun and self[tid].acc and self[tid]:
         #    self[tid].score = sum([
@@ -320,7 +328,8 @@ class TaxTree(dict):
         nodes_traced: Dict[Id, List[Id]] = {}
         for tid in taxids:
             if tid == ontology.ROOT:
-                nodes_traced[ontology.ROOT] = [ontology.ROOT, ]  # Root node special case
+                nodes_traced[ontology.ROOT] = [
+                    ontology.ROOT, ]  # Root node special case
             elif tid in parents:
                 nodes: List[Id] = []
                 if self.trace(ontology, tid, nodes):  # list nodes is populated
@@ -430,17 +439,18 @@ class TaxTree(dict):
         # Checks and initializations in the first call to the function
         if not _path:
             _path = []
-            if not taxid:
-                taxid = ontology.ROOT
-            if not counts:
-                counts = col.Counter({ontology.ROOT: 1})
-            if not scores:
-                scores = {}
-            if look_ancestors and not ancestors:
-                ancestors, _ = ontology.get_ancestors(counts.keys())
+        if not taxid:
+            taxid = ontology.ROOT
+        if not counts:
+            counts = col.Counter({ontology.ROOT: 1})
+        if not scores:
+            scores = {}
+        if look_ancestors and ancestors is None:
+            ancestors, _ = ontology.get_ancestors(counts.keys())
 
         # Go ahead if there is an ancestor or not repeated taxid (like root)
-        if (not look_ancestors or taxid in ancestors) and taxid not in _path:
+        if (not look_ancestors or (ancestors is not None and taxid in
+                                   ancestors)) and taxid not in _path:
             self[taxid] = TaxTree(counts=counts.get(taxid, 0),
                                   score=scores.get(taxid, NO_SCORE),
                                   rank=ontology.get_rank(taxid))
@@ -559,7 +569,7 @@ class TaxTree(dict):
         return output
 
     def vrank(self,
-              rank0: int = Rank.GO0.value+1) -> None:
+              rank0: int = Rank.GO0.value + 1) -> None:
         """
         Recursively populate rank.
 
@@ -573,8 +583,7 @@ class TaxTree(dict):
         except ValueError:
             self.rank = Rank.NO_RANK
         for tid in list(self):  # Loop if this node has subtrees
-            self[tid].vrank(rank0=rank0-1)
-
+            self[tid].vrank(rank0=rank0 - 1)
 
     def toxml(self,
               ontology: Ontology,
@@ -703,25 +712,24 @@ class MultiTree(dict):
             scores = {sample: NO_SCORE for sample in samples}
         self.score: List[Score] = [scores[sample] for sample in samples]
 
-    def __str__(self, num_min: int = 1) -> None:
+    def __str__(self, num_min: int = 0) -> str:
         """
-        Recursively print populated nodes of the ontology tree
+        Recursively print populated nodes of the multi tree
 
         Args:
             num_min: minimum abundance of a node to be printed
-
-        Returns: None
-
         """
+        output: io.StringIO = io.StringIO(newline='')
         for tid in self:
-            if max(self[tid].counts) >= num_min:
-                print(f'{tid}[{self[tid].counts}]', end='')
+            if self[tid].counts >= num_min:
+                output.write(f'{tid}[{self[tid].counts}]')
             if self[tid]:  # Has descendants
-                print('', end='->(')
-                self[tid].__str__(num_min=num_min)
+                output.write('->(')
+                output.write(self[tid].__str__(num_min=num_min))
             else:
-                print('', end=',')
-        print(')', end='')
+                output.write(',')
+        output.write(')')
+        return str(output.getvalue())
 
     def grow(self,
              ontology: Ontology,
@@ -745,18 +753,18 @@ class MultiTree(dict):
 
         """
         # Create dummy variables in case they are None in the 1st call
-        if not _path:
+        if _path is None:
             _path = []
-            if not taxid:
-                taxid = ontology.ROOT
-            if not abundances:
-                abundances = {sample: col.Counter({ontology.ROOT: 1})
-                              for sample in self.samples}
-            if not accs:
-                accs = {sample: col.Counter({ontology.ROOT: 1})
-                        for sample in self.samples}
-            if not scores:
-                scores = {sample: {} for sample in self.samples}
+        if taxid is None:
+            taxid = ontology.ROOT
+        if abundances is None:
+            abundances = {sample: col.Counter({ontology.ROOT: 1})
+                          for sample in self.samples}
+        if accs is None:
+            accs = {sample: col.Counter({ontology.ROOT: 1})
+                    for sample in self.samples}
+        if scores is None:
+            scores = {sample: {} for sample in self.samples}
         if taxid not in _path:  # Avoid loops for repeated taxid (like root)
             multi_count: Dict[Sample, int] = {
                 sample: abundances[sample].get(taxid, 0)
@@ -846,6 +854,8 @@ class MultiTree(dict):
         for tid in self:
             list_row: List = []
             if cmplxcruncher:  # This is cmplxCruncher case
+                if sample_indexes is None:
+                    raise TypeError
                 list_row.extend([ontology.get_rank(tid).name.lower(),
                                  ontology.get_name(tid)])  # Add metadata 1st
                 for i in sample_indexes:

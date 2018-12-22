@@ -86,6 +86,7 @@ F_CTR = '-c=3'
 F_MHL = '-y='
 F_RND = '-r='
 F_MIN = '-m='
+F_CTR_MIN = '-w='
 F_D = '-d'
 F_T = '-t'
 F_CC = '-e=CMPLXCRUNCHER'
@@ -271,14 +272,16 @@ def main():
                 sys.exit(4)
 
     def test_rcf(html_filename: Filename = HTML_FIL,
-                 mintaxa: int = MINTAXA_DEFAULT):
+                 mintaxa: int = None):
         """Test recentrifuge"""
         prog: Filename = Filename(prefix + 'rcf')
         print(magenta(f'\n>>> TESTING {prog} WITH MINTAXA {mintaxa} ...'))
         argums = [prog, F_TAX, F_FIL,
                   F_OUT + os.path.join(TEST_OUTPUT_DIR, html_filename),
-                  F_CTR, F_MHL + str(minscore),
-                  F_MIN + str(mintaxa), F_D]
+                  F_CTR, F_MHL + str(minscore), F_D]
+        if mintaxa is not None:
+            argums.append(F_MIN + str(mintaxa))
+            argums.append(F_CTR_MIN + str(mintaxa))
         cproc = sp.run(argums, universal_newlines=True)
         print(magenta(f'\n<<< END {prog} TEST: '), end='')
         if cproc.returncode == 0:

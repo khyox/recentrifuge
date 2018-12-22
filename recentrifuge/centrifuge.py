@@ -8,7 +8,7 @@ import io
 import os
 from math import log10
 from statistics import mean
-from typing import Tuple, Counter, Dict, List
+from typing import Tuple, Counter, Dict, List, Optional
 
 from Bio import SeqIO
 
@@ -75,7 +75,7 @@ def read_output(output_file: Filename,
     num_read: int = 0
     nt_read: int = 0
     num_uncl: int = 0
-    error_read: int = None
+    error_read: Optional[int] = None
     output.write(gray(f'Loading output file {output_file}... '))
     try:
         with open(output_file, 'r') as file:

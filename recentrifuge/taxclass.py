@@ -13,13 +13,13 @@ from typing import Tuple, Set, Callable, Optional, Counter, Dict
 from recentrifuge.centrifuge import read_output, read_report
 from recentrifuge.clark import read_clark_output
 from recentrifuge.config import Sample, Err, Filename, Score, Id
-from recentrifuge.stats import SampleStats
 from recentrifuge.config import Scoring, Classifier
 from recentrifuge.config import CELLULAR_ORGANISMS, NO_SCORE
 from recentrifuge.config import gray, blue, green, yellow, red
 from recentrifuge.lmat import read_lmat_output
 from recentrifuge.ontology import Ontology
 from recentrifuge.rank import Ranks
+from recentrifuge.stats import SampleStats
 from recentrifuge.trees import TaxTree, SampleDataById
 
 
@@ -40,7 +40,8 @@ def process_output(*args, **kwargs
               target_file, gray('...'))
         sys.stdout.flush()
     ontology: Ontology = kwargs['ontology']
-    mintaxa: int = kwargs['ctrlmintaxa'] if is_ctrl else kwargs['mintaxa']
+    mintaxa: Optional[int] = (kwargs['ctrlmintaxa'] if is_ctrl
+                              else kwargs['mintaxa'])
     minscore: Score = kwargs['ctrlminscore'] if is_ctrl else kwargs['minscore']
     including: Set[Id] = ontology.including
     excluding: Set[Id] = ontology.excluding
@@ -73,15 +74,19 @@ def process_output(*args, **kwargs
     scores: Dict[Id, Score]
     log, stat, counts, scores = read_method(target_file, scoring, minscore)
     output.write(log)
-    # Update field in stat about control nature of the sample
-    stat.is_ctrl = is_ctrl
+    # Complete/Update fields in stats
+    stat.is_ctrl = is_ctrl  # set control nature of the sample
+    if mintaxa is not None:  # manual mintaxa has precedence over automatic
+        stat.mintaxa = mintaxa
+    else:  # update local value with the automatically guessed value
+        mintaxa = stat.mintaxa
     # Move cellular_organisms counts to root, in case
     if ontology.collapse and counts[CELLULAR_ORGANISMS]:
         vwrite(gray('Moving'), counts[CELLULAR_ORGANISMS],
                gray('"CELLULAR_ORGANISMS" reads to "ROOT"... '))
         if counts[ontology.ROOT]:
             stat.num_taxa -= 1
-            scores[ontology.ROOT] = (
+            scores[ontology.ROOT] = Score(
                     (scores[CELLULAR_ORGANISMS] * counts[CELLULAR_ORGANISMS] +
                      scores[ontology.ROOT] * counts[ontology.ROOT])
                     / (counts[CELLULAR_ORGANISMS] + counts[ontology.ROOT]))
@@ -101,7 +106,8 @@ def process_output(*args, **kwargs
         vwrite(green('OK!'), '\n')
 
     # Building ontology tree
-    output.write(gray('Building from raw data... '))
+    output.write(gray('Building from raw data with mintaxa = ') +
+                 f'{mintaxa:_d}' + gray(' ...'))
     vwrite(gray('\n  Building ontology tree with all-in-1... '))
     tree = TaxTree()
     ancestors: Set[Id]

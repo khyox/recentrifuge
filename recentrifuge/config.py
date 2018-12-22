@@ -62,7 +62,6 @@ STR_EXCLUSIVE: str = 'EXCLUSIVE'
 STR_SHARED: str = 'SHARED'
 STR_CONTROL_SHARED: str = 'CONTROL_SHARED'
 STR_SUMMARY: str = 'SUMMARY'
-DEFMINTAXA: int = 10  # min taxa to avoid collapsing one level into the parent
 DEFMINGENE: int = 2  # min genes to avoid collapsing GO genes hierarchy levels
 ROOT: Id = Id('1')
 CELLULAR_ORGANISMS: Id = Id('131567')

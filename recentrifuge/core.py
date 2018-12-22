@@ -8,7 +8,7 @@ import io
 import statistics
 import subprocess
 import sys
-from typing import List, Set, Tuple, Union, Dict, Counter
+from typing import List, Set, Tuple, Union, Dict, Counter, Optional
 
 from recentrifuge.config import Filename, Sample, Id, Parents, Score, Scores
 from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS
@@ -16,12 +16,12 @@ from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_SUMMARY, STR_CONTROL_SHARED
 from recentrifuge.config import UnionCounter, UnionScores
 from recentrifuge.config import gray, red, yellow, blue, magenta, cyan, green
+from recentrifuge.ontology import Ontology
 from recentrifuge.params import EPS, ROBUST_MIN_SAMPLES, ROBUST_XOVER_OUTLIER
-from recentrifuge.params import ROBUST_XOVER_ORD_MAG, SEVR_CONTM_MIN_RELFREQ
 from recentrifuge.params import MILD_CONTM_MIN_RELFREQ
+from recentrifuge.params import ROBUST_XOVER_ORD_MAG, SEVR_CONTM_MIN_RELFREQ
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.shared_counter import SharedCounter
-from recentrifuge.ontology import Ontology
 from recentrifuge.trees import TaxTree, SampleDataById
 
 
@@ -38,7 +38,7 @@ def process_rank(*args,
     # Recover input and parameters
     rank: Rank = args[0]
     controls: int = kwargs['controls']
-    mintaxa = kwargs['mintaxa']
+    mintaxas: Dict[Sample, int] = kwargs['mintaxas']
     ontology: Ontology = kwargs['ontology']
     including = ontology.including
     excluding = ontology.excluding
@@ -62,6 +62,14 @@ def process_rank(*args,
         """Convert a list of booleans into a nice string"""
         return ('[' + (', '.join(magenta('T') if elm else 'F' for elm in lst))
                 + ']')
+
+    def get_shared_mintaxa() -> int:
+        """Give a value of mintaxa for shared derived samples
+
+        This value is currently the minimum of the mintaxa of all the
+         (non control) raw samples.
+        """
+        return min([mintaxas[smpl] for smpl in raws[controls:]])
 
     # Declare/define variables
     samples: List[Sample] = []
@@ -118,7 +126,7 @@ def process_rank(*args,
         exclude_tree.allin1(ontology=ontology,
                             counts=counts[raw],
                             scores=scores[raw],
-                            min_taxa=mintaxa,
+                            min_taxa=mintaxas[raw],
                             min_rank=rank,
                             just_min_rank=True,
                             include=including,
@@ -141,7 +149,7 @@ def process_rank(*args,
         sub_shared_tree.allin1(ontology=ontology,
                                counts=counts[raw],
                                scores=scores[raw],
-                               min_taxa=mintaxa,
+                               min_taxa=mintaxas[raw],
                                min_rank=rank,
                                just_min_rank=True,
                                include=including,
@@ -161,7 +169,7 @@ def process_rank(*args,
         shared_tree.allin1(ontology=ontology,
                            counts=shared_counts,
                            scores=shared_score,
-                           min_taxa=mintaxa,
+                           min_taxa=get_shared_mintaxa(),
                            include=including,
                            exclude=excluding,
                            out=shared_out)
@@ -218,7 +226,7 @@ def process_rank(*args,
                                              / accs[smpl][ontology.ROOT]
                                              for smpl in raws[controls:]]
                 relfreq: List[float] = relfreq_ctrl + relfreq_smpl
-                crossover: List[bool] = None  # Crossover source (yes/no)
+                crossover: List[bool]  # Crossover source (yes/no)
                 # Just-controls contamination check
                 if all([rf < EPS for rf in relfreq_smpl]):
                     vwrite(cyan('just-ctrl:\t'), tid, ontology.get_name(tid),
@@ -255,7 +263,8 @@ def process_rank(*args,
                 q_n: float = compute_qn(relfreq, dist="NegExp")
                 # Calculate crossover in samples
                 outlier_lim: float = mdn + ROBUST_XOVER_OUTLIER * q_n
-                ordomag_lim: float = max(relfreq_ctrl)*10**ROBUST_XOVER_ORD_MAG
+                ordomag_lim: float = max(
+                    relfreq_ctrl) * 10 ** ROBUST_XOVER_ORD_MAG
                 crossover = [rf > outlier_lim and rf > ordomag_lim
                              for rf in relfreq[controls:]]
                 # Crossover contamination check
@@ -283,10 +292,10 @@ def process_rank(*args,
                 # Other contamination: remove from all samples
                 vwrite(gray('other cont:\t'), tid, ontology.get_name(tid),
                        green(f'lims: [{outlier_lim:.1g}]' + (
-                                '<' if outlier_lim < ordomag_lim else '>') +
+                           '<' if outlier_lim < ordomag_lim else '>') +
                              f'[{ordomag_lim:.1g}]'),
                        gray('relfreq:'), fltlst2str(relfreq_ctrl) +
-                           fltlst2str(relfreq_smpl), '\n')
+                       fltlst2str(relfreq_smpl), '\n')
                 for exclude_set in exclude_sets.values():
                     exclude_set.add(tid)
 
@@ -315,7 +324,7 @@ def process_rank(*args,
             ctrl_tree.allin1(ontology=ontology,
                              counts=counts[raw],
                              scores=scores[raw],
-                             min_taxa=mintaxa,
+                             min_taxa=mintaxas[raw],
                              min_rank=rank,
                              just_min_rank=True,
                              include=including,
@@ -340,7 +349,7 @@ def process_rank(*args,
             shared_ctrl_tree.allin1(ontology=ontology,
                                     counts=shared_ctrl_counts,
                                     scores=shared_ctrl_score,
-                                    min_taxa=mintaxa,
+                                    min_taxa=get_shared_mintaxa(),
                                     include=including,
                                     exclude=(exclude_candidates
                                              - shared_crossover),
@@ -398,7 +407,7 @@ def process_rank(*args,
 
 def summarize_analysis(*args,
                        **kwargs
-                       ) -> Tuple[Sample,
+                       ) -> Tuple[Optional[Sample],
                                   Counter[Id],
                                   Counter[Id],
                                   Scores]:
@@ -408,8 +417,9 @@ def summarize_analysis(*args,
     # Recover input and parameters
     analysis: str = args[0]
     ontology: Ontology = kwargs['ontology']
-    including = ontology.including
-    excluding = ontology.excluding
+    # TODO: Delete the following comment lines in a future release
+    # including = ontology.including   # See comment below for the reason
+    # excluding = ontology.excluding   # in/excluding are not used anymore
     counts: Dict[Sample, Counter[Id]] = kwargs['counts']
     scores: Dict[Sample, Dict[Id, Score]] = kwargs['scores']
     samples: List[Sample] = kwargs['samples']
@@ -419,7 +429,7 @@ def summarize_analysis(*args,
     summary_counts: Counter[Id] = col.Counter()
     summary_acc: Counter[Id] = col.Counter()
     summary_score: Scores = Scores({})
-    summary: Sample = None
+    summary: Optional[Sample] = None
 
     output.write(gray('Summary for ') + analysis + gray('... '))
 
@@ -469,6 +479,7 @@ def write_lineage(ontology: Ontology,
     Writes a lineage file understandable by Krona.
 
     Args:
+        ontology: any Ontology object.
         parents: dictionary of parents for every Id.
         names: dictionary of names for every Id.
         tree: a TaxTree structure.
