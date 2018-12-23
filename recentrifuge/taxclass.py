@@ -8,7 +8,7 @@ import os
 import sys
 import time
 import collections as col
-from typing import Tuple, Set, Callable, Optional, Counter, Dict
+from typing import Tuple, Set, Callable, Optional, Counter, Dict, Union
 
 from recentrifuge.centrifuge import read_output, read_report
 from recentrifuge.clark import read_clark_output
@@ -43,8 +43,8 @@ def process_output(*args, **kwargs
     mintaxa: Optional[int] = (kwargs['ctrlmintaxa'] if is_ctrl
                               else kwargs['mintaxa'])
     minscore: Score = kwargs['ctrlminscore'] if is_ctrl else kwargs['minscore']
-    including: Set[Id] = ontology.including
-    excluding: Set[Id] = ontology.excluding
+    including: Union[Tuple, Set[Id]] = ontology.including
+    excluding: Union[Tuple, Set[Id]] = ontology.excluding
     scoring: Scoring = kwargs['scoring']
     classifier: Classifier = kwargs['classifier']
     output: io.StringIO = io.StringIO(newline='')
@@ -140,7 +140,7 @@ def process_output(*args, **kwargs
         vwrite(gray('  Additional checking of taxid loss... '))
         lost = 0
         for taxid in counts:
-            if not out.counts[taxid]:
+            if out.counts is not None and not out.counts[taxid]:
                 lost += 1
                 vwrite(yellow('Warning!'), f'Lost taxid={taxid}: '
                                            f'{ontology.get_name(taxid)}\n')
@@ -182,8 +182,8 @@ def process_report(*args, **kwargs
     ontology: Ontology = kwargs['ontology']
     mintaxa: int = kwargs['mintaxa']
     collapse: bool = ontology.collapse
-    including: Set[Id] = ontology.including
-    excluding: Set[Id] = ontology.excluding
+    including: Union[Tuple, Set[Id]] = ontology.including
+    excluding: Union[Tuple, Set[Id]] = ontology.excluding
     debug: bool = kwargs['debug']
     output: io.StringIO = io.StringIO(newline='')
 

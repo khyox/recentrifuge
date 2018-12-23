@@ -221,7 +221,7 @@ def main():
             action='append',
             metavar='TAXID',
             type=Id,
-            default=[],
+            default=(),
             help=('NCBI taxid code to exclude a taxon and all underneath '
                   '(multiple -x is available to exclude several taxid)')
         )
@@ -230,7 +230,7 @@ def main():
             action='append',
             metavar='TAXID',
             type=Id,
-            default=[],
+            default=(),
             help=('NCBI taxid code to include a taxon and all underneath '
                   '(multiple -i is available to include several taxid); '
                   'by default, all the taxa are considered for inclusion')

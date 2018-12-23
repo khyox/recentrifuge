@@ -5,7 +5,7 @@ Taxonomy class, currently representing the NCBI taxonomy.
 import collections as col
 import re
 import sys
-from typing import Set, Counter, Iterable, Tuple
+from typing import Set, Counter, Iterable, Tuple, Union
 
 from recentrifuge.config import Filename, Id, Parents, Names, Children
 from recentrifuge.config import ROOT, CELLULAR_ORGANISMS
@@ -22,8 +22,8 @@ class Taxonomy(Ontology):
                  names_file: Filename,
                  plasmid_file: Filename = None,
                  collapse: bool = True,
-                 excluding: Set[Id] = None,
-                 including: Set[Id] = None,
+                 excluding: Union[Tuple, Set[Id]] = (),
+                 including: Union[Tuple, Set[Id]] = (),
                  debug: bool = False,
                  ) -> None:
 
@@ -52,13 +52,13 @@ class Taxonomy(Ontology):
         else:
             # To excluding to operate not on single taxa but on subtrees
             including = {ROOT}
-        self.including: Set[Id] = including
+        self.including: Union[Tuple, Set[Id]] = including
         if excluding:
             print('List of taxa (and below) to be excluded:')
             print('\t\tId\tScientific Name')
             for taxid in excluding:
                 print(f'\t\t{taxid}\t{self.names[taxid]}')
-        self.excluding: Set[Id] = excluding
+        self.excluding: Union[Tuple, Set[Id]] = excluding
 
     def read_nodes(self, nodes_file: Filename) -> None:
         """Build dicts of parent and rank for a given taxid (key)"""
@@ -150,11 +150,12 @@ class Taxonomy(Ontology):
                     # Plasmid name extraction by regular expressions
                     name: str
                     try:
-                        name = pattern1.search(last).group(1)
+                        name = pattern1.search(last).group(1)  # type: ignore
                         name = 'Plasmid ' + name.strip(r'"').strip(',')
                     except AttributeError:
                         try:
-                            name = pattern2.search(last).group(1).strip()
+                            name = pattern2.search(  # type: ignore
+                                last).group(1).strip()
                             name = 'Plasmid ' + name
                         except AttributeError:
                             name = 'Plasmid ' + tid

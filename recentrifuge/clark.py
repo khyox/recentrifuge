@@ -93,7 +93,7 @@ def read_clark_output(output_file: Filename,
                         score = score2
                         conf = Score(1 - conf)  # Get CLARK_C's h2/(h1+h2)
                 # From CLARK_C(S) score get "single hit equivalent length"
-                shel: Score = Score(score) + K_MER_SIZE
+                shel: Score = Score(score + K_MER_SIZE)
                 if minscore is not None:  # Decide if ignore read if low score
                     if scoring is Scoring.CLARK_C:
                         if conf < minscore:

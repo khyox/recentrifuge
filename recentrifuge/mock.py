@@ -115,7 +115,7 @@ def generate_mock(ncbi: Taxonomy,
     def by_excel_file(dirname: Filename = None) -> None:
         """Do the job in case of Excel file with all the details"""
         if dirname is None:
-            dirname = os.path.dirname(xcel)
+            dirname = Filename(os.path.dirname(xcel))
         os.makedirs(dirname, exist_ok=True)
         # Expected index (taxids) in column after taxa name, and last row will
         #  be removed (reserved for sum of reads in Excel file)
@@ -138,7 +138,7 @@ def generate_mock(ncbi: Taxonomy,
         by_excel_file()
     else:  # Test mode
         path = os.path.dirname(os.path.realpath(__file__))
-        xcel: Filename = Filename(os.path.join(path, TEST_MOCK_XLSX))
+        xcel = Filename(os.path.join(path, TEST_MOCK_XLSX))
         vprint(gray('Test mode! Processing'), xcel, '\n')
         random.seed(18490)
         by_excel_file(dirname=TEST_OUTPUT_DIR)
