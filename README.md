@@ -2,6 +2,17 @@
 **Robust comparative analysis and contamination removal for metagenomics**
 ____
 [![Build Status](https://travis-ci.org/khyox/recentrifuge.svg?branch=master)](https://travis-ci.org/khyox/recentrifuge)
+[![](https://img.shields.io/github/languages/top/khyox/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
+[![](https://img.shields.io/pypi/pyversions/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
+[![](https://img.shields.io/pypi/v/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
+[![](https://img.shields.io/pypi/wheel/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
+
+[![](https://img.shields.io/maintenance/yes/2019.svg)](http://www.recentrifuge.org)
+[![](https://img.shields.io/badge/platforms-linux%20%7C%20maxos%20%7C%20win-lightgrey.svg)](http://www.recentrifuge.org)
+[![](https://img.shields.io/github/languages/count/khyox/recentrifuge.svg)](https://www.recentrifuge.org)
+[![](https://img.shields.io/website-up-down-green-red/http/www.recentrifuge.org.svg?label=recentrifuge.org)](http://www.recentrifuge.org)
+
+
 
 ### Robust comparative analysis
 
