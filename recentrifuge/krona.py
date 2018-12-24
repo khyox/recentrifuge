@@ -169,8 +169,10 @@ class KronaTree(ETree.ElementTree):
                 display = 'LMAT score (avg)'
             elif scoring is Scoring.CLARK_C:
                 display = 'CLARK conf (%)'
-            elif scoring is Scoring.CLARK_G:
+            elif scoring is Scoring.CLARK_G:s
                 display = 'CLARK gamma (avg)'
+            elif scoring is Scoring.KRAKEN:
+                display = 'Kmer coverage (%)'
             else:
                 print(red('ERROR!'), f'Unknown Scoring "{scoring}"')
                 raise Exception('Krona.py: Unknown scoring!')

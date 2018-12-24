@@ -86,7 +86,7 @@ def process_output(*args, **kwargs
     # Move cellular_organisms counts to root, in case
     if ontology.collapse and counts[CELLULAR_ORGANISMS]:
         vwrite(gray('Moving'), counts[CELLULAR_ORGANISMS],
-               gray('"CELLULAR_ORGANISMS" reads to "ROOT"... '))
+               gray('"CELLULAR_ORGANISMS" reads to "ROOT"... \n'))
         if counts[ontology.ROOT]:
             stat.num_taxa -= 1
             scores[ontology.ROOT] = Score(

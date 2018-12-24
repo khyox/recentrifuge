@@ -307,7 +307,7 @@ def main():
             print(blue('INFO:'), gray('Debugging mode activated'))
             print(blue('INFO:'), gray('Active parameters:'))
             for key, val in vars(args).items():
-                if val is not None and val is not False and val != []:
+                if val is not None and val is not False and val != ():
                     print(gray(f'\t{key} ='), f'{val}')
 
     def select_inputs():
@@ -320,8 +320,8 @@ def main():
             if scoring not in [Scoring.SHEL, Scoring.LENGTH, Scoring.LOGLENGTH,
                                Scoring.NORMA, Scoring.KRAKEN]:
                 print(yellow('WARNING!'), 'Scoring scheme not supported for'
-                                          'Kraken classifier; using SHEL.')
-                scoring = Scoring.SHEL
+                                          'Kraken classifier; using KRAKEN.')
+                scoring = Scoring.KRAKEN
             input_files = krakens
             if len(krakens) == 1 and os.path.isdir(krakens[0]):
                 select_kraken_inputs(krakens)
