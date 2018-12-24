@@ -16,7 +16,7 @@
 #     along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 """
-Analyze metagenomic taxonomic classification data.
+Analyze metagenomic (taxonomic) classification data.
 """
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse
@@ -39,19 +39,19 @@ from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_CONTROL_SHARED
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.core import process_rank, summarize_analysis
+from recentrifuge.kraken import select_kraken_inputs
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.krona import KronaTree
 from recentrifuge.lmat import select_lmat_inputs
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.stats import SampleStats
-from recentrifuge.taxclass import process_output, process_report
+from recentrifuge.taxclass import process_output
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree, MultiTree, SampleDataById
 
-# optional package pandas (to generate extra output)
-_USE_PANDAS = True
-# optional package openpyxl (for pandas to generate excel output)
-_USE_OPENPYXL = True
+# Test for recommended but optional packages
+_USE_PANDAS = True  # optional package pandas (to generate extra output)
+_USE_OPENPYXL = True  # optional package openpyxl (for pandas to save excel)
 try:
     import pandas as pd
 except ImportError:
@@ -140,21 +140,22 @@ def main():
                   '. Multiple -l is available to include several samples.')
         )
         parser_filein.add_argument(
-            '-k', '--clark',
+            '-r', '--clark',
             action='append',
             metavar='FILE',
             type=Filename,
             help=('CLARK(S) output files. If a single directory is entered, '
                   'every .csv file inside will be taken as a different sample.'
-                  ' Multiple -k is available to include several samples.')
+                  ' Multiple -r is available to include several samples.')
         )
         parser_filein.add_argument(
-            '-r', '--report',
+            '-k', '--kraken',
             action='append',
             metavar='FILE',
             type=Filename,
-            help=('Centrifuge/Kraken report files '
-                  '(multiple -r is available to include several samples)')
+            help=('Kraken output files. If a single directory is entered, '
+                  'every .csv file inside will be taken as a different sample.'
+                  ' Multiple -k is available to include several samples.')
         )
         parser_out = parser.add_argument_group(
             'output', 'Related to the Recentrifuge output files')
@@ -170,10 +171,10 @@ def main():
             '-e', '--extra',
             action='store',
             metavar='OUTPUT_TYPE',
-            choices=[str(extra) for extra in Extra],
+            choices=[str(xtra) for xtra in Extra],
             default=str(Extra(0)),
             help=(f'type of extra output to be generated, and can be one of '
-                  f'{[str(extra) for extra in Extra]}')
+                  f'{[str(xtra) for xtra in Extra]}')
         )
         parser_coarse = parser.add_argument_group(
             'tuning',
@@ -196,7 +197,7 @@ def main():
             choices=[str(each_score) for each_score in Scoring],
             default=str(Scoring(0)),
             help=(f'type of scoring to be applied, and can be one of '
-                  f'{[str(scoring) for scoring in Scoring]}')
+                  f'{[str(scr) for scr in Scoring]}')
         )
         parser_coarse.add_argument(
             '-y', '--minscore',
@@ -310,29 +311,48 @@ def main():
                     print(gray(f'\t{key} ='), f'{val}')
 
     def select_inputs():
-        """Choose right classifier, input and output files"""
+        """Choose right classifier, scoring, input and output files"""
         nonlocal process, scoring, input_files, plasmidfile, classifier
 
-        if reports:
+        if krakens:
             classifier = Classifier.KRAKEN
-            process = process_report
-            input_files = reports
+            process = process_output
+            if scoring not in [Scoring.SHEL, Scoring.LENGTH, Scoring.LOGLENGTH,
+                               Scoring.NORMA, Scoring.KRAKEN]:
+                print(yellow('WARNING!'), 'Scoring scheme not supported for'
+                                          'Kraken classifier; using SHEL.')
+                scoring = Scoring.SHEL
+            input_files = krakens
+            if len(krakens) == 1 and os.path.isdir(krakens[0]):
+                select_kraken_inputs(krakens)
         elif clarks:
             classifier = Classifier.CLARK
             process = process_output
+            if scoring in [Scoring.LMAT, Scoring.KRAKEN]:
+                print(yellow('WARNING!'), 'Scoring scheme not supported for'
+                                          'CLARK classifier; using SHEL.')
+                scoring = Scoring.SHEL
             input_files = clarks
             if len(clarks) == 1 and os.path.isdir(clarks[0]):
                 select_clark_inputs(clarks)
         elif lmats:
             classifier = Classifier.LMAT
-            scoring = Scoring.LMAT
             process = process_output
+            if scoring is not Scoring.LMAT:
+                print(yellow('WARNING!'), 'Scoring scheme not supported for'
+                                          'LMAT classifier.')
+                scoring = Scoring.LMAT
             input_files = lmats
             plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))
             select_lmat_inputs(lmats)
         elif outputs:
             classifier = Classifier.CENTRIFUGE
             process = process_output
+            if scoring not in [Scoring.SHEL, Scoring.LENGTH, Scoring.LOGLENGTH,
+                               Scoring.NORMA]:
+                print(yellow('WARNING!'), 'Scoring scheme not supported for'
+                                          'Centrifuge classifier; using SHEL.')
+                scoring = Scoring.SHEL
             input_files = outputs
             if len(outputs) == 1 and os.path.isdir(outputs[0]):
                 select_centrifuge_inputs(outputs)
@@ -360,8 +380,6 @@ def main():
             else:  # Explicit path and file name prefix is provided
                 dirname, basename = os.path.split(lmats[0])
             htmlfile = Filename(os.path.join(dirname, basename + HTML_SUFFIX))
-        elif reports:
-            htmlfile = Filename(reports[0].split('_mhl')[0] + HTML_SUFFIX)
         else:
             htmlfile = Filename(outputs[0].split('_mhl')[0] + HTML_SUFFIX)
 
@@ -634,7 +652,7 @@ def main():
     argparser = configure_parser()
     args = argparser.parse_args()
     outputs: List[Filename] = args.file
-    reports: List[Filename] = args.report
+    krakens: List[Filename] = args.kraken
     lmats: List[Filename] = args.lmat
     clarks: List[Filename] = args.clark
     input_files: List[Filename]

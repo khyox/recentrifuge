@@ -33,6 +33,7 @@ def read_report(report_file: str) -> Tuple[str, Counter[Id],
         log string, abundances counter, taxlevel dict
 
     """
+    # TODO: Discontinued method, to be erased in a future release
     output: io.StringIO = io.StringIO(newline='')
     abundances: Counter[Id] = col.Counter()
     level_dic = {}
@@ -44,9 +45,12 @@ def read_report(report_file: str) -> Tuple[str, Counter[Id],
                 tid = Id(_tid)
                 abundances[tid] = int(taxnum)
                 level_dic[tid] = Rank.centrifuge(taxlev)
-    except:
-        raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
-                        report_file + '"')
+    except KeyboardInterrupt:
+        print(gray(' User'), yellow('interrupted!'))
+        raise
+    except Exception:
+        print(red('ERROR!'), 'Cannot read "' + report_file + '"')
+        raise
     else:
         output.write('\033[92m OK! \033[0m\n')
     return output.getvalue(), abundances, level_dic
@@ -85,8 +89,8 @@ def read_output(output_file: Filename,
                     _, _, _tid, _score, _, _, _length, *_ = output_line.split(
                         '\t')
                 except ValueError:
-                    print(red('Error'), f'parsing line: ({output_line}) '
-                    f'in {output_file}. Ignoring line!')
+                    print(red('Error'), f'parsing line: ({output_line})',
+                          f'in {output_file}. Ignoring line!')
                     error_read = num_read + 1
                     continue
                 tid = Id(_tid)
@@ -124,7 +128,7 @@ def read_output(output_file: Filename,
     output.write(green('OK!\n'))
     if num_read == 0:
         raise Exception(red('\nERROR! ')
-                        + f'Cannot read any sequence from"{output_file}"')
+                        + f'Cannot read any sequence from "{output_file}"')
     filt_seqs: int = sum([len(scores) for scores in all_scores.values()])
     if filt_seqs == 0:
         raise Exception(red('\nERROR! ') + 'No sequence passed the filter!')

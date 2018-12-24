@@ -98,6 +98,7 @@ class Scoring(Enum):
     LMAT = 4  # Default for LMAT, not available for others
     CLARK_C = 5  # Based on CLARK's confidence score, not available for others
     CLARK_G = 6  # Based on CLARK's gamma score, not available for others
+    KRAKEN = 7  # Number of k-mers that mapped to the taxid labeled in kraken
 
     def __str__(self):
         return f'{self.name}'

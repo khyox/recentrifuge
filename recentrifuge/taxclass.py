@@ -16,6 +16,7 @@ from recentrifuge.config import Sample, Err, Filename, Score, Id
 from recentrifuge.config import Scoring, Classifier
 from recentrifuge.config import CELLULAR_ORGANISMS, NO_SCORE
 from recentrifuge.config import gray, blue, green, yellow, red
+from recentrifuge.kraken import read_kraken_output
 from recentrifuge.lmat import read_lmat_output
 from recentrifuge.ontology import Ontology
 from recentrifuge.rank import Ranks
@@ -61,7 +62,9 @@ def process_output(*args, **kwargs
         [Filename, Scoring, Optional[Score]],  # Input
         Tuple[str, SampleStats, Counter[Id], Dict[Id, Score]]  # Output
     ]
-    if classifier is Classifier.CLARK:
+    if classifier is Classifier.KRAKEN:
+        read_method = read_kraken_output
+    elif classifier is Classifier.CLARK:
         read_method = read_clark_output
     elif classifier is Classifier.LMAT:
         read_method = read_lmat_output
@@ -107,7 +110,7 @@ def process_output(*args, **kwargs
 
     # Building ontology tree
     output.write(gray('Building from raw data with mintaxa = ') +
-                 f'{mintaxa:_d}' + gray(' ...'))
+                 f'{mintaxa:_d}' + gray(' ... '))
     vwrite(gray('\n  Building ontology tree with all-in-1... '))
     tree = TaxTree()
     ancestors: Set[Id]
@@ -176,7 +179,7 @@ def process_report(*args, **kwargs
     """
     Process Centrifuge/Kraken report files (to be usually called in parallel!).
     """
-    # TODO: Full review to report support
+    # TODO: Discontinued method, to be erased in a future release
     # Recover input and parameters
     filerep: Filename = args[0]
     ontology: Ontology = kwargs['ontology']

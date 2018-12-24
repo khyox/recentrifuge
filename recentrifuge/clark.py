@@ -1,5 +1,5 @@
 """
-Functions directly related with CLARK_C(S).
+Functions directly related with CLARK(-l)(-S) full mode.
 
 """
 
@@ -11,10 +11,10 @@ from statistics import mean
 from typing import Tuple, Counter, Dict, List
 
 from recentrifuge.config import Filename, Id, Score, Scoring
-from recentrifuge.config import gray, red, green, yellow
+from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.stats import SampleStats
 
-# CLARK_C specific constants
+# CLARK specific constants
 UNCLASSIFIED: Id = Id('NA')
 K_MER_SIZE: int = 31  # Default k-mer size for CLARK(S)
 
@@ -23,9 +23,9 @@ def read_clark_output(output_file: Filename,
                       scoring: Scoring = Scoring.CLARK_C,
                       minscore: Score = None,
                       ) -> Tuple[str, SampleStats,
-                           Counter[Id], Dict[Id, Score]]:
+                                 Counter[Id], Dict[Id, Score]]:
     """
-    Read CLARK_C(S) output file
+    Read CLARK(-l)(-S) full mode output file
 
     Args:
         output_file: output file name
@@ -51,9 +51,13 @@ def read_clark_output(output_file: Filename,
             # Check number of cols in header
             header = file.readline().split(',')
             if len(header) != 8:
-                print(red('\nERROR! ') +
-                      f'CLARK_C output format of "{output_file}" not supported.')
-                print('Expected: ID,Length,Gamma,1st,score1,2nd,score2,conf')
+                print(red('\nERROR! ') + 'CLARK output format of ',
+                      yellow(f'"{output_file}"'), 'not supported.')
+                print(magenta('Expected:'),
+                      'ID,Length,Gamma,1st,score1,2nd,score2,conf')
+                print(magenta('Found:'), ','.join(header), end='')
+                print(blue('HINT:'), 'Use CLARK, CLARK-l, or CLARK-S '
+                                     'with full mode (', blue('-m 0'), ')')
                 raise Exception('Unsupported file format. Aborting.')
             for raw_line in file:
                 try:
@@ -81,7 +85,7 @@ def read_clark_output(output_file: Filename,
                     continue
                 num_read += 1
                 nt_read += length
-                # Select tid and score between CLARK_C assignments 1 and 2
+                # Select tid and score between CLARK assignments 1 and 2
                 tid: Id = tid1
                 score: Score = score1
                 if tid1 == UNCLASSIFIED:
@@ -91,7 +95,7 @@ def read_clark_output(output_file: Filename,
                     else:  # Majority of read unclassified
                         tid = tid2
                         score = score2
-                        conf = Score(1 - conf)  # Get CLARK_C's h2/(h1+h2)
+                        conf = Score(1 - conf)  # Get CLARK's h2/(h1+h2)
                 # From CLARK_C(S) score get "single hit equivalent length"
                 shel: Score = Score(score + K_MER_SIZE)
                 if minscore is not None:  # Decide if ignore read if low score
@@ -126,11 +130,11 @@ def read_clark_output(output_file: Filename,
     if error_read == num_read + 1:  # Check if error in last line: truncated!
         print(yellow('Warning!'), f'{output_file} seems truncated!')
     counts: Counter[Id] = col.Counter({tid: len(all_scores[tid])
-                                   for tid in all_scores})
+                                       for tid in all_scores})
     output.write(green('OK!\n'))
     if num_read == 0:
         raise Exception(red('\nERROR! ')
-                        + f'Cannot read any sequence from"{output_file}"')
+                        + f'Cannot read any sequence from "{output_file}"')
     filt_seqs: int = sum([len(scores) for scores in all_scores.values()])
     if filt_seqs == 0:
         raise Exception(red('\nERROR! ') + 'No sequence passed the filter!')
@@ -190,7 +194,7 @@ def read_clark_output(output_file: Filename,
 
 def select_clark_inputs(clarks: List[Filename],
                         ext: str = '.csv') -> None:
-    """CLARK_C output files processing specific stuff"""
+    """Search for CLARK, CLARK-l, CLARK-S files to analyze"""
     dir_name = clarks[0]
     clarks.clear()
     with os.scandir(dir_name) as dir_entry:
@@ -201,4 +205,4 @@ def select_clark_inputs(clarks: List[Filename],
                 else:  # Avoid sample names starting with just the dot
                     clarks.append(Filename(fil.name))
     clarks.sort()
-    print(gray(f'CLARK_C {ext} files to analyze:'), clarks)
+    print(gray(f'CLARK {ext} files to analyze:'), clarks)
