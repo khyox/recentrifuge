@@ -37,7 +37,8 @@ LOADING = '/img/loading.uri'
 FAVICON = '/img/favicon.uri'
 
 # Define encoding dialect for TSV files expected by Krona
-csv.register_dialect('krona', 'unix', delimiter='\t', quoting=csv.QUOTE_NONE)
+csv.register_dialect('krona', csv.get_dialect('unix'), delimiter='\t',
+                     quoting=csv.QUOTE_NONE)
 
 
 class KronaTree(ETree.ElementTree):
@@ -169,7 +170,7 @@ class KronaTree(ETree.ElementTree):
                 display = 'LMAT score (avg)'
             elif scoring is Scoring.CLARK_C:
                 display = 'CLARK conf (%)'
-            elif scoring is Scoring.CLARK_G:s
+            elif scoring is Scoring.CLARK_G:
                 display = 'CLARK gamma (avg)'
             elif scoring is Scoring.KRAKEN:
                 display = 'Kmer coverage (%)'
