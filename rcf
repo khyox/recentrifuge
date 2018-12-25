@@ -126,7 +126,8 @@ def main():
             type=Filename,
             help=('Centrifuge output files. If a single directory is entered, '
                   'every .out file inside will be taken as a different sample.'
-                  ' Multiple -f is available to include several samples.')
+                  ' Multiple -f is available to include several Centrifuge '
+                  'samples.')
         )
         parser_filein.add_argument(
             '-l', '--lmat',
@@ -144,9 +145,10 @@ def main():
             action='append',
             metavar='FILE',
             type=Filename,
-            help=('CLARK(S) output files. If a single directory is entered, '
-                  'every .csv file inside will be taken as a different sample.'
-                  ' Multiple -r is available to include several samples.')
+            help=('CLARK full-mode output files. If a single directory is '
+                  'entered, every .csv file inside will be taken as a '
+                  'different sample. Multiple -r is available to include '
+                  'several CLARK, CLARK-l, and CLARK-S full-mode samples.')
         )
         parser_filein.add_argument(
             '-k', '--kraken',
@@ -154,8 +156,9 @@ def main():
             metavar='FILE',
             type=Filename,
             help=('Kraken output files. If a single directory is entered, '
-                  'every .csv file inside will be taken as a different sample.'
-                  ' Multiple -k is available to include several samples.')
+                  'every .krk file inside will be taken as a different sample.'
+                  ' Multiple -k is available to include several Kraken '
+                  '(version 1 or 2) samples.')
         )
         parser_out = parser.add_argument_group(
             'output', 'Related to the Recentrifuge output files')
