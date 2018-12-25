@@ -14,8 +14,8 @@ from recentrifuge.config import Filename, Id, Score, Scoring
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.stats import SampleStats
 
-# CLARK specific constants
-UNCLASSIFIED: Id = Id('0')
+# KRAKEN specific constants
+UNCLASSIFIED: str = 'U'
 K_MER_SIZE: int = 35  # Default k-mer size for Kraken
 
 
@@ -71,7 +71,7 @@ def read_kraken_output(output_file: Filename,
                     length: int = sum(map(int, _length.split('|')))
                     num_read += 1
                     nt_read += length
-                    if _clas == 'U':  # Just count unclassified reads
+                    if _clas == UNCLASSIFIED:  # Just count unclassified reads
                         num_uncl += 1
                         continue
                     tid: Id = Id(_tid)
