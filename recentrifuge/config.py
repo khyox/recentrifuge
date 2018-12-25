@@ -75,6 +75,7 @@ class Classifier(Enum):
     LMAT = 1
     CLARK = 2
     KRAKEN = 3
+    GENERIC = 4
 
     def __str__(self):
         return f'{str(self.name)}'
@@ -99,6 +100,7 @@ class Scoring(Enum):
     CLARK_C = 5  # Based on CLARK's confidence score, not available for others
     CLARK_G = 6  # Based on CLARK's gamma score, not available for others
     KRAKEN = 7  # % of k-mers that mapped to the taxid labeled in kraken
+    GENERIC = 8  # Score from a generic classifier
 
     def __str__(self):
         return f'{self.name}'

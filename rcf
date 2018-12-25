@@ -26,7 +26,7 @@ import os
 import platform
 import sys
 import time
-from typing import Counter, List, Dict, Set, Callable, Tuple
+from typing import Counter, List, Dict, Set, Callable, Tuple, Optional
 
 from recentrifuge import __version__, __author__, __date__
 from recentrifuge.centrifuge import select_centrifuge_inputs
@@ -39,6 +39,7 @@ from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_CONTROL_SHARED
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.core import process_rank, summarize_analysis
+from recentrifuge.generic import GenericFormat
 from recentrifuge.kraken import select_kraken_inputs
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.krona import KronaTree
@@ -118,6 +119,20 @@ def main():
             help=('path for the nodes information files '
                   '(nodes.dmp and names.dmp from NCBI)')
         )
+        parser_in.add_argument(
+            '--format',
+            action='store',
+            metavar='GENERIC_FORMAT',
+            type=str,
+            default=None,
+            help=('Format of the output files from a generic classifier '
+                  'included with the option -g. It is a string like '
+                  '"TYP:csv,TID:1,LEN:3,SCO:6,UNC:0" where valid file TYPes '
+                  'are csv/tsv, and the rest of fields indicate the number of '
+                  'column used for the TaxIDs assigned, the LENgth of the '
+                  'read, the SCOre given to the assignment, and the taxid '
+                  'code used for UNClassified reads')
+        )
         parser_filein = parser_in.add_mutually_exclusive_group(required=True)
         parser_filein.add_argument(
             '-f', '--file',
@@ -128,6 +143,15 @@ def main():
                   'every .out file inside will be taken as a different sample.'
                   ' Multiple -f is available to include several Centrifuge '
                   'samples.')
+        )
+        parser_filein.add_argument(
+            '-g', '--generic',
+            action='append',
+            metavar='FILE',
+            type=Filename,
+            help=('Output file from a generic classifier. It requires the flag'
+                  ' --format (see such option for details). Multiple -g is '
+                  'available to include several generic samples.')
         )
         parser_filein.add_argument(
             '-l', '--lmat',
@@ -304,6 +328,15 @@ def main():
         )
         return parser
 
+    def parse_generic() -> GenericFormat:
+        """Check and parse generic format"""
+        if args.format is None:
+            print(red('ERROR!'), gray(
+                'Format specifier (--format) is mandatory with output from a '
+                'generic classifier.\n\tPlease run with --help for details.'))
+            exit(2)
+        return GenericFormat(args.format)
+
     def check_debug():
         """Check debugging mode"""
         if args.debug:
@@ -312,17 +345,26 @@ def main():
             for key, val in vars(args).items():
                 if val is not None and val is not False and val != ():
                     print(gray(f'\t{key} ='), f'{val}')
+            print(blue('INFO:'), gray(genfmt))
 
     def select_inputs():
         """Choose right classifier, scoring, input and output files"""
         nonlocal process, scoring, input_files, plasmidfile, classifier
 
-        if krakens:
+        if generics:
+            classifier = Classifier.GENERIC
+            process = process_output
+            if scoring is not Scoring.GENERIC:
+                print(yellow('WARNING!'), 'Scoring scheme not supported for '
+                                          'generic classifier; using GENERIC.')
+                scoring = Scoring.GENERIC
+            input_files = generics
+        elif krakens:
             classifier = Classifier.KRAKEN
             process = process_output
             if scoring not in [Scoring.SHEL, Scoring.LENGTH, Scoring.LOGLENGTH,
                                Scoring.NORMA, Scoring.KRAKEN]:
-                print(yellow('WARNING!'), 'Scoring scheme not supported for'
+                print(yellow('WARNING!'), 'Scoring scheme not supported for '
                                           'Kraken classifier; using KRAKEN.')
                 scoring = Scoring.KRAKEN
             input_files = krakens
@@ -332,7 +374,7 @@ def main():
             classifier = Classifier.CLARK
             process = process_output
             if scoring in [Scoring.LMAT, Scoring.KRAKEN]:
-                print(yellow('WARNING!'), 'Scoring scheme not supported for'
+                print(yellow('WARNING!'), 'Scoring scheme not supported for '
                                           'CLARK classifier; using SHEL.')
                 scoring = Scoring.SHEL
             input_files = clarks
@@ -342,7 +384,7 @@ def main():
             classifier = Classifier.LMAT
             process = process_output
             if scoring is not Scoring.LMAT:
-                print(yellow('WARNING!'), 'Scoring scheme not supported for'
+                print(yellow('WARNING!'), 'Scoring scheme not supported for '
                                           'LMAT classifier.')
                 scoring = Scoring.LMAT
             input_files = lmats
@@ -353,12 +395,15 @@ def main():
             process = process_output
             if scoring not in [Scoring.SHEL, Scoring.LENGTH, Scoring.LOGLENGTH,
                                Scoring.NORMA]:
-                print(yellow('WARNING!'), 'Scoring scheme not supported for'
+                print(yellow('WARNING!'), 'Scoring scheme not supported for '
                                           'Centrifuge classifier; using SHEL.')
                 scoring = Scoring.SHEL
             input_files = outputs
             if len(outputs) == 1 and os.path.isdir(outputs[0]):
                 select_centrifuge_inputs(outputs)
+        else:
+            print(red('ERROR!'), 'Unknown classifier!')
+            raise KeyError
 
     def check_controls():
         """Check and info about the control samples"""
@@ -654,10 +699,11 @@ def main():
     # Parse arguments
     argparser = configure_parser()
     args = argparser.parse_args()
-    outputs: List[Filename] = args.file
+    clarks: List[Filename] = args.clark
+    generics: List[Filename] = args.generic
     krakens: List[Filename] = args.kraken
     lmats: List[Filename] = args.lmat
-    clarks: List[Filename] = args.clark
+    outputs: List[Filename] = args.file
     input_files: List[Filename]
     nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
@@ -668,12 +714,17 @@ def main():
     scoring: Scoring = Scoring[args.scoring]
     extra: Extra = Extra[args.extra]
 
+    genfmt: GenericFormat = None
+    if args.generic:
+        genfmt = parse_generic()
+
     check_debug()
 
     plasmidfile: Filename = None
     classifier: Classifier
     process: Callable[..., Tuple[Sample, TaxTree, SampleDataById,
                                  SampleStats, Err]]
+
     select_inputs()
     check_controls()
     if not htmlfile:

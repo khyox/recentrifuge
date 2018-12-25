@@ -16,6 +16,7 @@ from recentrifuge.config import Sample, Err, Filename, Score, Id
 from recentrifuge.config import Scoring, Classifier
 from recentrifuge.config import CELLULAR_ORGANISMS, NO_SCORE
 from recentrifuge.config import gray, blue, green, yellow, red
+from recentrifuge.generic import GenericFormat, read_generic_output
 from recentrifuge.kraken import read_kraken_output
 from recentrifuge.lmat import read_lmat_output
 from recentrifuge.ontology import Ontology
