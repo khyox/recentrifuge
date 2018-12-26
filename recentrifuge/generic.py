@@ -149,9 +149,13 @@ def read_generic_output(output_file: Filename,
                         continue
                     score: Score = Score(float(output_line[genfmt.sco-1]))
                 except ValueError:
-                    print(yellow('Error'), 'parsing elements of'
-                                           f' line: ({output_line}) '
-                                           f'in {output_file}. Ignoring line!')
+                    if num_read == 0 and num_errors == 0:
+                        print(yellow('Warning!'), 'Skiping header of '
+                                                  f'{output_file}')
+                        continue  # Not account for the header as a failure
+                    print(yellow('Failure'), 'parsing line elements:'
+                                             f' {output_line} in {output_file}'
+                                             '. Ignoring line!')
                     last_error_read = num_read + 1
                     num_errors += 1
                     if num_read > 100 and num_errors > 0.5 * num_read:
