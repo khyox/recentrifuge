@@ -174,9 +174,11 @@ class KronaTree(ETree.ElementTree):
                 display = 'CLARK gamma (avg)'
             elif scoring is Scoring.KRAKEN:
                 display = 'Kmer coverage (%)'
+            elif scoring is Scoring.GENERIC:
+                display = 'Generic score (avg)'
             else:
-                print(red('ERROR!'), f'Unknown Scoring "{scoring}"')
-                raise Exception('Krona.py: Unknown scoring!')
+                raise Exception(red('\nERROR!'),
+                                f'Unknown Scoring "{scoring}"')
         elif self.chart == Chart.GENOMIC:
             iden = 'GenID'
             hrefbase = HREFBASE_GEN

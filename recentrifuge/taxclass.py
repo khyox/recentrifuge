@@ -49,6 +49,7 @@ def process_output(*args, **kwargs
     excluding: Union[Tuple, Set[Id]] = ontology.excluding
     scoring: Scoring = kwargs['scoring']
     classifier: Classifier = kwargs['classifier']
+    genfmt: GenericFormat = kwargs['genfmt']
     output: io.StringIO = io.StringIO(newline='')
 
     def vwrite(*args):
@@ -59,11 +60,13 @@ def process_output(*args, **kwargs
     sample: Sample = Sample(os.path.splitext(target_file)[0])
     error: Err = Err.NO_ERROR
     # Read taxonomic classifier output files to get abundances
-    read_method: Callable[
-        [Filename, Scoring, Optional[Score]],  # Input
-        Tuple[str, SampleStats, Counter[Id], Dict[Id, Score]]  # Output
+    read_method: Callable[   # [Input,Output]
+        [Filename, GenericFormat, Optional[Score], Optional[GenericFormat]],
+        Tuple[str, SampleStats, Counter[Id], Dict[Id, Score]]
     ]
-    if classifier is Classifier.KRAKEN:
+    if classifier is Classifier.GENERIC:
+        read_method = read_generic_output
+    elif classifier is Classifier.KRAKEN:
         read_method = read_kraken_output
     elif classifier is Classifier.CLARK:
         read_method = read_clark_output
@@ -72,11 +75,16 @@ def process_output(*args, **kwargs
     elif classifier is Classifier.CENTRIFUGE:
         read_method = read_output
     else:
-        raise Exception(f'taxclass: Unknown taxon classifier "{classifier}".')
+        raise Exception(red('\nERROR!'),
+                        f'taxclass: Unknown classifier "{classifier}".')
     log: str
     counts: Counter[Id]
     scores: Dict[Id, Score]
-    log, stat, counts, scores = read_method(target_file, scoring, minscore)
+    if classifier is Classifier.GENERIC:
+        log, stat, counts, scores = read_method(target_file, scoring, minscore,
+                                                genfmt)
+    else:
+        log, stat, counts, scores = read_method(target_file, scoring, minscore)
     output.write(log)
     # Complete/Update fields in stats
     stat.is_ctrl = is_ctrl  # set control nature of the sample

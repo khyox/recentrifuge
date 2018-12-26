@@ -26,7 +26,7 @@ import os
 import platform
 import sys
 import time
-from typing import Counter, List, Dict, Set, Callable, Tuple, Optional
+from typing import Counter, List, Dict, Set, Callable, Tuple
 
 from recentrifuge import __version__, __author__, __date__
 from recentrifuge.centrifuge import select_centrifuge_inputs
@@ -128,10 +128,10 @@ def main():
             help=('Format of the output files from a generic classifier '
                   'included with the option -g. It is a string like '
                   '"TYP:csv,TID:1,LEN:3,SCO:6,UNC:0" where valid file TYPes '
-                  'are csv/tsv, and the rest of fields indicate the number of '
-                  'column used for the TaxIDs assigned, the LENgth of the '
-                  'read, the SCOre given to the assignment, and the taxid '
-                  'code used for UNClassified reads')
+                  'are csv/tsv/ssv, and the rest of fields indicate the number'
+                  ' of column used (starting in 1) for the TaxIDs assigned, '
+                  'the LENgth of the read, the SCOre given to the assignment, '
+                  'and the taxid code used for UNClassified reads')
         )
         parser_filein = parser_in.add_mutually_exclusive_group(required=True)
         parser_filein.add_argument(
@@ -345,7 +345,8 @@ def main():
             for key, val in vars(args).items():
                 if val is not None and val is not False and val != ():
                     print(gray(f'\t{key} ='), f'{val}')
-            print(blue('INFO:'), gray(genfmt))
+            if genfmt is not None:
+                print(blue('INFO:'), gray(genfmt))
 
     def select_inputs():
         """Choose right classifier, scoring, input and output files"""
@@ -354,7 +355,8 @@ def main():
         if generics:
             classifier = Classifier.GENERIC
             process = process_output
-            if scoring is not Scoring.GENERIC:
+            if scoring not in [Scoring.GENERIC, Scoring.LENGTH,
+                               Scoring.LOGLENGTH, Scoring.NORMA]:
                 print(yellow('WARNING!'), 'Scoring scheme not supported for '
                                           'generic classifier; using GENERIC.')
                 scoring = Scoring.GENERIC
@@ -402,8 +404,7 @@ def main():
             if len(outputs) == 1 and os.path.isdir(outputs[0]):
                 select_centrifuge_inputs(outputs)
         else:
-            print(red('ERROR!'), 'Unknown classifier!')
-            raise KeyError
+            raise Exception(red('\nERROR!'), 'Unknown classifier!')
 
     def check_controls():
         """Check and info about the control samples"""
@@ -429,7 +430,7 @@ def main():
                 dirname, basename = os.path.split(lmats[0])
             htmlfile = Filename(os.path.join(dirname, basename + HTML_SUFFIX))
         else:
-            htmlfile = Filename(outputs[0].split('_mhl')[0] + HTML_SUFFIX)
+            htmlfile = Filename(input_files[0].split('_mhl')[0] + HTML_SUFFIX)
 
     def read_samples():
         """Read samples"""
@@ -727,7 +728,7 @@ def main():
 
     select_inputs()
     check_controls()
-    if not htmlfile:
+    if htmlfile is None:
         select_html_file()
 
     # Load NCBI nodes, names and build children
@@ -756,6 +757,7 @@ def main():
     kwargs = {'controls': args.controls,
               'ontology': ncbi,
               'classifier': classifier,
+              'genfmt': genfmt,
               'scoring': scoring,
               'minscore': args.minscore,
               'ctrlminscore': (
