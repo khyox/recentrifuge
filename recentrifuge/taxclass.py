@@ -3,18 +3,18 @@ Common functions to taxonomic classifiers.
 
 """
 
+import collections as col
 import io
 import os
 import sys
 import time
-import collections as col
 from typing import Tuple, Set, Callable, Optional, Counter, Dict, Union
 
 from recentrifuge.centrifuge import read_output, read_report
 from recentrifuge.clark import read_clark_output
+from recentrifuge.config import CELLULAR_ORGANISMS, NO_SCORE
 from recentrifuge.config import Sample, Err, Filename, Score, Id
 from recentrifuge.config import Scoring, Classifier
-from recentrifuge.config import CELLULAR_ORGANISMS, NO_SCORE
 from recentrifuge.config import gray, blue, green, yellow, red
 from recentrifuge.generic import GenericFormat, read_generic_output
 from recentrifuge.kraken import read_kraken_output
@@ -60,30 +60,29 @@ def process_output(*args, **kwargs
     sample: Sample = Sample(os.path.splitext(target_file)[0])
     error: Err = Err.NO_ERROR
     # Read taxonomic classifier output files to get abundances
-    read_method: Callable[   # [Input,Output]
-        [Filename, GenericFormat, Optional[Score], Optional[GenericFormat]],
+    read_method: Callable[   # Format: [[Input], Output]
+        [Filename, Scoring, Optional[Score]],
         Tuple[str, SampleStats, Counter[Id], Dict[Id, Score]]
     ]
-    if classifier is Classifier.GENERIC:
-        read_method = read_generic_output
-    elif classifier is Classifier.KRAKEN:
-        read_method = read_kraken_output
-    elif classifier is Classifier.CLARK:
-        read_method = read_clark_output
-    elif classifier is Classifier.LMAT:
-        read_method = read_lmat_output
-    elif classifier is Classifier.CENTRIFUGE:
-        read_method = read_output
-    else:
-        raise Exception(red('\nERROR!'),
-                        f'taxclass: Unknown classifier "{classifier}".')
     log: str
+    stat: SampleStats
     counts: Counter[Id]
     scores: Dict[Id, Score]
-    if classifier is Classifier.GENERIC:
-        log, stat, counts, scores = read_method(target_file, scoring, minscore,
-                                                genfmt)
-    else:
+    if classifier is Classifier.GENERIC:  # Direct call to generic method
+        log, stat, counts, scores = read_generic_output(target_file, scoring,
+                                                        minscore, genfmt)
+    else:  # Use read_method
+        if classifier is Classifier.KRAKEN:
+            read_method = read_kraken_output
+        elif classifier is Classifier.CLARK:
+            read_method = read_clark_output
+        elif classifier is Classifier.LMAT:
+            read_method = read_lmat_output
+        elif classifier is Classifier.CENTRIFUGE:
+            read_method = read_output
+        else:
+            raise Exception(red('\nERROR!'),
+                            f'taxclass: Unknown classifier "{classifier}".')
         log, stat, counts, scores = read_method(target_file, scoring, minscore)
     output.write(log)
     # Complete/Update fields in stats

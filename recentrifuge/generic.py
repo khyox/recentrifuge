@@ -1,5 +1,5 @@
 """
-Functions directly related with Kraken.
+Functions directly related with a generic taxonomic classifier.
 
 """
 
@@ -26,59 +26,70 @@ class GenericType(Enum):
 
 
 class GenericFormat(object):
+    """Class containing the format of a a generic classifier file."""
 
     MIN_COLS: int = 3  # Minimum number of columns: TaxID, LENgth, SCOre
+    MIN_FIELDS: int = MIN_COLS + 2  # Plus TYPe and UNClassified
 
-    def __init__(self, format: str):
+    def __init__(self, frmt: str):
 
         def print_error(specifier):
             """GenericFormat constructor: print an informative error message"""
             print(red('ERROR!'), 'Generic --format string malformed:',
                   blue(specifier), '\n\tPlease rerun with --help for details.')
 
-        blocks: List[str] = [fld.strip() for fld in format.split(',')]
-        fmt: Dict[str, str] = {pair.split(':')[0].strip(): pair.split(':')[1].strip()
-                               for pair in blocks}
+        blocks: List[str] = [fld.strip() for fld in frmt.split(',')]
+        if len(blocks) < self.MIN_FIELDS:
+            print_error(f'Wrong number of fields (expected {self.MIN_FIELDS} '
+                        f'found {len(blocks)}).')
+            exit(2)
+        try:
+            fmt: Dict[str, str] = {pair.split(':')[0].strip():
+                                   pair.split(':')[1].strip()
+                                   for pair in blocks}
+        except IndexError:
+            print_error('All fields need ":" separator.')
+            exit(2)
         try:
             typ = fmt['TYP']
         except KeyError:
             print_error('TYPe field is mandatory.')
-            raise
+            exit(2)
         try:
             self.typ: GenericType = GenericType[typ.upper()]
         except KeyError:
             print_error('Unknown file TYPe, valid options are ' +
                         ' or '.join([str(t) for t in GenericType]))
-            raise
+            exit(2)
         try:
             self.tid: int = int(fmt['TID'])
         except KeyError:
             print_error('TaxID field is mandatory.')
-            raise
+            exit(2)
         except ValueError:
             print_error('TaxID field is an integer number of column.')
-            raise
+            exit(2)
         try:
             self.len: int = int(fmt['LEN'])
         except KeyError:
             print_error('LENgth field is mandatory.')
-            raise
+            exit(2)
         except ValueError:
             print_error('LENgth field is an integer number of column.')
-            raise
+            exit(2)
         try:
             self.sco: int = int(fmt['SCO'])
         except KeyError:
             print_error('SCOre field is mandatory.')
-            raise
+            exit(2)
         except ValueError:
             print_error('SCOre field is an integer number of column.')
-            raise
+            exit(2)
         try:
             self.unc: Id = Id(fmt['UNC'])
         except KeyError:
             print_error('UNClassified field is mandatory.')
-            raise
+            exit(2)
 
     def __str__(self):
         return (f'Generic format = TYP:{self.typ}, TID:{self.tid}, '
@@ -92,7 +103,7 @@ def read_generic_output(output_file: Filename,
                         ) -> Tuple[str, SampleStats,
                                    Counter[Id], Dict[Id, Score]]:
     """
-    Read Kraken output file
+    Read an output file from a generic classifier
 
     Args:
         output_file: output file name
@@ -134,11 +145,16 @@ def read_generic_output(output_file: Filename,
                     raise Exception(f'ERROR! Unknown GenericType {genfmt.typ}')
                 output_line: List[str] = raw_line.split(stripping)
                 if len(output_line) < GenericFormat.MIN_COLS:
-                    raise Exception(red('\nERROR!'),
-                          'The line:', yellow(f'{output_line}'),
-                          '\n\tin', yellow(f'{output_file}'), 'has less than',
-                          blue(f'{GenericFormat.MIN_COLS}'), 'required '
-                          'columns.\n\tPlease check the file.')
+                    if num_read == 0 and last_error_read < 0:
+                        last_error_read = 0
+                        print(yellow('Warning!'), 'Skipping header of '
+                                                  f'{output_file}')
+                        continue  # Not account for the header as an error
+                    raise Exception(
+                        red('\nERROR!') + ' Line ' + yellow(f'{output_line}')
+                        + '\n\tin ' + yellow(f'{output_file}') + ' has < '
+                        + blue(f'{GenericFormat.MIN_COLS}') + ' required '
+                        + 'columns.\n\tPlease check the file.')
                 try:
                     tid: Id = Id(output_line[genfmt.tid-1])
                     length: int = int(output_line[genfmt.len-1])
@@ -149,8 +165,9 @@ def read_generic_output(output_file: Filename,
                         continue
                     score: Score = Score(float(output_line[genfmt.sco-1]))
                 except ValueError:
-                    if num_read == 0 and num_errors == 0:
-                        print(yellow('Warning!'), 'Skiping header of '
+                    if num_read == 0 and last_error_read < 0:
+                        last_error_read = 0
+                        print(yellow('Warning!'), 'Skipping header of '
                                                   f'{output_file}')
                         continue  # Not account for the header as a failure
                     print(yellow('Failure'), 'parsing line elements:'
