@@ -50,6 +50,7 @@ class GenericFormat(object):
         except IndexError:
             print_error('All fields need ":" separator.')
             exit(2)
+        # Populate fields
         try:
             typ = fmt['TYP']
         except KeyError:
@@ -89,6 +90,15 @@ class GenericFormat(object):
             self.unc: Id = Id(fmt['UNC'])
         except KeyError:
             print_error('UNClassified field is mandatory.')
+            exit(2)
+        # Check columns are different
+        if (self.tid == self.len or self.tid == self.sco
+                or self.len == self.sco):
+            print_error('Different fields need different columns.')
+            exit(2)
+        # Check column numbers are positive
+        if self.tid < 1 or self.len < 1 or self.sco < 1:
+            print_error('Columns numbers should be positive integers.')
             exit(2)
 
     def __str__(self):
@@ -134,16 +144,16 @@ def read_generic_output(output_file: Filename,
             # Main loop processing each file line
             for raw_line in file:
                 raw_line = raw_line.strip(' \n\t')
-                stripping: str
+                splitting: str
                 if genfmt.typ is GenericType.CSV:
-                    stripping = ','
+                    splitting = ','
                 elif genfmt.typ is GenericType.TSV:
-                    stripping = '\t'
+                    splitting = '\t'
                 elif genfmt.typ is GenericType.SSV:
-                    stripping = ' '
+                    splitting = ' '
                 else:
                     raise Exception(f'ERROR! Unknown GenericType {genfmt.typ}')
-                output_line: List[str] = raw_line.split(stripping)
+                output_line: List[str] = raw_line.split(splitting)
                 if len(output_line) < GenericFormat.MIN_COLS:
                     if num_read == 0 and last_error_read < 0:
                         last_error_read = 0
@@ -156,14 +166,15 @@ def read_generic_output(output_file: Filename,
                         + blue(f'{GenericFormat.MIN_COLS}') + ' required '
                         + 'columns.\n\tPlease check the file.')
                 try:
-                    tid: Id = Id(output_line[genfmt.tid-1])
-                    length: int = int(output_line[genfmt.len-1])
+                    tid: Id = Id(output_line[genfmt.tid-1].strip(' "'))
+                    length: int = int(output_line[genfmt.len-1].strip(' "'))
                     if tid == genfmt.unc:  # Avoid read score for unclass reads
                         num_read += 1
                         nt_read += length
                         num_uncl += 1
                         continue
-                    score: Score = Score(float(output_line[genfmt.sco-1]))
+                    score: Score = Score(
+                        float(output_line[genfmt.sco-1].strip(' "')))
                 except ValueError:
                     if num_read == 0 and last_error_read < 0:
                         last_error_read = 0
