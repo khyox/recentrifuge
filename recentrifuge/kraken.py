@@ -43,7 +43,8 @@ def read_kraken_output(output_file: Filename,
     num_read: int = 0
     nt_read: int = 0
     num_uncl: int = 0
-    error_read: int = -1
+    last_error_read: int = -1  # Number of read of the last error
+    num_errors: int = 0  # Number or reads discarded due to error
     output.write(gray(f'Loading output file {output_file}... '))
     try:
         with open(output_file, 'r') as file:
@@ -63,9 +64,11 @@ def read_kraken_output(output_file: Filename,
                     (_clas, _label, _tid, _length,
                      _maps) = output_line.split('\t')
                 except ValueError:
-                    print(yellow('Error'), f' parsing line: ({output_line}) '
-                                           f'in {output_file}. Ignoring line!')
-                    error_read = num_read + 1
+                    print(yellow('Failure'), 'parsing line elements:'
+                                             f' {output_line} in {output_file}'
+                                             '. Ignoring line!')
+                    last_error_read = num_read + 1
+                    num_errors += 1
                     continue
                 try:
                     length: int = sum(map(int, _length.split('|')))
@@ -89,10 +92,11 @@ def read_kraken_output(output_file: Filename,
                     score: Score = Score(mappings[tid] / sum(mappings.values())
                                          * 100)  # % relative to all k-mers
                 except ValueError:
-                    print(yellow('Error'), 'parsing elements of'
-                                           f' line: ({output_line}) '
-                                           f'in {output_file}. Ignoring line!')
-                    error_read = num_read + 1
+                    print(yellow('Failure'), 'parsing line elements:'
+                                             f' {output_line} in {output_file}'
+                                             '. Ignoring line!')
+                    last_error_read = num_read + 1
+                    num_errors += 1
                     continue
                 if minscore is not None:  # Decide if ignore read if low score
                     if scoring is Scoring.KRAKEN:
@@ -115,7 +119,7 @@ def read_kraken_output(output_file: Filename,
                     all_length[tid] = [length, ]
     except FileNotFoundError:
         raise Exception(red('\nERROR! ') + f'Cannot read "{output_file}"')
-    if error_read == num_read + 1:  # Check if error in last line: truncated!
+    if last_error_read == num_read + 1:  # Check error in last line: truncated!
         print(yellow('Warning!'), f'{output_file} seems truncated!')
     counts: Counter[Id] = col.Counter({tid: len(all_scores[tid])
                                        for tid in all_scores})
@@ -133,6 +137,10 @@ def read_kraken_output(output_file: Filename,
         seq_read=num_read, seq_unclas=num_uncl, seq_filt=filt_seqs
     )
     # Output statistics
+    if num_errors:
+        output.write(gray('  Seqs fail: ') + red(f'{num_errors:_d}\t') +
+                     gray('(Last error in read ') + red(f'{last_error_read}') +
+                     gray(')\n'))
     output.write(gray('  Seqs read: ') + f'{stat.seq.read:_d}\t' + gray('[')
                  + f'{stat.nt_read}' + gray(']\n'))
     output.write(gray('  Seqs clas: ') + f'{stat.seq.clas:_d}\t' + gray('(') +

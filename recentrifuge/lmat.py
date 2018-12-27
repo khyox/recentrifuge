@@ -4,6 +4,7 @@ Functions directly related with LMAT
 
 """
 
+import collections as col
 import io
 import os
 from enum import Enum
@@ -91,7 +92,7 @@ def read_lmat_output(output_file: Filename,
     all_scores: Dict[Id, List[Score]] = {}
     all_length: Dict[Id, List[int]] = {}
     nt_read: int = 0
-    matchings: Counter[Match] = Counter()
+    matchings: Counter[Match] = col.Counter()
     output_files: List[Filename] = []
     # Select files to process depending on if the output files are explicitly
     #  given or directory name is provided (all the output files there)
@@ -138,8 +139,8 @@ def read_lmat_output(output_file: Filename,
         except FileNotFoundError:
             raise Exception(red('\nERROR!') + f'Cannot read "{path}"')
         output.write(green('OK!\n'))
-    abundances: Counter[Id] = Counter({tid: len(all_scores[tid])
-                                       for tid in all_scores})
+    abundances: Counter[Id] = col.Counter({tid: len(all_scores[tid])
+                                          for tid in all_scores})
     # Basic output statistics
     read_seqs: int = sum(matchings.values())
     if read_seqs == 0:
