@@ -249,7 +249,7 @@ def main():
             action='append',
             metavar='TAXID',
             type=Id,
-            default=(),
+            default=[],
             help=('NCBI taxid code to exclude a taxon and all underneath '
                   '(multiple -x is available to exclude several taxid)')
         )
@@ -258,7 +258,7 @@ def main():
             action='append',
             metavar='TAXID',
             type=Id,
-            default=(),
+            default=[],
             help=('NCBI taxid code to include a taxon and all underneath '
                   '(multiple -i is available to include several taxid); '
                   'by default, all the taxa are considered for inclusion')
@@ -343,7 +343,7 @@ def main():
             print(blue('INFO:'), gray('Debugging mode activated'))
             print(blue('INFO:'), gray('Active parameters:'))
             for key, val in vars(args).items():
-                if val is not None and val is not False and val != ():
+                if val is not None and val is not False and val != []:
                     print(gray(f'\t{key} ='), f'{val}')
             if genfmt is not None:
                 print(blue('INFO:'), gray(genfmt))
