@@ -9,10 +9,16 @@ import random
 import sys
 from typing import Counter, List
 
+from Bio.Alphabet import single_letter_alphabet
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio import SeqIO
+
 from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.config import Id, Filename
 from recentrifuge.config import TEST_INPUT_DIR, TEST_OUTPUT_DIR, MOCK_XLSX
-from recentrifuge.config import gray, blue, green, red, yellow, cyan
+from recentrifuge.config import REXTRACT_TEST_SAMPLE, REXTRACT_TEST_FASTQ
+from recentrifuge.config import gray, blue, green, red, yellow, cyan, magenta
 from recentrifuge.taxonomy import Taxonomy
 
 # optional package pandas (to read Excel with mock layout)
@@ -26,7 +32,10 @@ except ImportError:
 
 MAX_HIT_LENGTH: int = 200  # Max hit length for random score generation
 TEST_MOCK_XLSX = os.path.join(TEST_INPUT_DIR, MOCK_XLSX)
-
+TEST_XCEL = Filename(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                  TEST_MOCK_XLSX))
+TEST_REXT_SMPL = os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_SAMPLE)
+TEST_REXT_FSTQ = os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_FASTQ)
 
 def generate_mock(ncbi: Taxonomy,
                   file: Filename,
@@ -99,6 +108,9 @@ def generate_mock(ncbi: Taxonomy,
                                f'0\t{hit_length}\t{MAX_HIT_LENGTH}\t1\n')
                     reads_writen += 1
             vprint(reads_writen, 'reads', green('OK!\n'))
+            if out == TEST_REXT_SMPL:  # Test mode: create mock FASTQ for smpl
+                mock_fastq(reads_writen)
+
 
     def by_mock_files() -> None:
         """Do the job in case of mock files"""
@@ -131,6 +143,23 @@ def generate_mock(ncbi: Taxonomy,
                 mock_from_source(test, mock_layout)
             else:
                 mock_from_scratch(test, mock_layout)
+
+    def mock_fastq(num_reads: int) -> None:
+        """Do the job in case of Excel file with all the details"""
+
+        def fastq_seqs(alphabet=single_letter_alphabet):
+            """Generator function that creates mock fastq sequences
+            """
+            for seq in range(num_reads):
+                yield SeqRecord(Seq('AGTC', alphabet),
+                                id=f'test{seq}', name=f'test{seq}',
+                                description=f'test{seq}',
+                                annotations={'quality': '@@@@'})
+
+        print(gray('Writing'), magenta(f'{num_reads}'), gray('reads in'),
+              TEST_REXT_FSTQ, gray('...'), end='', flush=True)
+        SeqIO.write((sq for sq in fastq_seqs()), TEST_REXT_FSTQ, 'quickfastq')
+        print(green(' OK!'))
 
     if mocks:
         by_mock_files()

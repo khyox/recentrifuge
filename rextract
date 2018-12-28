@@ -56,7 +56,7 @@ def main():
             version=f'%(prog)s release {__version__} ({__date__})'
         )
         parser.add_argument(
-            '-g', '--debug',
+            '-d', '--debug',
             action='store_true',
             help='increase output verbosity and perform additional checks'
         )
@@ -152,9 +152,9 @@ def main():
         if args.debug:
             print(blue('INFO:'), gray('Debugging mode activated'))
             print(blue('INFO:'), gray('Active parameters:'))
-            for key, value in vars(args).items():
-                if value:
-                    print(gray(f'\t{key} ='), f'{value}')
+            for key, val in vars(args).items():
+                if val is not None and val is not False and val != []:
+                    print(gray(f'\t{key} ='), f'{val}')
 
     # timing initialization
     start_time: float = time.time()

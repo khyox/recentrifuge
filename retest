@@ -27,7 +27,9 @@ Meaning of retest exit codes:
     3   Failed the retaxdump test
     4   Failed the remock test
     5   Failed the recentrifuge test
-    >5  Failed a multiple comparison between test data and test standard
+    6   Failed the rextract test
+    7   Failed the check of rextract output against standard values
+    >7  Failed a multiple comparison between rcf test data and test standard
 """
 
 import argparse
@@ -42,12 +44,15 @@ from statistics import mean
 from typing import Counter, List, Dict, Any, Tuple, Union
 from warnings import filterwarnings
 
+from Bio import SeqIO
 import matplotlib.pyplot as plt
 import numpy as np
 
 from recentrifuge import __version__, __author__, __date__, __path__
 from recentrifuge.config import Filename, Score, Extra, Id, Sample
 from recentrifuge.config import LICENSE, TAXDUMP_PATH, HTML_SUFFIX, XLSX_SUFFIX
+from recentrifuge.config import REXTRACT_TEST_SAMPLE, REXTRACT_TEST_FASTQ
+from recentrifuge.config import REXTRACT_TEST_TAXID
 from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR
 from recentrifuge.config import STR_CONTROL, MOCK_XLSX, MOCK_SHEET
 from recentrifuge.config import gray, blue, magenta, green, red, yellow
@@ -81,14 +86,24 @@ XLSX_FIL: Filename = TEST_PREFIX + XLSX_SUFFIX
 TEST_PDF_FILE: Filename = TEST_PREFIX + '.rcf.pdf'
 ROC_CTRL_PDF_FILE: Filename = 'ROC_CTRL.rcf.pdf'
 ROC_MINTAX_PDF_FILE: Filename = 'ROC_MINTAX.rcf.pdf'
+## General
+F_D = '-d'
+F_T = '-t'
+## For rextract
+F_CFG = '-f=' + os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_SAMPLE)
+F_INC = '-i=' + REXTRACT_TEST_TAXID
+F_FAQ = '-q=' + os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_FASTQ)
+REXTRACTED_FASTQ = Filename(
+    os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_FASTQ).rstrip('.fastq') +
+    '_rxtr_incl' + REXTRACT_TEST_TAXID + '.fastq'
+)
+## For rcf
 F_OUT = '-o='
 F_CTR = '-c=3'
 F_MHL = '-y='
 F_RND = '-r='
 F_MIN = '-m='
 F_CTR_MIN = '-w='
-F_D = '-d'
-F_T = '-t'
 F_CC = '-e=CMPLXCRUNCHER'
 XLSX_PATH: Filename = Filename(os.path.join(TEST_OUTPUT_DIR, XLSX_FIL))
 STND_PATH: Filename = Filename(os.path.join(PATH_TEST, XLSX_FIL))
@@ -291,6 +306,20 @@ def main():
             if not args.ignore:
                 sys.exit(5)
 
+    def test_rextract():
+        """Test rextract"""
+        prog: Filename = Filename(prefix + 'rextract')
+        print(magenta(f'\n>>> TESTING {prog} ...'))
+        argums = [prog, F_CFG, F_FAQ, F_INC, F_D]
+        cproc = sp.run(argums, universal_newlines=True)
+        print(magenta(f'\n<<< END {prog} TEST: '), end='')
+        if cproc.returncode == 0:
+            print(green('OK!'))
+        else:
+            print(red('FAILED!'))
+            if not args.ignore:
+                sys.exit(6)
+
     def load_excels(just_excel: Filename = None):
         """Load excels from standard and recentrifuge results"""
         nonlocal pd_xlsx, pd_stnd, pd_mock
@@ -330,6 +359,34 @@ def main():
                 raise
             else:
                 print(green('OK!'))
+
+    def test_rextract_results():
+        """Test rextract results against standard values"""
+        prog: Filename = Filename(prefix + 'rextract')
+        print(magenta(f'\n>>> CHECKING {prog} RESULTS AGAINST STANDARD ... '),
+              end='', flush=True)
+
+        df_mock = pd_mock.parse(
+            sheet_name=MOCK_SHEET, header=[0],
+            index_col=1, skipfooter=1,
+        )
+        cnt_mck: int
+        try:
+            cnt_mck = df_mock[REXTRACT_TEST_SAMPLE.rstrip('.out')][
+                int(REXTRACT_TEST_TAXID)]
+        except KeyError:
+            cnt_mck = 0
+
+        record_iterator = SeqIO.parse(REXTRACTED_FASTQ, "quickfastq")
+        num_seqs: int = len(list(record_iterator))
+        if num_seqs == cnt_mck:
+            print(blue(f'{cnt_mck}'), 'fastq seqs', green('OK!'))
+        else:
+            print(red('FAILED!'))
+            print('Difference between test results and standard values:')
+            print(f'Expected {cnt_mck} FASTQ seqs and got {num_seqs} instead.')
+            if not args.ignore:
+                sys.exit(7)
 
     def analyze_robust_contam_removal():
         """Analyze recentrifuge results for robust contamination removal"""
@@ -710,7 +767,7 @@ def main():
         else:
             print(green(' OK!'), flush=True)
 
-    def test_results():
+    def test_rcf_results():
         """Test recentrifuge results against standard"""
         prog: Filename = Filename(prefix + 'rcf')
         print(magenta(f'\n>>> COMPARING {prog} RESULTS WITH STANDARD:'))
@@ -733,7 +790,7 @@ def main():
                 print('Difference between test results and test standard?')
                 print(df_xlsx.where(df_xlsx != df_stnd, False))
                 if not args.ignore:
-                    sys.exit(6)
+                    sys.exit(8)
 
     # Timing initialization
     start_time: float = time.time()
@@ -756,12 +813,14 @@ def main():
     test_retaxdump()
     test_remock()
     test_rcf()
+    test_rextract()
 
     pd_xlsx: pd.ExcelFile = None
     pd_stnd: pd.ExcelFile = None
     pd_mock: pd.ExcelFile = None
 
     load_excels()
+    test_rextract_results()
     analyze_robust_contam_removal()
     if args.roc:
         get_roc(plot_roc=True)
@@ -769,7 +828,7 @@ def main():
         get_mintaxa_roc()
 
     load_excels()
-    test_results()
+    test_rcf_results()
 
     # Timing results
     print(gray('Total test time:'), time.strftime(
