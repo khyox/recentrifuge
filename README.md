@@ -1,5 +1,9 @@
-# Recentrifuge
-**Robust comparative analysis and contamination removal for metagenomics**
+<p align="center">
+<img src="https://raw.githubusercontent.com/khyox/rcf-aux/master/RCFheader.png" alt="Recentrifuge" width="900px"/></p><hr>
+<p align="center"><b>Robust comparative analysis and contamination removal for metagenomics</b>
+</p> 
+
+
 ____
 [![Build Status](https://travis-ci.org/khyox/recentrifuge.svg?branch=master)](https://travis-ci.org/khyox/recentrifuge)
 [![](https://img.shields.io/github/languages/top/khyox/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
