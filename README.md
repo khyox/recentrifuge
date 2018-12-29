@@ -1,5 +1,5 @@
-<p align="center">
-<img src="https://raw.githubusercontent.com/khyox/rcf-aux/master/RCFheader.png" alt="Recentrifuge" width="900px"/></p><hr>
+<p align="center"><a href="http://www.recentrifuge.org" target="_blank">
+<img src="https://raw.githubusercontent.com/khyox/rcf-aux/master/RCFheader.png" alt="Recentrifuge" width="900px"/></a></p><hr>
 <p align="center"><b>Robust comparative analysis and contamination removal for metagenomics</b>
 </p> 
 
