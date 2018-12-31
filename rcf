@@ -387,7 +387,7 @@ def main():
             process = process_output
             if scoring is not Scoring.LMAT:
                 print(yellow('WARNING!'), 'Scoring scheme not supported for '
-                                          'LMAT classifier.')
+                                          'LMAT classifier; using LMAT.')
                 scoring = Scoring.LMAT
             input_files = lmats
             plasmidfile = Filename(os.path.join(args.nodespath, PLASMID_FILE))

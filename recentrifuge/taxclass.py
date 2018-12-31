@@ -118,8 +118,8 @@ def process_output(*args, **kwargs
 
     # Building ontology tree
     output.write(gray('Building from raw data with mintaxa = ') +
-                 f'{mintaxa:_d}' + gray(' ... '))
-    vwrite(gray('\n  Building ontology tree with all-in-1... '))
+                 f'{mintaxa:_d}' + gray(' ... \n'))
+    vwrite(gray('  Building ontology tree with all-in-1... '))
     tree = TaxTree()
     ancestors: Set[Id]
     orphans: Set[Id]
@@ -131,37 +131,54 @@ def process_output(*args, **kwargs
     out.purge_counters()
     vwrite(green('OK!'), '\n')
 
-    # Give stats about orphan taxid
+    # Check for additional loss of reads (due to include/exclude an orphans)
+    output.write(gray('  Check for more seqs lost ([in/ex]clude affects)... '))
+    if out.counts is not None:
+        discard: int = sum(counts.values()) - sum(out.counts.values())
+        if discard:
+            output.write(blue('\n  Info:') + f' {discard} ' +
+                         gray('additional seqs discarded (') +
+                         f'{discard/sum(counts.values()):.3%} ' +
+                         gray('of accepted)\n'))
+        else:
+            output.write(green('OK!\n'))
+    else:
+        output.write(red('No counts in sample tree!\n'))
+    # Warn or give detailed stats about orphan taxid and orphan seqs
     if debug:
         vwrite(gray('  Checking taxid loss (orphans)... '))
         lost: int = 0
         if orphans:
             for orphan in orphans:
-                vwrite(yellow('Warning!'), f'Orphan taxid={orphan}\n')
+                vwrite(yellow('  Warning!'), gray('Orphan taxid'),
+                       f'{orphan}\n')
                 lost += counts[orphan]
-            vwrite(yellow('WARNING!'),
+            vwrite(yellow('  WARNING!'),
                    f'{len(orphans)} orphan taxids ('
-                   f'{len(orphans)/len(counts):.2%} of total)\n'
-                   f'{lost} orphan sequences ('
-                   f'{lost/sum(counts.values()):.3%} of total)\n')
+                   f'{len(orphans)/len(counts):.2%} of accepted)\n'
+                   f'    and {lost} orphan sequences ('
+                   f'{lost/sum(counts.values()):.3%} of accepted)\n')
         else:
             vwrite(green('OK!\n'))
-    # Check the lost of taxids (plasmids typically) under some conditions
-    if debug and not excluding and not including:
-        vwrite(gray('  Additional checking of taxid loss... '))
-        lost = 0
-        for taxid in counts:
-            if out.counts is not None and not out.counts[taxid]:
-                lost += 1
-                vwrite(yellow('Warning!'), f'Lost taxid={taxid}: '
-                                           f'{ontology.get_name(taxid)}\n')
-        if lost:
-            vwrite(yellow('WARNING!'), f'Lost {lost} taxids ('
-                                       f'{lost/len(counts):.2%} of total)'
-                                       '\n')
+    elif orphans:
+        output.write(yellow('\n  Warning!') + f' {len(orphans)} orphan taxids'
+                     + gray(' (rerun with --debug for details)\n'))
+    # Check the removal of taxids (accumulation of leaves in parents)
+    if debug and not excluding and including == {ontology.ROOT}:
+        vwrite(gray('  Assess accumulation due to "folding the tree"...\n'))
+        migrated: int = 0
+        if out.counts is not None:
+            for taxid in counts:
+                if out.counts[taxid] == 0:
+                    migrated += 1
+                    vwrite(blue('  Info:'), gray(f'Folded taxid {taxid} (') +
+                           f'{ontology.get_name(taxid)}' + gray(') with ') +
+                           f'{counts[taxid]}' + gray(' original seqs\n'))
+        if migrated:
+            vwrite(blue('  INFO:'), f'{migrated} taxids folded ('
+                                    f'{migrated/len(counts):.2%} of total)\n')
         else:
-            vwrite(green('OK!\n'))
-
+            vwrite(blue('  INFO:'), gray('No migration!'), green('OK!\n'))
     # Print last message and check if the sample is void
     if out.counts:
         output.write(sample + blue(' ctrl ' if is_ctrl else ' sample ')

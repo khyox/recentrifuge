@@ -50,7 +50,7 @@ class Taxonomy(Ontology):
             for taxid in including:
                 print(f'\t\t{taxid}\t{self.names[taxid]}')
         else:
-            # To excluding to operate not on single taxa but on subtrees
+            # For excluding to operate not on single taxa but on subtrees
             including = {ROOT}
         self.including: Union[Tuple, Set[Id]] = including
         if excluding:
