@@ -8,7 +8,7 @@ import io
 import os
 from math import log10
 from statistics import mean
-from typing import Tuple, Counter, Dict, List
+from typing import Tuple, Counter, Dict, List, Set
 
 from Bio import SeqIO
 
@@ -76,6 +76,7 @@ def read_output(output_file: Filename,
     output: io.StringIO = io.StringIO(newline='')
     all_scores: Dict[Id, List[Score]] = {}
     all_length: Dict[Id, List[int]] = {}
+    taxids: Set[Id] = set()
     num_read: int = 0
     nt_read: int = 0
     num_uncl: int = 0
@@ -114,7 +115,9 @@ def read_output(output_file: Filename,
                 if tid == UNCLASSIFIED:  # Just count unclassified reads
                     num_uncl += 1
                     continue
-                elif minscore is not None and shel < minscore:
+                else:
+                    taxids.add(tid)  # Save all the tids of classified reads
+                if minscore is not None and shel < minscore:
                     continue  # Ignore read if low confidence
                 try:
                     all_scores[tid].append(shel)
@@ -140,7 +143,8 @@ def read_output(output_file: Filename,
     # Get statistics
     stat: SampleStats = SampleStats(
         minscore=minscore, nt_read=nt_read, scores=all_scores, lens=all_length,
-        seq_read=num_read, seq_unclas=num_uncl, seq_filt=filt_seqs
+        seq_read=num_read, seq_unclas=num_uncl, seq_filt=filt_seqs,
+        tid_clas=len(taxids)
     )
     # Output statistics
     if num_errors:
@@ -153,13 +157,14 @@ def read_output(output_file: Filename,
                  f'{stat.get_unclas_ratio():.2%}' + gray(' unclassified)\n'))
     output.write(gray('  Seqs pass: ') + f'{stat.seq.filt:_d}\t' + gray('(') +
                  f'{stat.get_reject_ratio():.2%}' + gray(' rejected)\n'))
-    output.write(gray('  Scores: min = ') + f'{stat.sco.mini:.1f},' +
-                 gray(' max = ') + f'{stat.sco.maxi:.1f},' +
-                 gray(' avr = ') + f'{stat.sco.mean:.1f}\n')
-    output.write(gray('  Length: min = ') + f'{stat.len.mini},' +
-                 gray(' max = ') + f'{stat.len.maxi},' +
-                 gray(' avr = ') + f'{stat.len.mean}\n')
-    output.write(f'  {stat.num_taxa}' + gray(f' taxa with assigned reads\n'))
+    output.write(gray('  Scores: min = ') + f'{stat.sco.mini:.1f}' +
+                 gray(', max = ') + f'{stat.sco.maxi:.1f}' +
+                 gray(', avr = ') + f'{stat.sco.mean:.1f}\n')
+    output.write(gray('  Length: min = ') + f'{stat.len.mini}' +
+                 gray(', max = ') + f'{stat.len.maxi}' +
+                 gray(', avr = ') + f'{stat.len.mean}\n')
+    output.write(gray('  TaxIds: by classifier = ') + f'{stat.tid.clas}'
+                 + gray(', by filter = ') + f'{stat.tid.filt}\n')
     # Select score output
     out_scores: Dict[Id, Score]
     if scoring is Scoring.SHEL:

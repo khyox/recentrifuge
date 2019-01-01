@@ -96,7 +96,7 @@ def process_output(*args, **kwargs
         vwrite(gray('Moving'), counts[CELLULAR_ORGANISMS],
                gray('"CELLULAR_ORGANISMS" reads to "ROOT"... \n'))
         if counts[ontology.ROOT]:
-            stat.num_taxa -= 1
+            stat.decrease_filtered_taxids()
             scores[ontology.ROOT] = Score(
                     (scores[CELLULAR_ORGANISMS] * counts[CELLULAR_ORGANISMS] +
                      scores[ontology.ROOT] * counts[ontology.ROOT])
@@ -111,7 +111,7 @@ def process_output(*args, **kwargs
         vwrite(gray('Removing'), counts[ontology.ROOT],
                gray('"ROOT" reads... '))
         stat.seq = stat.seq._replace(filt=stat.seq.filt-counts[ontology.ROOT])
-        stat.num_taxa -= 1
+        stat.decrease_filtered_taxids()
         counts[ontology.ROOT] = 0
         scores[ontology.ROOT] = NO_SCORE
         vwrite(green('OK!'), '\n')
@@ -130,6 +130,10 @@ def process_output(*args, **kwargs
                 include=including, exclude=excluding, out=out)
     out.purge_counters()
     vwrite(green('OK!'), '\n')
+
+    # Stats: Complete final value for TaxIDs after tree building and folding
+    final_taxids: int = len(out.counts) if out.counts is not None else 0
+    stat.set_final_taxids(final_taxids)
 
     # Check for additional loss of reads (due to include/exclude an orphans)
     output.write(gray('  Check for more seqs lost ([in/ex]clude affects)... '))
@@ -180,8 +184,8 @@ def process_output(*args, **kwargs
                 f'{migrated/len(+counts):.2%} of TAF —TaxIDs after filtering—)'
                 '\n')
             vwrite(
-                blue('  INFO:'), f'Final assigned TaxIDs: {len(+out.counts)} '
-                f'(reduced to {len(+out.counts)/len(+counts):.2%} of '
+                blue('  INFO:'), f'Final assigned TaxIDs: {final_taxids} '
+                f'(reduced to {final_taxids/len(+counts):.2%} of '
                 'number of TAF)\n')
         else:
             vwrite(blue('  INFO:'), gray('No migration!'), green('OK!\n'))

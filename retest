@@ -277,6 +277,8 @@ def main():
         prog: Filename = Filename(prefix + 'remock')
         print(magenta(f'\n>>> TESTING {prog} ...'))
         argums = [prog, F_TAX, F_RND + str(minscore), F_T, F_D]
+        if args.debug:
+            print(argums)
         cproc = sp.run(argums, universal_newlines=True)
         print(magenta(f'\n<<< END {prog} TEST: '), end='')
         if cproc.returncode == 0:
@@ -297,6 +299,8 @@ def main():
         if mintaxa is not None:
             argums.append(F_MIN + str(mintaxa))
             argums.append(F_CTR_MIN + str(mintaxa))
+        if args.debug:
+            print(argums)
         cproc = sp.run(argums, universal_newlines=True)
         print(magenta(f'\n<<< END {prog} TEST: '), end='')
         if cproc.returncode == 0:
@@ -311,6 +315,8 @@ def main():
         prog: Filename = Filename(prefix + 'rextract')
         print(magenta(f'\n>>> TESTING {prog} ...'))
         argums = [prog, F_CFG, F_FAQ, F_INC, F_D]
+        if args.debug:
+            print(argums)
         cproc = sp.run(argums, universal_newlines=True)
         print(magenta(f'\n<<< END {prog} TEST: '), end='')
         if cproc.returncode == 0:

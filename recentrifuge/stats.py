@@ -53,10 +53,17 @@ class ScoreStats(NamedTuple):
 
 
 class LengthStats(NamedTuple):
-    """Leg statistics"""
+    """Length statistics"""
     maxi: NT = NT(0)
     mean: NT = NT(0)
     mini: NT = NT(0)
+
+
+class TidStats(NamedTuple):
+    """TaxID statistics"""
+    clas: int = 0
+    filt: int = 0
+    fold: int = 0
 # pylint: enable=too-few-public-methods
 
 
@@ -101,6 +108,7 @@ class SampleStats(object):
                  scores: Dict[Id, List[Score]] = None,
                  scores2: Dict[Id, List[Score]] = None,
                  scores3: Dict[Id, List[Score]] = None,
+                 tid_clas: int = None
                  ) -> None:
         """Initialize some data and set up data structures"""
         self.is_ctrl: bool = is_ctrl
@@ -126,9 +134,14 @@ class SampleStats(object):
             self.len = LengthStats()
         if scores is not None:
             self.sco: ScoreStats = stats(scores, ScoreStats, Score)
-            self.num_taxa: int = len(scores)
+            self.tid = TidStats(
+                clas=tid_clas if tid_clas else len(scores),
+                filt=len(scores),
+                fold=len(scores)  # Tentative value to be updated later
+            )
         else:
             self.sco = ScoreStats()
+            self.tid = TidStats()
             self.num_taxa = 0
         if scores2 is not None:
             self.sco2: ScoreStats = stats(scores2, ScoreStats, Score)
@@ -144,7 +157,8 @@ class SampleStats(object):
                 'Score min': self.sco.mini, 'Score mean': self.sco.mean,
                 'Score max': self.sco.maxi, 'Length min': self.len.mini,
                 'Length mean': self.len.mean, 'Length max': self.len.maxi,
-                'Total nt read': self.nt_read, 'Taxa assigned': self.num_taxa,
+                'Total nt read': self.nt_read, 'TIDs class.': self.tid.clas,
+                'TIDs filtered': self.tid.filt, 'TIDs folded': self.tid.fold,
                 'Score limit': self.minscore}
 
     def to_krona(self) -> Dict[str, str]:
@@ -161,7 +175,9 @@ class SampleStats(object):
                 'lnmin': str(self.len.mini),
                 'lnavg': str(self.len.mean),
                 'lnmax': str(self.len.maxi),
-                'taxas': str(self.num_taxa),
+                'tclas': str(self.tid.clas),
+                'tfilt': str(self.tid.filt),
+                'tfold': str(self.tid.fold),
                 'sclim': str(self.minscore),
                 'totnt': str(self.nt_read)}
 
@@ -176,3 +192,14 @@ class SampleStats(object):
     def guess_mintaxa(self) -> int:
         """Automatically guess a good value for mintaxa"""
         return round(log10(self.seq.filt))
+
+    def set_final_taxids(self, tids: int) -> None:
+        """Set the final value for TaxIDs after tree building and folding"""
+        self.tid = self.tid._replace(fold=tids)
+
+    def decrease_filtered_taxids(self) -> None:
+        """Decrease the value for filtered TaxIDs"""
+        new_filt: int = self.tid.filt-1
+        if new_filt < 0:
+            new_filt = 0
+        self.tid = self.tid._replace(filt=new_filt)

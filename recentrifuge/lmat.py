@@ -9,7 +9,7 @@ import io
 import os
 from enum import Enum
 from statistics import mean
-from typing import Tuple, Counter, Dict, List
+from typing import Tuple, Counter, Dict, List, Set
 
 from Bio import SeqIO
 
@@ -91,6 +91,7 @@ def read_lmat_output(output_file: Filename,
     output: io.StringIO = io.StringIO(newline='')
     all_scores: Dict[Id, List[Score]] = {}
     all_length: Dict[Id, List[int]] = {}
+    taxids: Set[Id] = set()
     nt_read: int = 0
     matchings: Counter[Match] = col.Counter()
     output_files: List[Filename] = []
@@ -124,6 +125,7 @@ def read_lmat_output(output_file: Filename,
                     matchings[match] += 1
                     length: int = len(seq)
                     nt_read += length
+                    taxids.add(tid)
                     if minscore is not None:
                         if score < minscore:  # Ignore read if low score
                             continue
@@ -152,7 +154,8 @@ def read_lmat_output(output_file: Filename,
     stat: SampleStats = SampleStats(
         minscore=minscore, nt_read=nt_read, scores=all_scores, lens=all_length,
         seq_read=read_seqs, seq_filt=filt_seqs,
-        seq_clas=matchings[Match.DIRECT] + matchings[Match.MULTI]
+        seq_clas=matchings[Match.DIRECT] + matchings[Match.MULTI],
+        tid_clas=len(taxids)
     )
     output.write(gray('  Seqs read: ') + f'{stat.seq.read:_d}\t' + gray('[')
                  + f'{stat.nt_read}' + gray(']\n'))
@@ -177,7 +180,8 @@ def read_lmat_output(output_file: Filename,
     output.write(gray('  Length: min = ') + f'{stat.len.mini},' +
                  gray(' max = ') + f'{stat.len.maxi},' +
                  gray(' avr = ') + f'{stat.len.mean}\n')
-    output.write(f'  {stat.num_taxa}' + gray(f' taxa with assigned reads\n'))
+    output.write(gray('  TaxIds: by classifier = ') + f'{stat.tid.clas}'
+                 + gray(', by filter = ') + f'{stat.tid.filt}\n')
     # Select score output
     out_scores: Dict[Id, Score]
     if scoring is Scoring.LMAT:

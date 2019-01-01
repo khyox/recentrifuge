@@ -407,7 +407,7 @@ function Attribute() {
 }
 
 function SampleStats(sample, ictrl, sread, sclas, sfilt, scmin, scavg, scmax,
-                     lnmin, lnavg, lnmax, taxas) {
+                     lnmin, lnavg, lnmax, tclas, tfilt, tfold) {
     // Class to store the statistics of a sample
     this.sample = sample;
     this.is_ctrl = (ictrl === 'True');
@@ -420,7 +420,9 @@ function SampleStats(sample, ictrl, sread, sclas, sfilt, scmin, scavg, scmax,
     this.lnmin = lnmin;
     this.lnavg = lnavg;
     this.lnmax = lnmax;
-    this.taxas = taxas;
+    this.tclas = tclas;
+    this.tfilt = tfilt;
+    this.tfold = tfold;
 }
 
 function CanvasButton(name, x, y, w, h, fill) {
@@ -4129,28 +4131,32 @@ function drawLegend() {
         var oldFont = context.font;
         context.font = "10.5px monospace";  // In case the next line fails
         context.font = "10.5px Oxygen Mono";
-        var readTitle;
-        var assignedTitle;
+        var readTit;
+        var nodeTit;
         if (chart === ChartEnum.GENOMIC) {
-            readTitle = 'Annotations read: '
-            assignedTitle = 'Assigned GOs: '
+            readTit = 'Annotations read: '
+            nodeTit = 'GOs'
         } else {
-            readTitle = 'Sequences read: '
-            assignedTitle = 'Assigned TaxIDs: '
+            readTit = 'Sequences read: '
+            nodeTit = 'TaxIDs'
         }
         var statsStrs = [
-            readTitle + stat.sread,
+            readTit + stat.sread,
             '  those classified: ' + (
                 stat.sclas / stat.sread * 100).toPrecision(3) + '%',
             '    those accepted: '
             + (stat.sfilt / stat.sclas * 100).toPrecision(3) + '%',
-            'Score minimum: ' + parseFloat(stat.scmin).toFixed(1),
-            '      average: ' + parseFloat(stat.scavg).toFixed(1),
-            '      maximum: ' + parseFloat(stat.scmax).toFixed(1),
-            'Length minimum: ' + stat.lnmin,
-            '       average: ' + stat.lnavg,
-            '       maximum: ' + stat.lnmax,
-            assignedTitle + stat.taxas
+            'Score average: ' + parseFloat(stat.scavg).toFixed(1),
+            '  min: ' + parseFloat(stat.scmin).toFixed(1) +
+            '  max: ' + parseFloat(stat.scmax).toFixed(1),
+            'Length average: ' + stat.lnavg,
+            '  min: ' + stat.lnmin + '  max: ' + stat.lnmax,
+            nodeTit + ' by classifier: ' + stat.tclas,
+            '  those accepted: ' +
+            (stat.tfilt / stat.tclas * 100).toPrecision(3) + '%',
+            '    final: '  +
+            (stat.tfold / stat.tfilt * 100).toPrecision(3) + '% ['
+            + stat.tfold + ']'
         ];
         var maxTextWidth = Math.max.apply(null, statsStrs.map(function (text) {
             return context.measureText(text).width
@@ -4981,7 +4987,10 @@ function load() {
                             j.getAttribute('lnmin'),
                             j.getAttribute('lnavg'),
                             j.getAttribute('lnmax'),
-                            j.getAttribute('taxas'));
+                            j.getAttribute('tclas'),
+                            j.getAttribute('tfilt'),
+                            j.getAttribute('tfold')
+                        );
                         stats.push(stat)
                     }
                 }

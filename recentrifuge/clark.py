@@ -8,7 +8,7 @@ import io
 import os
 from math import log10
 from statistics import mean
-from typing import Tuple, Counter, Dict, List
+from typing import Tuple, Counter, Dict, List, Set
 
 from recentrifuge.config import Filename, Id, Score, Scoring
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
@@ -41,6 +41,7 @@ def read_clark_output(output_file: Filename,
     all_confs: Dict[Id, List[Score]] = {}
     all_gammas: Dict[Id, List[Score]] = {}
     all_length: Dict[Id, List[int]] = {}
+    taxids: Set[Id] = set()
     num_read: int = 0
     nt_read: int = 0
     num_uncl: int = 0
@@ -102,6 +103,7 @@ def read_clark_output(output_file: Filename,
                         conf = Score(1 - conf)  # Get CLARK's h2/(h1+h2)
                 # From CLARK_C(S) score get "single hit equivalent length"
                 shel: Score = Score(score + K_MER_SIZE)
+                taxids.add(tid)  # Save all the selected tids (tid1 or tid2)
                 if minscore is not None:  # Decide if ignore read if low score
                     if scoring is Scoring.CLARK_C:
                         if conf < minscore:
@@ -146,7 +148,8 @@ def read_clark_output(output_file: Filename,
     stat: SampleStats = SampleStats(
         minscore=minscore, nt_read=nt_read, lens=all_length,
         scores=all_scores, scores2=all_confs, scores3=all_gammas,
-        seq_read=num_read, seq_unclas=num_uncl, seq_filt=filt_seqs
+        seq_read=num_read, seq_unclas=num_uncl, seq_filt=filt_seqs,
+        tid_clas=len(taxids)
     )
     # Output statistics
     if num_errors:
@@ -171,7 +174,8 @@ def read_clark_output(output_file: Filename,
     output.write(gray('  Read length: min = ') + f'{stat.len.mini},' +
                  gray(' max = ') + f'{stat.len.maxi},' +
                  gray(' avr = ') + f'{stat.len.mean}\n')
-    output.write(f'  {stat.num_taxa}' + gray(f' taxa with assigned reads\n'))
+    output.write(gray('  TaxIds: by classifier = ') + f'{stat.tid.clas}'
+                 + gray(', by filter = ') + f'{stat.tid.filt}\n')
     # Select score output
     out_scores: Dict[Id, Score]
     if scoring is Scoring.SHEL:
