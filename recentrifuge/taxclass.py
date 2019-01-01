@@ -163,7 +163,7 @@ def process_output(*args, **kwargs
     elif orphans:
         output.write(yellow('\n  Warning!') + f' {len(orphans)} orphan taxids'
                      + gray(' (rerun with --debug for details)\n'))
-    # Check the removal of taxids (accumulation of leaves in parents)
+    # Check the removal of TaxIDs (accumulation of leaves in parents)
     if debug and not excluding and including == {ontology.ROOT}:
         vwrite(gray('  Assess accumulation due to "folding the tree"...\n'))
         migrated: int = 0
@@ -171,12 +171,18 @@ def process_output(*args, **kwargs
             for taxid in counts:
                 if out.counts[taxid] == 0:
                     migrated += 1
-                    vwrite(blue('  Info:'), gray(f'Folded taxid {taxid} (') +
+                    vwrite(blue('  Info:'), gray(f'Folded TaxID {taxid} (') +
                            f'{ontology.get_name(taxid)}' + gray(') with ') +
                            f'{counts[taxid]}' + gray(' original seqs\n'))
         if migrated:
-            vwrite(blue('  INFO:'), f'{migrated} taxids folded ('
-                                    f'{migrated/len(counts):.2%} of total)\n')
+            vwrite(
+                blue('  INFO:'), f'{migrated} TaxIDs folded ('
+                f'{migrated/len(+counts):.2%} of TAF —TaxIDs after filtering—)'
+                '\n')
+            vwrite(
+                blue('  INFO:'), f'Final assigned TaxIDs: {len(+out.counts)} '
+                f'(reduced to {len(+out.counts)/len(+counts):.2%} of '
+                'number of TAF)\n')
         else:
             vwrite(blue('  INFO:'), gray('No migration!'), green('OK!\n'))
     # Print last message and check if the sample is void

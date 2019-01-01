@@ -4136,7 +4136,7 @@ function drawLegend() {
             assignedTitle = 'Assigned GOs: '
         } else {
             readTitle = 'Sequences read: '
-            assignedTitle = 'Assigned taxa: '
+            assignedTitle = 'Assigned TaxIDs: '
         }
         var statsStrs = [
             readTitle + stat.sread,
