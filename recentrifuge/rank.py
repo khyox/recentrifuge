@@ -61,6 +61,7 @@ class Rank(Enum):
     SUBCLASS = ()
     INFRACLASS = ()
     COHORT = ()
+    SUBCOHORT = ()
     SUPERORDER = ()
     ORDER = ()
     O = 'ORDER'
