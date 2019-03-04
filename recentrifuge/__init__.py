@@ -28,13 +28,13 @@ __all__ = ['config', 'shared_counter', 'taxonomy', 'trees', 'rank', 'core',
            'ontology', 'params', 'stats', 'taxclass', 'mock',
            '__author__', '__date__', '__version__']
 __author__ = 'Jose Manuel Martí'
-__copyright__ = 'Copyright (C) 2017, 2018, Jose Manuel Martí Martínez'
+__copyright__ = 'Copyright (C) 2017–2019 Jose Manuel Martí Martínez'
 __license__ = 'GNU Affero General Public License Version 3'
 __email__ = 'jse.mnl **AT** gmail.com'
 __maintainer__ = 'Jose Manuel Martí'
 __status__ = 'Beta'
-__date__ = 'Feb 2019'
-__version__ = '0.28.2'
+__date__ = 'Mar 2019'
+__version__ = '0.28.3'
 
 import sys
 from Bio import SeqIO

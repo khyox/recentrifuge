@@ -41,7 +41,7 @@ import sys
 import time
 from distutils.version import StrictVersion
 from statistics import mean
-from typing import Counter, List, Dict, Any, Tuple, Union
+from typing import Counter, List, Dict, Any, Tuple, Union, Optional
 from warnings import filterwarnings
 
 from Bio import SeqIO
@@ -54,7 +54,7 @@ from recentrifuge.config import LICENSE, TAXDUMP_PATH, HTML_SUFFIX, XLSX_SUFFIX
 from recentrifuge.config import REXTRACT_TEST_SAMPLE, REXTRACT_TEST_FASTQ
 from recentrifuge.config import REXTRACT_TEST_TAXID
 from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR
-from recentrifuge.config import STR_CONTROL, MOCK_XLSX, MOCK_SHEET
+from recentrifuge.config import STR_CONTROL, MOCK_XLSX, MOCK_SHEET, KEY_SHEET
 from recentrifuge.config import gray, blue, magenta, green, red, yellow
 
 # pandas (to read Excel with mock layout)
@@ -81,11 +81,11 @@ PATH = os.path.dirname(os.path.realpath(__file__))
 PATH_TEST: Filename = Filename(os.path.join(__path__[0], 'test/'))
 F_FIL = '-f=' + TEST_OUTPUT_DIR
 TEST_PREFIX = 'TEST'
-HTML_FIL: Filename = TEST_PREFIX + HTML_SUFFIX
-XLSX_FIL: Filename = TEST_PREFIX + XLSX_SUFFIX
-TEST_PDF_FILE: Filename = TEST_PREFIX + '.rcf.pdf'
-ROC_CTRL_PDF_FILE: Filename = 'ROC_CTRL.rcf.pdf'
-ROC_MINTAX_PDF_FILE: Filename = 'ROC_MINTAX.rcf.pdf'
+HTML_FIL: Filename = Filename(TEST_PREFIX + HTML_SUFFIX)
+XLSX_FIL: Filename = Filename(TEST_PREFIX + XLSX_SUFFIX)
+TEST_PDF_FILE: Filename = Filename(TEST_PREFIX + '.rcf.pdf')
+ROC_CTRL_PDF_FILE: Filename = Filename('ROC_CTRL.rcf.pdf')
+ROC_MINTAX_PDF_FILE: Filename = Filename('ROC_MINTAX.rcf.pdf')
 ## General
 F_D = '-d'
 F_T = '-t'
@@ -115,53 +115,6 @@ SAMPLES: List[Union[Sample, str]] = [
 STR_CTRL_SP = '_' + STR_CONTROL + '_species'
 CTRL_SP: List[Sample] = [
     Sample(spl + STR_CTRL_SP) for spl in ['smpl1', 'smpl2', 'smpl3', 'smpl4']]
-TAXA: Dict[Id, str] = col.OrderedDict({
-    # Dictionary format -> Id: [name, color, hatch, [native samples], rank]:
-    Id(4577): [r'$\mathit{Zea\; mays}$ [just-control contaminant]',
-               'c', 'x', [], 'species'],
-    Id(9606): [r'$\mathit{Homo\; sapiens}$ [critical contaminant]',
-               'r', '', [], 'species'],
-    Id(398578): [r'$\mathit{Delftia\; acidovorans}$ SPH-1 [native]',
-                 [0, 1, 0], '\\', ['smpl3', 'smpl4'], 'no_rank_species'],
-    Id(80866): [r'$\mathit{Delftia\; acidovorans}$ [SPH-1 strain native]',
-                'g', '\\', ['smpl3', 'smpl4'], 'species'],
-    Id(1747): [r'$\mathit{Cutibacterium\; acnes}$ [severe contaminant]',
-               'y', '', [], 'species'],
-    Id(59201): [r'$\mathit{Salmonella\; enterica}$ subs. enterica [native]',
-                [0, 1, 0], 'O', ['smpl2', 'smpl4'], 'subspecies'],
-    Id(28901): [r'$\mathit{Salmonella\; enterica}$ [native]',
-                'g', 'O', ['smpl2', 'smpl4'], 'species'],
-    Id(562): [r'$\mathit{Escherichia\; coli}$ [mild contaminant]',
-              [0, 0, 0.5], '//', [], 'species'],
-    Id(31998): [r'$\mathit{Methylobacterium\; radiotolerans}$ [native]',
-                'g', 'o', ['smpl1', 'smpl2', 'smpl3', 'smpl4'], 'species'],
-    Id(2209): [r'$\mathit{Methanosarcina\; mazei}$ [CROSSOVER, smpl1 native]',
-               'm', '', ['smpl1'], 'species'],
-    Id(1587): [r'$\mathit{Lactobacillus\; helveticus}$ [native]',
-               'g', '', ['smpl1', 'smpl2', 'smpl3', 'smpl4'], 'species'],
-    Id(2208): [r'$\mathit{Methanosarcina\; barkeri}$ [CROSSOVER, smpl3 native]'
-               , 'm', '.', ['smpl3'], 'species'],
-    Id(1540099): [r'$\mathit{Salmonella\; virus\; Stitch}$ [native]',
-                  'g', '//', ['smpl2', 'smpl4'], 'species'],
-    Id(76773): [r'$\mathit{Malassezia\; globosa}$ [other contaminant]',
-                '0.5', '', [], 'species'],
-    Id(54736): [r'$\mathit{Salmonella\; bongori}$ [native]',
-                'g', 'x', ['smpl2'], 'species'],
-    Id(9598): [r'$\mathit{Pan\; troglodytes}$ [mild contaminant]',
-               'b', '', [], 'species'],
-    Id(1204725): [r'$\mathit{Methanobacterium\; formicicum}$ DSM3637 [native]',
-                  [0, 1, 0], '/', ['smpl1', 'smpl2', 'smpl3', 'smpl4'],
-                  'no_rank_species'],
-    Id(1300163): [r'$\mathit{M.\; formicicum}$ JCM 10132 [other cont.]',
-                  '0.5', '-', [], 'no_rank_species'],
-    Id(2162): [r'$\mathit{M.\; formicicum}$ [DSM3637 strain native]',
-               'g', '/', ['smpl1', 'smpl2', 'smpl3', 'smpl4'], 'species'],
-    Id(1982305): [r'$\mathit{Propionibacterium\; virus}$ SKKY [other cont.]',
-                  '0.5', 'o', [], 'species'],
-    Id(4565): [r'$\mathit{Triticum\; aestivum}$ [just-control contaminant]',
-               'c', '', [], 'species'],
-})
-COLORS: List[Any] = [taxa[1] for taxa in TAXA.values()]
 
 
 def main():
@@ -399,13 +352,6 @@ def main():
         print(magenta(f'\n>>> ANALYZING ROBUST CONTAMINATION REMOVAL ... '),
               end='')
 
-        # Data initialization
-        datasets = len(TAXA)  # sets of measurements for any taxon
-        n = len(SAMPLES)
-        ind = np.arange(n)  # the x locations for all the samples
-        width = 0.90 / datasets  # the width of the bars regarding space
-        ymax = 1e+5
-        ymin = 1e+0
 
         # Figure initialization
         filterwarnings("ignore", category=UserWarning, module="matplotlib")
@@ -428,48 +374,61 @@ def main():
             skiprows=None, index_col=0
         )
         df_xlsx.columns = df_stnd.columns  # Normalize columns name
+        df_key = pd_mock.parse(
+            sheet_name=KEY_SHEET, header=[0],
+            index_col=0, dtype={'NAME': bytearray, 'COLOR': str, 'HATCH': str,
+                                'NATIVES': list, 'RANK': str}
+        )
+
+        # Data initialization
+        numtaxa = df_key.shape[0]
+        n = len(SAMPLES)
+        ind = np.arange(n)  # the x locations for all the samples
+        width = 0.90 / numtaxa  # the width of the bars regarding space
+        ymax = 1e+5
+        ymin = 1e+0
 
         # Generate bar plot
         rects: List[Any] = []
-        for num, (taxon, (name, color, hatch, *_)) in enumerate(TAXA.items()):
+        for num, (taxid, taxon) in enumerate(df_key.iterrows()):
             rects.append(
                 ax_raw.bar(
                     ind + num * width,
-                    [df_xlsx[s]['unassigned'][int(taxon)] for s in SAMPLES],
-                    width, color=[color], hatch=hatch,
-                    alpha=0.5, label=name)
+                    [df_xlsx[s]['unassigned'][int(taxid)] for s in SAMPLES],
+                    width, color=[taxon["COLOR"]], hatch=taxon["HATCH"],
+                    alpha=0.5, label=taxon["NAME"])
             )
             ax_ctr.bar(ind + num * width,
                        [0.1, 0.1, 0.1] +
-                       [df_xlsx[s]['unassigned'][int(taxon)] for s in CTRL_SP],
-                       width, color=[color], hatch=hatch,
-                       alpha=0.5, label=name)
+                       [df_xlsx[s]['unassigned'][int(taxid)] for s in CTRL_SP],
+                       width, color=[taxon["COLOR"]], hatch=taxon["HATCH"],
+                       alpha=0.5, label=taxon["NAME"])
         # Add mintaxa threshold
         rects.append(ax_raw.axhline(y=MINTAXA_DEFAULT, color='r', lw=1))
         rects.append(ax_ctr.axhline(y=MINTAXA_DEFAULT, color='r', lw=1))
         # Set scale, axis lims, ticks, and grid
         ax_raw.set_yscale("log", nonposy='clip')
         ax_raw.set_ylim(top=ymax, bottom=ymin)
-        xmin = ind[0] - 0.5 + width * (datasets - 1) / 2
-        xmax = ind[-1] + 0.5 + width * (datasets - 1) / 2
+        xmin = ind[0] - 0.5 + width * (numtaxa - 1) / 2
+        xmax = ind[-1] + 0.5 + width * (numtaxa - 1) / 2
         ax_raw.set_xlim(left=xmin, right=xmax)
-        ax_raw.set_xticks(ind + width * (datasets - 1) / 2)
+        ax_raw.set_xticks(ind + width * (numtaxa - 1) / 2)
         ax_raw.set_xticks(ind[:-1] + 0.5 +
-                          width * (datasets - 1) / 2, minor=True)
+                          width * (numtaxa - 1) / 2, minor=True)
         ax_raw.xaxis.grid(True, which='minor', linewidth=5, color='k')
         ax_raw.yaxis.grid(True, alpha=0.5)
         ax_ctr.xaxis.grid(True, which='minor', linewidth=5, color='k')
         ax_ctr.yaxis.grid(True, alpha=0.5)
         ax_ctr.set_xticklabels(SAMPLES, fontdict={'fontsize': 'xx-large'})
         ax_ctr.legend(rects,
-                      [lst[0] for lst in TAXA.values()] +
+                      [pair[1]['NAME'] for pair in df_key.iterrows()] +
                       [r'$\mathtt{mintaxa}$'],
                       loc='best', framealpha=0.9,
                       prop={'family': 'sans-serif', 'size': 'medium'})
 
         # Add inner titles
         ax_raw.text(
-            ind[n - 2] + width * (datasets - 1) / 2, ymax / 1.3,
+            ind[n - 2] + width * (numtaxa - 1) / 2, ymax / 1.3,
             'Species or below in raw samples', size=20,
             ha="center", va="center",
             bbox=dict(
@@ -478,7 +437,7 @@ def main():
             )
         )
         ax_ctr.text(
-            ind[n - 2] + width * (datasets - 1) / 2, ymax / 1.3,
+            ind[n - 2] + width * (numtaxa - 1) / 2, ymax / 1.3,
             'Species after robust contamination removal', size=20,
             ha="center", va="center",
             bbox=dict(
@@ -488,17 +447,17 @@ def main():
         )
 
         # Label negative controls
-        ax_raw.fill_between([xmin, ind[2] + 0.5 + width * (datasets - 1) / 2],
+        ax_raw.fill_between([xmin, ind[2] + 0.5 + width * (numtaxa - 1) / 2],
                             ymax, color='c', alpha=0.1)
         ax_raw.text(
-            ind[2] + 0.4 + width * (datasets - 1) / 2, ymax / 10,
+            ind[2] + 0.4 + width * (numtaxa - 1) / 2, ymax / 10,
             'negative controls', ha="center", va="center",
             rotation=-90, fontsize='x-large', color='b'
         )
-        ax_ctr.fill_between([xmin, ind[2] + 0.5 + width * (datasets - 1) / 2],
+        ax_ctr.fill_between([xmin, ind[2] + 0.5 + width * (numtaxa - 1) / 2],
                             ymax, color='c', alpha=0.1)
         ax_ctr.text(
-            ind[2] + 0.4 + width * (datasets - 1) / 2, ymax / 10,
+            ind[2] + 0.4 + width * (numtaxa - 1) / 2, ymax / 10,
             'negative controls', ha="center", va="center",
             rotation=-90, fontsize='x-large', color='b'
         )
@@ -544,6 +503,11 @@ def main():
             index_col=1, skipfooter=1,
         )
         del df_mock['RECENTRIFUGE MOCK']
+        df_key = pd_mock.parse(
+            sheet_name=KEY_SHEET, header=[0],
+            index_col=0, dtype={
+                'COLOR': str, 'HATCH': str, 'NATIVES': list, 'RANK': str}
+        )
 
         # Normalize column names to the standard names (without directory)
         stnd_samples = df_stnd.columns.get_level_values(0)
@@ -560,24 +524,25 @@ def main():
         cnt_mck: int
         cnt_raw: int
         cnt_ctr: int
-        for (taxon, (_, _, _, natives, rank)) in TAXA.items():
-            if 'species' not in rank:
+#        for (taxid, (_, _, _, natives, rank)) in TAXA.items():
+        for taxid, taxon in df_key.iterrows():
+            if 'species' not in taxon['RANK']:
                 continue
             for spl in SAMPLES[3:]:
                 try:
-                    cnt_mck = df_mock[spl][int(taxon)]
+                    cnt_mck = df_mock[spl][int(taxid)]
                 except KeyError:
                     cnt_mck = 0
                 try:
-                    cnt_raw = df_xlsx[spl]['unassigned'][int(taxon)]
+                    cnt_raw = df_xlsx[spl]['unassigned'][int(taxid)]
                 except KeyError:
                     cnt_raw = 0
                 try:
                     cnt_ctr = df_xlsx[spl
-                                      + STR_CTRL_SP]['unassigned'][int(taxon)]
+                                      + STR_CTRL_SP]['unassigned'][int(taxid)]
                 except KeyError:
                     cnt_ctr = 0
-                if spl in natives:
+                if spl in taxon['NATIVES']:
                     positives[spl] += cnt_mck
                     true_pos_raw[spl] += cnt_raw
                     true_pos_ctr[spl] += cnt_ctr
