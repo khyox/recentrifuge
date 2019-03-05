@@ -53,8 +53,8 @@ from recentrifuge.config import Filename, Score, Extra, Id, Sample
 from recentrifuge.config import LICENSE, TAXDUMP_PATH, HTML_SUFFIX, XLSX_SUFFIX
 from recentrifuge.config import REXTRACT_TEST_SAMPLE, REXTRACT_TEST_FASTQ
 from recentrifuge.config import REXTRACT_TEST_TAXID
-from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR
-from recentrifuge.config import STR_CONTROL, MOCK_XLSX, MOCK_SHEET, KEY_SHEET
+from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR, STR_CONTROL
+from recentrifuge.config import MOCK_XLSX, MOCK_SHEET, KEY_SHEET
 from recentrifuge.config import gray, blue, magenta, green, red, yellow
 
 # pandas (to read Excel with mock layout)
@@ -377,11 +377,11 @@ def main():
         df_key = pd_mock.parse(
             sheet_name=KEY_SHEET, header=[0],
             index_col=0, dtype={'NAME': bytearray, 'COLOR': str, 'HATCH': str,
-                                'NATIVES': list, 'RANK': str}
+                                'NATIVES': list, 'RANK': str, 'HIST': bool}
         )
 
         # Data initialization
-        numtaxa = df_key.shape[0]
+        numtaxa = len(df_key['HIST'][df_key['HIST']])
         n = len(SAMPLES)
         ind = np.arange(n)  # the x locations for all the samples
         width = 0.90 / numtaxa  # the width of the bars regarding space
@@ -391,6 +391,8 @@ def main():
         # Generate bar plot
         rects: List[Any] = []
         for num, (taxid, taxon) in enumerate(df_key.iterrows()):
+            if not taxon['HIST']:
+                break
             rects.append(
                 ax_raw.bar(
                     ind + num * width,
@@ -421,7 +423,8 @@ def main():
         ax_ctr.yaxis.grid(True, alpha=0.5)
         ax_ctr.set_xticklabels(SAMPLES, fontdict={'fontsize': 'xx-large'})
         ax_ctr.legend(rects,
-                      [pair[1]['NAME'] for pair in df_key.iterrows()] +
+                      [pair[1]['NAME'] for pair in df_key.iterrows()
+                       if pair[1]['HIST']] +
                       [r'$\mathtt{mintaxa}$'],
                       loc='best', framealpha=0.9,
                       prop={'family': 'sans-serif', 'size': 'medium'})
@@ -482,7 +485,7 @@ def main():
         else:
             print(green('OK!'))
 
-    def get_roc(plot_roc: bool = True, silent: bool = False,
+    def get_roc(plot_roc: bool = True, silent: bool = False, alt: bool = False,
                 ) -> Tuple[Dict[Sample, float], Dict[Sample, float]]:
         """Get ROC parameters and plot ROC"""
         if not silent:
@@ -505,8 +508,8 @@ def main():
         del df_mock['RECENTRIFUGE MOCK']
         df_key = pd_mock.parse(
             sheet_name=KEY_SHEET, header=[0],
-            index_col=0, dtype={
-                'COLOR': str, 'HATCH': str, 'NATIVES': list, 'RANK': str}
+            index_col=0, dtype={'NAME': bytearray, 'COLOR': str, 'HATCH': str,
+                                'NATIVES': list, 'RANK': str, 'HIST': bool}
         )
 
         # Normalize column names to the standard names (without directory)
@@ -524,9 +527,8 @@ def main():
         cnt_mck: int
         cnt_raw: int
         cnt_ctr: int
-#        for (taxid, (_, _, _, natives, rank)) in TAXA.items():
         for taxid, taxon in df_key.iterrows():
-            if 'species' not in taxon['RANK']:
+            if 'species' not in taxon['RANK'] or taxon['HIST'] is alt:
                 continue
             for spl in SAMPLES[3:]:
                 try:
