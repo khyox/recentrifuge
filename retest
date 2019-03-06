@@ -108,14 +108,15 @@ F_CC = '-e=CMPLXCRUNCHER'
 XLSX_PATH: Filename = Filename(os.path.join(TEST_OUTPUT_DIR, XLSX_FIL))
 STND_PATH: Filename = Filename(os.path.join(PATH_TEST, XLSX_FIL))
 MOCK_PATH: Filename = Filename(os.path.join(PATH_TEST, MOCK_XLSX))
-SAMPLES: List[Union[Sample, str]] = [
+SAMPLES: List[Sample] = [
     Sample(spl) for spl in ['ctrl1', 'ctrl2', 'ctrl3',
                             'smpl1', 'smpl2', 'smpl3', 'smpl4']
 ]
+SAMPLEX: List[Sample] = SAMPLES + [Sample('smplH')]
 STR_CTRL_SP = '_' + STR_CONTROL + '_species'
 CTRL_SP: List[Sample] = [
     Sample(spl + STR_CTRL_SP) for spl in ['smpl1', 'smpl2', 'smpl3', 'smpl4']]
-
+DEBUG_SP: Sample = 'smplH'
 
 def main():
     """Main entry point to script."""
@@ -485,7 +486,7 @@ def main():
         else:
             print(green('OK!'))
 
-    def get_roc(plot_roc: bool = True, silent: bool = False, alt: bool = False,
+    def get_roc(plot_roc: bool = True, silent: bool = False
                 ) -> Tuple[Dict[Sample, float], Dict[Sample, float]]:
         """Get ROC parameters and plot ROC"""
         if not silent:
@@ -528,9 +529,9 @@ def main():
         cnt_raw: int
         cnt_ctr: int
         for taxid, taxon in df_key.iterrows():
-            if 'species' not in taxon['RANK'] or taxon['HIST'] is alt:
+            if 'species' not in taxon['RANK']:
                 continue
-            for spl in SAMPLES[3:]:
+            for spl in SAMPLEX[3:]:
                 try:
                     cnt_mck = df_mock[spl][int(taxid)]
                 except KeyError:
@@ -558,7 +559,7 @@ def main():
         tpr_ctr: Dict[Sample, float] = {}
         fpr_ctr: Dict[Sample, float] = {}
         segs: List[List[Tuple[float, float]]] = []
-        for spl in SAMPLES[3:]:
+        for spl in SAMPLEX[3:]:
             # For raw samples
             if true_pos_raw[spl] > positives[spl]:
                 fake_pos_raw[spl] += (true_pos_raw[spl] - positives[spl])
@@ -579,13 +580,14 @@ def main():
         vprint('FPR (raw samples) =', fpr_raw)
         vprint('TPR (CTRL samples) =', tpr_ctr)
         vprint('FPR (CTRL samples) =', fpr_ctr)
-        vprint('Coordinates (for smpl4) =', segs[3])
-        vprint('P (for smpl4) =', positives['smpl4'])
-        vprint('N (for smpl4) =', negatives['smpl4'])
-        vprint('TP (...raw) =', true_pos_raw['smpl4'])
-        vprint('FP (...raw) =', fake_pos_raw['smpl4'])
-        vprint('TP (...CTRL) =', true_pos_ctr['smpl4'])
-        vprint('FP (...CTRL) =', fake_pos_ctr['smpl4'])
+        vprint(f'Coordinates (for {DEBUG_SP}) =',
+               segs[SAMPLEX.index(DEBUG_SP)-3])  # 3 = num of ctrl samples
+        vprint(f'P (for {DEBUG_SP}) =', positives[DEBUG_SP])
+        vprint(f'N (for {DEBUG_SP}) =', negatives[DEBUG_SP])
+        vprint('TP (...raw) =', true_pos_raw[DEBUG_SP])
+        vprint('FP (...raw) =', fake_pos_raw[DEBUG_SP])
+        vprint('TP (...CTRL) =', true_pos_ctr[DEBUG_SP])
+        vprint('FP (...CTRL) =', fake_pos_ctr[DEBUG_SP])
 
         if plot_roc:
             if not silent:
@@ -602,7 +604,7 @@ def main():
 
             # Generate arrow plot
             arrows: List[Any] = []
-            for spl, color in zip(SAMPLES[3:], ['r', 'g', 'b', 'm']):
+            for spl, color in zip(SAMPLEX[3:], ['r', 'g', 'b', 'm', 'c']):
                 arrows.append(
                     ax.arrow(fpr_raw[spl], tpr_raw[spl],
                              fpr_ctr[spl] - fpr_raw[spl],
@@ -614,7 +616,7 @@ def main():
                 ax.arrow(1.2, 1.2, -1.4, -1.4, lw=1, linestyle=':',
                          head_width=0, head_length=0, color='0.8', alpha=0.5))
             ax.legend(arrows,
-                      SAMPLES[3:] + ['ROC plot diagonal'], loc='lower right',
+                      SAMPLEX[3:] + ['ROC plot diagonal'], loc='lower right',
                       prop={'family': 'sans-serif', 'size': 'medium'},
                       framealpha=0.9)
             # Save and show figure
@@ -675,7 +677,7 @@ def main():
         ax.set_ylabel('TPR | Sensitivity | Recall')
         ax.set_title('Evolution of ROC with mintaxa variation')
         rocs: List[Any] = []
-        for spl, color in zip(SAMPLES[3:], ['r', 'g', 'b', 'm']):
+        for spl, color in zip(SAMPLEX[3:], ['r', 'g', 'b', 'm', 'c']):
             x_fpr = [fpr_mintax[mintax][spl] for mintax in vals]
             y_tpr = [tpr_mintax[mintax][spl] for mintax in vals]
             rocs.append(  # Append element 0 of axis.plot
@@ -690,7 +692,7 @@ def main():
             ax.arrow(1.2, 1.2, -1.4, -1.4, lw=1, linestyle=':',
                      head_width=0, head_length=0, color='0.8',
                      alpha=0.5, label='ROC plot diagonal'))
-        ax.legend(rocs, SAMPLES[3:] + ['Mean of samples', 'ROC plot diagonal'],
+        ax.legend(rocs, SAMPLEX[3:] + ['Mean of samples', 'ROC plot diagonal'],
                   prop={'family': 'sans-serif', 'size': 'medium'},
                   framealpha=0.9, loc='lower right')
         # Annotate ROC by mintaxa
