@@ -77,6 +77,9 @@ class Rank(Enum):
     GENUS = ()
     G = 'GENUS'
     SUBGENUS = ()
+    SECTION = ()
+    SUBSECTION = ()
+    SERIES = ()
     SPECIES_GROUP = ()
     SPECIES_SUBGROUP = ()
     SPECIES = ()
