@@ -19,8 +19,9 @@
 
 #### Data
 
-<!--Please give relevant information about the files Recentrifuge tried to analyze: Centrifuge, LMAT, or CLARK(S) output, number of controls (if any), number of regular samples, and any other information that you consider applicable to the issue-->
-  * Centrifuge, LMAT, or CLARK?
+<!--Please give relevant information about the files Recentrifuge tried to analyze: Output of Centrifuge, LMAT, CLARK(S), Kraken, etc.,  number of controls (if any), number of regular samples, and any other information that you consider applicable to the issue-->
+  * Format of input data (Centrifuge, LMAT, CLARK, Kraken, or other —generic interface—)?
+  * If the generic interface was used, please provide some lines selected from the data files as a sample of the format:
   * Control samples (if any):
   * Regular samples:
 
@@ -44,6 +45,6 @@
   * Operating system:
   * Python version:
   * Recentrifuge version: 
-  * Centrifuge, LMAT, or CLARK(S) version used to generate the input data:
+  * Release of Centrifuge, LMAT, CLARK, Kraken, etc. (version used to generate the input data):
   * Pandas version (if applicable):
   * Other libraries (if applicable): 
