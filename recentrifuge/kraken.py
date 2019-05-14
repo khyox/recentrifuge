@@ -6,6 +6,7 @@ Functions directly related with Kraken.
 import collections as col
 import io
 import os
+import re
 from math import log10
 from statistics import mean
 from typing import Tuple, Counter, Dict, List, Set
@@ -78,7 +79,11 @@ def read_kraken_output(output_file: Filename,
                     if _clas == UNCLASSIFIED:  # Just count unclassified reads
                         num_uncl += 1
                         continue
-                    tid: Id = Id(_tid)
+                    tid: Id
+                    try:
+                        tid = Id(str(int(_tid)))
+                    except ValueError:
+                        tid = Id(re.search('\(taxid (\d+)\)', _tid).group(1))
                     maps: List[str] = _maps.split()
                     try:
                         maps.remove('|:|')
@@ -92,7 +97,7 @@ def read_kraken_output(output_file: Filename,
                     shel: Score = Score(mappings[tid] + K_MER_SIZE)
                     score: Score = Score(mappings[tid] / sum(mappings.values())
                                          * 100)  # % relative to all k-mers
-                except ValueError:
+                except (ValueError, IndexError):
                     print(yellow('Failure'), 'parsing line elements:'
                                              f' {output_line} in {output_file}'
                                              '. Ignoring line!')
