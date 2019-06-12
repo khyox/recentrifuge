@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-#     Copyright (C) 2018, Jose Manuel Martí Martínez
+#     Copyright (C) 2018, 2019 Jose Manuel Martí Martínez
 #
 #     This program is free software: you can redistribute it and/or modify
 #     it under the terms of the GNU Affero General Public License as
@@ -762,8 +762,15 @@ def main():
                 print(green('OK!'))
             else:
                 print(red('FAILED!'))
-                print('Difference between test results and test standard?')
-                print(df_xlsx.where(df_xlsx != df_stnd, False))
+                df_mask = df_xlsx != df_stnd
+                print(blue('Test results are:'))
+                df_drop = df_xlsx[df_mask].dropna(axis=0, how='all')
+                df_drop.dropna(axis=1, how='all', inplace=True)
+                print(df_drop)
+                print(blue('... but standard results are:'))
+                df_drop = df_stnd[df_mask].dropna(axis=0, how='all')
+                df_drop.dropna(axis=1, how='all', inplace=True)
+                print(df_drop)
                 if not args.ignore:
                     sys.exit(8)
 
