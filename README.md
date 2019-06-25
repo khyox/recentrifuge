@@ -10,12 +10,12 @@ ____
 [![](https://img.shields.io/pypi/pyversions/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
 [![](https://img.shields.io/pypi/v/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
 [![](https://img.shields.io/pypi/wheel/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
-
 [![](https://img.shields.io/maintenance/yes/2019.svg)](http://www.recentrifuge.org)
+
 [![](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20win-lightgrey.svg)](http://www.recentrifuge.org)
 [![](https://img.shields.io/github/languages/count/khyox/recentrifuge.svg)](http://www.recentrifuge.org)
 [![](https://img.shields.io/website-up-down-green-red/http/www.recentrifuge.org.svg?label=recentrifuge.org)](http://www.recentrifuge.org)
-
+[![](https://img.shields.io/badge/Publication-PLOS_Computational_Biology-violet.svg)](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1006967)
 
 
 ### Robust comparative analysis
