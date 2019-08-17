@@ -3,6 +3,8 @@ Classes with statistical data
 
 """
 
+import collections as col
+
 from math import log10
 from statistics import mean
 from typing import NamedTuple, Dict, List, Union, Type, Optional, overload
@@ -148,18 +150,19 @@ class SampleStats(object):
         if scores3 is not None:
             self.sco3: ScoreStats = stats(scores3, ScoreStats, Score)
 
-    def to_dict(self) -> Dict[str, Union[int, Score, None]]:
+    def to_odict(self) -> Dict[str, Union[int, Score, None]]:
         """
-        Create a dict with the data of the object (used to feed a DataFrame)
+        Create a odict with the data of the object (used to feed a DataFrame)
         """
-        return {'Seqs. read': self.seq.read, 'Seqs. unclass.': self.seq.unclas,
-                'Seqs. class.': self.seq.clas, 'Seqs. filtered': self.seq.filt,
-                'Score min': self.sco.mini, 'Score mean': self.sco.mean,
-                'Score max': self.sco.maxi, 'Length min': self.len.mini,
-                'Length mean': self.len.mean, 'Length max': self.len.maxi,
-                'Total nt read': self.nt_read, 'TIDs class.': self.tid.clas,
-                'TIDs filtered': self.tid.filt, 'TIDs folded': self.tid.fold,
-                'Score limit': self.minscore}
+        return col.OrderedDict([
+            ('Seqs. read', self.seq.read), ('Seqs. unclass.', self.seq.unclas),
+            ('Seqs. class.', self.seq.clas), ('Seqs. filtered', self.seq.filt),
+            ('Score min', self.sco.mini), ('Score mean', self.sco.mean),
+            ('Score max', self.sco.maxi), ('Length min', self.len.mini),
+            ('Length mean', self.len.mean), ('Length max', self.len.maxi),
+            ('Total nt read', self.nt_read), ('TIDs class.', self.tid.clas),
+            ('TIDs filtered', self.tid.filt), ('TIDs folded', self.tid.fold),
+            ('Score limit', self.minscore)])
 
     def to_krona(self) -> Dict[str, str]:
         """

@@ -762,7 +762,7 @@ def main():
                 print(green('OK!'))
             else:
                 print(red('FAILED!'))
-                df_mask = df_xlsx != df_stnd
+                df_mask = df_xlsx.ne(df_stnd)
                 print(blue('Test results are:'))
                 df_drop = df_xlsx[df_mask].dropna(axis=0, how='all')
                 df_drop.dropna(axis=1, how='all', inplace=True)

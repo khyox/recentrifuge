@@ -629,8 +629,9 @@ def main():
         odict_rows: Dict[Id, List] = col.OrderedDict()
 
         # Save basic statistics of raw samples
-        data_frame: pd.DataFrame = pd.DataFrame.from_dict(
-            {raw: stats[raw].to_dict() for raw in raw_samples})
+        data_frame: pd.DataFrame = pd.DataFrame.from_records(
+            {raw: stats[raw].to_odict() for raw in raw_samples},
+            index=stats[raw_samples[0]].to_odict().keys())
         if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
             data_frame.to_excel(xlsxwriter, sheet_name=STATS_SHEET_NAME)
         elif extra is Extra.CSV or extra is Extra.TSV:
