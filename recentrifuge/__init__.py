@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2017, 2018, Jose Manuel Martí Martínez
+#     Copyright (C) 2017–2019, Jose Manuel Martí Martínez
 #
 #     With the single exception of the file krona.js, which has embedded
 #     its own free software licence, you can redistribute Recentrifuge
@@ -33,8 +33,8 @@ __license__ = 'GNU Affero General Public License Version 3'
 __email__ = 'jse.mnl **AT** gmail.com'
 __maintainer__ = 'Jose Manuel Martí'
 __status__ = 'Beta'
-__date__ = 'August 2019'
-__version__ = '0.28.11'
+__date__ = 'September 2019'
+__version__ = '0.28.12'
 
 import sys
 from Bio import SeqIO
