@@ -7,6 +7,7 @@ import collections as col
 import io
 import os
 import re
+import fileinput
 from math import log10
 from statistics import mean
 from typing import Tuple, Counter, Dict, List, Set
@@ -49,7 +50,7 @@ def read_kraken_output(output_file: Filename,
     num_errors: int = 0  # Number or reads discarded due to error
     output.write(gray(f'Loading output file {output_file}... '))
     try:
-        with open(output_file, 'r') as file:
+        with fileinput.input(output_file, openhook=fileinput.hook_compressed) as file:
             # Check number of cols in header
             header = file.readline().split('\t')
             if len(header) != 5:
