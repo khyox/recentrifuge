@@ -34,7 +34,7 @@ __email__ = 'jse.mnl **AT** gmail.com'
 __maintainer__ = 'Jose Manuel Martí'
 __status__ = 'Beta'
 __date__ = 'April 2020'
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 import sys
 from Bio import SeqIO

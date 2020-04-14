@@ -9,7 +9,7 @@ import os
 import re
 from math import log10
 from statistics import mean
-from typing import Tuple, Counter, Dict, List, Set
+from typing import Tuple, Counter, Dict, List, Set, Any, Union, TextIO, IO
 
 from recentrifuge.config import Filename, Id, Score, Scoring
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
@@ -19,7 +19,10 @@ from recentrifuge.stats import SampleStats
 UNCLASSIFIED: str = 'U'
 K_MER_SIZE: int = 35  # Default k-mer size for Kraken
 
-def open_compressed_and_uncompressed(filename):
+
+def open_compressed_and_uncompressed(filename: Filename
+                                     ) -> Union[TextIO, IO[Any]]:
+    """Aux method to deal with kraken compressed output"""
     ext = os.path.splitext(filename)[1]
     if ext == '.gz':
         import gzip
@@ -29,6 +32,7 @@ def open_compressed_and_uncompressed(filename):
         return bz2.open(filename, mode='rt')
     else:
         return open(filename, mode='rt')
+
 
 def read_kraken_output(output_file: Filename,
                       scoring: Scoring = Scoring.KRAKEN,
