@@ -19,6 +19,16 @@ from recentrifuge.stats import SampleStats
 UNCLASSIFIED: str = 'U'
 K_MER_SIZE: int = 35  # Default k-mer size for Kraken
 
+def open_compressed_and_uncompressed(filename):
+    ext = os.path.splitext(filename)[1]
+    if ext == '.gz':
+        import gzip
+        return gzip.open(filename, mode='rt')
+    elif ext == '.bz2':
+        import bz2
+        return bz2.open(filename, mode='rt')
+    else:
+        return open(filename, mode='rt')
 
 def read_kraken_output(output_file: Filename,
                       scoring: Scoring = Scoring.KRAKEN,
@@ -49,7 +59,7 @@ def read_kraken_output(output_file: Filename,
     num_errors: int = 0  # Number or reads discarded due to error
     output.write(gray(f'Loading output file {output_file}... '))
     try:
-        with open(output_file, 'r') as file:
+        with open_compressed_and_uncompressed(output_file) as file:
             # Check number of cols in header
             header = file.readline().split('\t')
             if len(header) != 5:
