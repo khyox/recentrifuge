@@ -32,9 +32,9 @@ __copyright__ = 'Copyright (C) 2017–2020 Jose Manuel Martí Martínez'
 __license__ = 'GNU Affero General Public License Version 3'
 __email__ = 'jse.mnl **AT** gmail.com'
 __maintainer__ = 'Jose Manuel Martí'
-__status__ = 'Beta'
-__date__ = 'April 2020'
-__version__ = '1.0.2'
+__status__ = 'Production/Stable'
+__date__ = 'May 2020'
+__version__ = '1.0.3'
 
 import sys
 from Bio import SeqIO
