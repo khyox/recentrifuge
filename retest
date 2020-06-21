@@ -41,15 +41,15 @@ import sys
 import time
 from distutils.version import StrictVersion
 from statistics import mean
-from typing import Counter, List, Dict, Any, Tuple, Union, Optional
+from typing import Counter, List, Dict, Any, Tuple
 from warnings import filterwarnings
 
-from Bio import SeqIO
 import matplotlib.pyplot as plt
 import numpy as np
 
-from recentrifuge import __version__, __author__, __date__, __path__
-from recentrifuge.config import Filename, Score, Extra, Id, Sample
+from recentrifuge import __version__, __author__, __date__
+from recentrifuge import __path__  # type: ignore  # mypy issue #1422
+from recentrifuge.config import Filename, Score, Extra, Sample
 from recentrifuge.config import LICENSE, TAXDUMP_PATH, HTML_SUFFIX, XLSX_SUFFIX
 from recentrifuge.config import REXTRACT_TEST_SAMPLE, REXTRACT_TEST_FASTQ
 from recentrifuge.config import REXTRACT_TEST_TAXID
@@ -57,7 +57,8 @@ from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR, STR_CONTROL
 from recentrifuge.config import MOCK_XLSX, MOCK_SHEET, KEY_SHEET
 from recentrifuge.config import gray, blue, magenta, green, red, yellow
 
-# pandas (to read Excel with mock layout)
+# Check for general optional dependencies but required for retest
+# # pandas (to read Excel with mock layout)
 try:
     import pandas as pd
 
@@ -69,6 +70,13 @@ except ImportError:
     pd = None
     print(red('ERROR!'), 'Please install pandas (v0.23.2 or higher) for '
                          'testing recentrifuge.')
+    sys.exit(1)
+
+# # BioPython
+try:
+    from Bio import SeqIO
+except ImportError:
+    print(red('ERROR!'), 'Please install BioPython for testing recentrifuge.')
     sys.exit(1)
 
 # Local constants
@@ -86,10 +94,10 @@ XLSX_FIL: Filename = Filename(TEST_PREFIX + XLSX_SUFFIX)
 TEST_PDF_FILE: Filename = Filename(TEST_PREFIX + '.rcf.pdf')
 ROC_CTRL_PDF_FILE: Filename = Filename('ROC_CTRL.rcf.pdf')
 ROC_MINTAX_PDF_FILE: Filename = Filename('ROC_MINTAX.rcf.pdf')
-## General
+# # General
 F_D = '-d'
 F_T = '-t'
-## For rextract
+# # For rextract
 F_CFG = '-f=' + os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_SAMPLE)
 F_INC = '-i=' + REXTRACT_TEST_TAXID
 F_FAQ = '-q=' + os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_FASTQ)
@@ -97,7 +105,7 @@ REXTRACTED_FASTQ = Filename(
     os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_FASTQ).rstrip('.fastq') +
     '_rxtr_incl' + REXTRACT_TEST_TAXID + '.fastq'
 )
-## For rcf
+# # For rcf
 F_OUT = '-o='
 F_CTR = '-c=3'
 F_MHL = '-y='
@@ -116,7 +124,8 @@ SAMPLEX: List[Sample] = SAMPLES + [Sample('smplH')]
 STR_CTRL_SP = '_' + STR_CONTROL + '_species'
 CTRL_SP: List[Sample] = [
     Sample(spl + STR_CTRL_SP) for spl in ['smpl1', 'smpl2', 'smpl3', 'smpl4']]
-DEBUG_SP: Sample = 'smplH'
+DEBUG_SP: Sample = Sample('smplH')
+
 
 def main():
     """Main entry point to script."""
@@ -174,14 +183,20 @@ def main():
                   f'to pass the quality filter; {MHL_DEFAULT} by default')
         )
         parser.add_argument(
+            '--strain',
+            action='store_true',
+            help=('set this same flag in rcf [experimental feature]')
+        )
+        parser.add_argument(
             '-V', '--version',
             action='version',
             version=f'%(prog)s release {__version__} ({__date__})'
         )
         return parser
 
-    def check_debug():
-        """Check debugging mode"""
+    def check_debug_strain():
+        """Check debugging and strain modes"""
+        # Check for debugging mode
         if args.debug:
             print(blue('INFO:'), gray('Debugging mode activated'))
             print(blue('INFO:'), gray('Active parameters:'))
@@ -192,6 +207,9 @@ def main():
             for var in ['TAXDUMP_PATH', 'PATH', 'PATH_TEST',
                         'XLSX_PATH', 'STND_PATH', 'MOCK_PATH']:
                 print(gray(f'\t{var} ='), f'{eval(var)}')  # Safe eval of const
+        # Check for strain experimental mode
+        if args.strain:
+            print(yellow('CAUTION!'), '--strain experimental mode activated!')
 
     def test_version():
         """Test version matching"""
@@ -253,6 +271,8 @@ def main():
         if mintaxa is not None:
             argums.append(F_MIN + str(mintaxa))
             argums.append(F_CTR_MIN + str(mintaxa))
+        if args.strain:
+            argums.append('--strain')
         if args.debug:
             print(argums)
         cproc = sp.run(argums, universal_newlines=True)
@@ -282,7 +302,7 @@ def main():
 
     def load_excels(just_excel: Filename = None):
         """Load excels from standard and recentrifuge results"""
-        nonlocal pd_xlsx, pd_stnd, pd_mock
+        nonlocal pd_xlsx, pd_stnd, pd_mock  # type: ignore  # mypy issue #7057
         if just_excel is None:
             print(magenta(f'>>> LOADING TEST RESULTS ... '), end='')
         try:
@@ -790,9 +810,9 @@ def main():
     if args.local:
         prefix = Filename('./')
 
-    check_debug()
+    check_debug_strain()
     test_version()
-    test_retaxdump()
+    #test_retaxdump()
     test_remock()
     test_rcf()
     test_rextract()
@@ -803,14 +823,18 @@ def main():
 
     load_excels()
     test_rextract_results()
-    analyze_robust_contam_removal()
-    if args.roc:
-        get_roc(plot_roc=True)
-    if args.mintaxa:
-        get_mintaxa_roc()
+    if args.strain:
+        print(blue('INFO:'),
+              gray('Skipping further tests due to the --strain option!'))
+    else:
+        analyze_robust_contam_removal()
+        if args.roc:
+            get_roc(plot_roc=True)
+        if args.mintaxa:
+            get_mintaxa_roc()
 
-    load_excels()
-    test_rcf_results()
+        load_excels()
+        test_rcf_results()
 
     # Timing results
     print(gray('Total test time:'), time.strftime(

@@ -181,7 +181,6 @@ class Taxonomy(Ontology):
                   f'\033[90m 2nd type =\033[0m {match["PAT2"]} ',
                   f'\033[90m other =\033[0m {match["FAIL"]}')
 
-
     def build_children(self) -> None:
         """Build dict of children for a given parent taxid (key)."""
         print('\033[90mBuilding dict of parent to children taxa...\033[0m',

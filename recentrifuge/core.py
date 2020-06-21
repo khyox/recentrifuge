@@ -516,28 +516,3 @@ def write_lineage(ontology: Ontology,
             tsvwriter.writerow(row)
     output.write('\033[92m OK! \033[0m\n')
     return output.getvalue()
-
-
-def krona_from_text(samples: List[Sample],
-                    outputs: Dict[Rank, Filename],
-                    htmlfile: Filename = Filename('Output' + HTML_SUFFIX),
-                    ):
-    """Generate the Krona html file calling ktImportText.
-
-    Superseded by krona.krona_from_xml().
-
-    """
-    subprc = ["ktImportText"]
-    subprc.extend(samples)
-    try:
-        subprc.extend([outputs[level][i]
-                       for level in list(Rank.selected_ranks)
-                       for i in range(len(outputs[level]))])
-    except KeyError:
-        pass
-    subprc.extend(["-o", htmlfile])
-    try:
-        subprocess.run(subprc, check=True)
-    except subprocess.CalledProcessError:
-        print('\n\033[91mERROR!\033[0m ktImportText: ' +
-              'returned a non-zero exit status (Krona plot built failed)')

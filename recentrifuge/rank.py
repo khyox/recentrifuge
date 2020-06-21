@@ -32,7 +32,7 @@ class UnsupportedTaxLevelError(Exception):
 
 
 class Rank(Enum):
-    """Enumeration with ranks (taxonomical levels).
+    """Enumeration with ranks (taxonomic levels).
 
     The members are initialized using a customized __new__ method so
     that there are 3 different mechanisms to assign value to members:
@@ -84,9 +84,25 @@ class Rank(Enum):
     SPECIES_SUBGROUP = ()
     SPECIES = ()
     S = 'SPECIES'
+    # CAUTION: Hierarchy for   (those below the rank of
+    #   species) is tentative as the relative order is not always clear
     SUBSPECIES = ()
-    VARIETAS = ()
+    FORMA_SPECIALIS = ()  # Level added to NCBI Taxonomy in June 2020
+    VARIETY = ()
+    VARIETAS = 'VARIETY'
+    MORPH = ()
+    SUBVARIETY = ()
+    SUBVARIETAS = 'SUBVARIETY'
     FORMA = ()
+    SUBFORMA = ()  # Not present at NCBI Taxonomy as of June 2020
+    SEROGROUP = ()  # Level added to NCBI Taxonomy in June 2020
+    PATHOGROUP = ()  # Level added to NCBI Taxonomy in June 2020
+    SEROTYPE = ()  # Level added to NCBI Taxonomy in June 2020
+    BIOTYPE = ()  # Level added to NCBI Taxonomy in June 2020
+    GENOTYPE = ()  # Level added to NCBI Taxonomy in June 2020
+    STRAIN = ()  # Level added to NCBI Taxonomy in June 2020
+    N = 'STRAIN'
+    ISOLATE = ()  # Level added to NCBI Taxonomy in June 2020
     GO0 = ()
     GO1 = ()
     GO2 = ()
@@ -100,18 +116,26 @@ class Rank(Enum):
     UNCLASSIFIED = 0
     U = 'UNCLASSIFIED'
     NO_RANK = -1
+    CLADE = 'NO_RANK'
     # pylint: enable=invalid-name
 
     @classproperty
-    def selected_ranks(cls):  # pylint: disable=no-self-argument
+    def selected_ranks(cls) -> List['Rank']:  # pylint: disable=no-self-argument
         """Ranks selected for deep analysis and comparisons"""
         _selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O,
                                              cls.C, cls.P, cls.K, cls.D]
-#        _selected_taxlevels: List['Rank'] = [cls.S, cls.G, cls.F, cls.O]
         return _selected_taxlevels
 
     @classproperty
-    def genomic_ranks(cls):  # pylint: disable=no-self-argument
+    def selected_ranks_ext(cls) -> List['Rank']:  # pylint: disable=no-self-argument
+        """Ranks selected for deep analysis and comparisons (extended)"""
+        _selected_taxlevels: List['Rank'] = [cls.N, cls.S, cls.G, cls.F, cls.O,
+                                             cls.C, cls.P, cls.K, cls.D]
+        return _selected_taxlevels
+
+    @classproperty
+    def genomic_ranks(
+            cls) -> List['Rank']:  # pylint: disable=no-self-argument
         """GO ranks selected for deep analysis and comparisons"""
         _selected_golevels: List['Rank'] = [cls.GO9, cls.GO8, cls.GO7, cls.GO6,
                                             cls.GO5, cls.GO4, cls.GO3, cls.GO2]
@@ -137,6 +161,7 @@ class Rank(Enum):
         return TaxLevels({rank: {taxid for taxid in ranks if
                                  ranks[taxid] is rank} for rank in Rank})
 
+    # TODO: Remove the following two properties as they are not used anymore
     @property
     def ranks_from_specific(self) -> Iterator['Rank']:
         """Generator returning selected taxlevels from specific to general."""

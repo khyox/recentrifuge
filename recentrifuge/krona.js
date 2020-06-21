@@ -73,7 +73,7 @@
 // 
 //----------------------------------------------------------------------------
 //
-// Copyright (C) 2017, 2018 Jose Manuel Martí Martínez, for the changes in
+// Copyright (C) 2017-2020 Jose Manuel Martí Martínez, for the changes in
 // this file from the Krona Javascript 2.0 release.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -3498,6 +3498,7 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
             '<select id="ranks" onchange="onRankChange()" ' +
             'title="Filter samples by taxonomic rank">' +
             '<option value="SUMMARY">SUMMARY</option>' +
+            '<option value="strain">strain</option>' +
             '<option value="species">species</option>' +
             '<option value="genus">genus</option>' +
             '<option value="family">family</option>' +
@@ -3518,7 +3519,7 @@ value="&harr;" title="Expand this wedge to become the new focus of the chart"/><
         datasetButtonNext = document.getElementById('nextDataset');
         rankDropDown = document.getElementById('ranks');
         if (chart === ChartEnum.GENOMIC) {
-            for (i = 1; i < 9; i++) {
+            for (i = 1; i < 10; i++) {
                 rankDropDown.remove(1);  // Remove taxonomic ranks from options
             }
             datasetDropDown.style.color='#FFFFFF'

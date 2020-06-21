@@ -28,7 +28,7 @@ from ftplib import FTP, error_temp, error_proto, error_reply
 from zipfile import ZipFile
 
 from recentrifuge import __version__, __author__, __date__
-from recentrifuge.config import gray, red, green, yellow, blue, magenta
+from recentrifuge.config import gray, red, green, yellow
 from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, ZIPFILE
 from recentrifuge.config import TAXDUMP_PATH
 
@@ -59,7 +59,7 @@ def main():
         metavar='PATH',
         default=TAXDUMP_PATH,
         help=('path for the nodes information files (nodes.dmp and names.dmp' +
-              ' from NCBI')
+              ' from NCBI)')
     )
 
     # Parse arguments

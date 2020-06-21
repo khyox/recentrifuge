@@ -100,7 +100,8 @@ def main():
     def configure_parser():
         """Argument Parser Configuration"""
         parser = argparse.ArgumentParser(
-            description='Analyze results of metagenomic taxonomic classifiers',
+            description=('Robust comparative analysis and contamination '
+                         'removal for metagenomics'),
             epilog=f'%(prog)s - Release {__version__} - {__date__}' + LICENSE,
             formatter_class=argparse.RawDescriptionHelpFormatter
         )
@@ -322,6 +323,13 @@ def main():
             help='increase output verbosity and perform additional checks'
         )
         parser_mode.add_argument(
+            '--strain',
+            action='store_true',
+            help=('set strain level instead of species as the resolution limit'
+                  ' for the robust contamination removal algorithm; use with'
+                  ' caution, this is an experimental feature')
+        )
+        parser_mode.add_argument(
             '--sequential',
             action='store_true',
             help='deactivate parallel processing'
@@ -337,8 +345,11 @@ def main():
             exit(2)
         return GenericFormat(args.format)
 
-    def check_debug():
-        """Check debugging mode"""
+    def check_advanced_modes():
+        """Check advanced modes of running"""
+        nonlocal target_ranks  # type: ignore  # mypy issue #7057
+
+        # Check for debugging mode
         if args.debug:
             print(blue('INFO:'), gray('Debugging mode activated'))
             print(blue('INFO:'), gray('Active parameters:'))
@@ -347,10 +358,18 @@ def main():
                     print(gray(f'\t{key} ='), f'{val}')
             if genfmt is not None:
                 print(blue('INFO:'), gray(genfmt))
+        # Check for sequential mode
+        if args.sequential:
+            print(blue('INFO:'), gray('Parallel mode deactivated'))
+        # Check for strain experimental mode
+        if args.strain:
+            print(yellow('CAUTION!'), '--strain experimental mode activated!')
+            target_ranks = Rank.selected_ranks_ext
 
     def select_inputs():
         """Choose right classifier, scoring, input and output files"""
-        nonlocal process, scoring, input_files, plasmidfile, classifier
+        nonlocal process, scoring, input_files  # type: ignore  # mypy #7057
+        nonlocal plasmidfile, classifier  # type: ignore  # mypy issue #7057
 
         if generics:
             classifier = Classifier.GENERIC
@@ -418,7 +437,7 @@ def main():
 
     def select_html_file():
         """HTML filename selection"""
-        nonlocal htmlfile
+        nonlocal htmlfile  # type: ignore  # mypy #7057
         if lmats:  # Select case for dir name or filename prefix
             if os.path.isdir(lmats[0]):  # Dir name
                 dirname = os.path.dirname(os.path.normpath(lmats[0]))
@@ -484,21 +503,21 @@ def main():
         if platform.system() and not args.sequential:  # Only for known systems
             mpctx = mp.get_context('fork')  # Important for OSX&Win
             with mpctx.Pool(processes=min(os.cpu_count(), len(
-                    Rank.selected_ranks))) as pool:
+                    target_ranks))) as pool:
                 async_results = [pool.apply_async(
                     process_rank,
                     args=[level],
                     kwds=kwargs
-                ) for level in Rank.selected_ranks]
+                ) for level in target_ranks]
                 for level, (smpls, abunds, accumulators, score) in zip(
-                        Rank.selected_ranks,
+                        target_ranks,
                         [r.get() for r in async_results]):
                     samples.extend(smpls)
                     counts.update(abunds)
                     accs.update(accumulators)
                     scores.update(score)
         else:  # sequential processing of each selected rank
-            for level in Rank.selected_ranks:
+            for level in target_ranks:
                 (smpls, abunds,
                  accumulators, score) = process_rank(level, **kwargs)
                 samples.extend(smpls)
@@ -657,8 +676,11 @@ def main():
                 data_frame.to_excel(xlsxwriter, sheet_name=str(extra))
         elif extra is Extra.CMPLXCRUNCHER:
             target_ranks: List = [Rank.NO_RANK]
-            if args.controls:  # if controls, add specific sheet for rank
-                target_ranks.extend(Rank.selected_ranks)
+            if args.controls:  # if controls, add specific ranks as targets
+                if args.strain:
+                    target_ranks.extend(Rank.selected_ranks_ext)
+                else:
+                    target_ranks.extend(Rank.selected_ranks)
             for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
                 indexes: List[int]
                 sheet_name: str
@@ -715,12 +737,13 @@ def main():
     including: Set[Id] = set(args.include)
     scoring: Scoring = Scoring[args.scoring]
     extra: Extra = Extra[args.extra]
+    target_ranks: List[Rank] = Rank.selected_ranks
 
     genfmt: GenericFormat = None
     if args.generic:
         genfmt = parse_generic()
 
-    check_debug()
+    check_advanced_modes()
 
     plasmidfile: Filename = None
     classifier: Classifier
