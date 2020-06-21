@@ -157,21 +157,30 @@ def main():
             action='store_true',
             help='test local directory scripts instead of pip installed'
         )
-        parser.add_argument(
+        parser_additional = parser.add_argument_group(
+            'additional', 'perform additional tests')
+        parser_additional.add_argument(
             '-m', '--mintaxa',
             action='store_true',
-            help='Perform additional tests for mintaxa dependency'
+            help='perform additional tests for mintaxa dependency'
         )
-        parser.add_argument(
+        parser_additional.add_argument(
             '-r', '--roc',
             action='store_true',
-            help='Perform additional tests and get ROC figures'
+            help='perform additional tests and get ROC figures'
         )
-        parser.add_argument(
+        parser_advanced = parser.add_argument_group(
+            'advanced', 'activate advanced or experimental features')
+        parser_advanced.add_argument(
             '-s', '--skip',
             action='store_true',
-            help='Skip the recentrifuge calls and just load the results to '
+            help='skip the recentrifuge calls and just load the results to '
                  'plot ROC figure by mintaxa (results should be available)'
+        )
+        parser_advanced.add_argument(
+            '--strain',
+            action='store_true',
+            help='set this same flag in rcf [experimental feature]'
         )
         parser.add_argument(
             '-y', '--minscore',
@@ -181,11 +190,6 @@ def main():
             default=Score(MHL_DEFAULT),
             help=('minimum score/confidence of the classification of a read '
                   f'to pass the quality filter; {MHL_DEFAULT} by default')
-        )
-        parser.add_argument(
-            '--strain',
-            action='store_true',
-            help=('set this same flag in rcf [experimental feature]')
         )
         parser.add_argument(
             '-V', '--version',
@@ -812,7 +816,7 @@ def main():
 
     check_debug_strain()
     test_version()
-    #test_retaxdump()
+    test_retaxdump()
     test_remock()
     test_rcf()
     test_rextract()
