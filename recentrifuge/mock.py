@@ -9,7 +9,6 @@ import random
 import sys
 from typing import Counter, List
 
-from Bio.Alphabet import single_letter_alphabet
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO
@@ -36,6 +35,7 @@ TEST_XCEL = Filename(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                   TEST_MOCK_XLSX))
 TEST_REXT_SMPL = os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_SAMPLE)
 TEST_REXT_FSTQ = os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_FASTQ)
+
 
 def generate_mock(ncbi: Taxonomy,
                   file: Filename,
@@ -147,14 +147,16 @@ def generate_mock(ncbi: Taxonomy,
     def mock_fastq(num_reads: int) -> None:
         """Do the job in case of Excel file with all the details"""
 
-        def fastq_seqs(alphabet=single_letter_alphabet):
+        def fastq_seqs():
             """Generator function that creates mock fastq sequences
             """
             for seq in range(num_reads):
-                yield SeqRecord(Seq('AGTC', alphabet),
+                yield SeqRecord(Seq('AGTC'),
                                 id=f'test{seq}', name=f'test{seq}',
                                 description=f'test{seq}',
-                                annotations={'quality': '@@@@'})
+                                annotations={'quality': '@@@@',
+                                             'molecule_type': 'DNA'}
+                                )
 
         print(gray('Writing'), magenta(f'{num_reads}'), gray('reads in'),
               TEST_REXT_FSTQ, gray('...'), end='', flush=True)

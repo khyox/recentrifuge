@@ -6,7 +6,6 @@ objects.  The code is partly inspired by Peter Cock FASTA Biopython module
 
 """
 
-from Bio.Alphabet import single_letter_alphabet
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqIO.Interfaces import SequentialSequenceWriter
@@ -43,7 +42,7 @@ def simple_lmat_out_parser(handle):
         rawline = handle.readline()
 
 
-def lmat_out_iterator(handle, alphabet=single_letter_alphabet):
+def lmat_out_iterator(handle):
     """Generator function to iterate LMAT output records (as SeqRecord objects)
 
     Arguments:
@@ -59,13 +58,15 @@ def lmat_out_iterator(handle, alphabet=single_letter_alphabet):
             # Should we use SeqRecord default for no ID?
             first_word = ""
         avg, std, kms = stats.split()
-        statsdict = {'averg':float(avg), 'stdev':float(std), 'kmers':int(kms)}
+        statsdict = {'averg': float(avg),
+                     'stdev': float(std),
+                     'kmers': int(kms)}
         final_taxid, final_score, final_match = finalcall.split()
         candids = candidates.split()
         candidict = {}
         for i in range(0, len(candids), 2):
             candidict[candids[i]] = float(candids[i+1])
-        yield SeqRecord(Seq(sequence, alphabet),
+        yield SeqRecord(Seq(sequence),
                         id=first_word, name=first_word, description=title,
                         annotations={'stats': stats,
                                      'candidates': candidates,

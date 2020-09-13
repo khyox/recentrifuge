@@ -134,8 +134,7 @@ class Rank(Enum):
         return _selected_taxlevels
 
     @classproperty
-    def genomic_ranks(
-            cls) -> List['Rank']:  # pylint: disable=no-self-argument
+    def genomic_ranks(cls) -> List['Rank']:  # pylint: disable=no-self-argument
         """GO ranks selected for deep analysis and comparisons"""
         _selected_golevels: List['Rank'] = [cls.GO9, cls.GO8, cls.GO7, cls.GO6,
                                             cls.GO5, cls.GO4, cls.GO3, cls.GO2]

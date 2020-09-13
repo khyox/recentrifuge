@@ -637,10 +637,10 @@ def main():
         elif extra is Extra.CSV or Extra.TSV:
             sv_base = Filename(htmlfile.split('.html')[0])
             if extra is Extra.CSV:
-                sv_ext = 'csv'
+                sv_ext = Filename('csv')
                 sv_kargs = {}
             elif extra is Extra.TSV:
-                sv_ext = 'tsv'
+                sv_ext = Filename('tsv')
                 sv_kargs = {'sep': '\t'}
             print(gray(f'Generating {str(extra).lower()} extra output (') +
                   magenta(sv_base + '.*.' + sv_ext) + gray(')... '), end='')
@@ -682,8 +682,8 @@ def main():
                 else:
                     target_ranks.extend(Rank.selected_ranks)
             for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
-                indexes: List[int]
-                sheet_name: str
+                indexes: List[int] = None
+                sheet_name: str = 'RCF sheet'
                 columns: List[str] = ['__Rank', '__Name']
                 if args.controls:
                     indexes = [i for i in range(len(raw_samples), len(samples))
@@ -746,7 +746,7 @@ def main():
     check_advanced_modes()
 
     plasmidfile: Filename = None
-    classifier: Classifier
+    classifier: Classifier = None
     process: Callable[..., Tuple[Sample, TaxTree, SampleDataById,
                                  SampleStats, Err]]
 

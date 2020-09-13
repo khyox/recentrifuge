@@ -6,12 +6,11 @@ import collections as col
 import csv
 import io
 import statistics
-import subprocess
 import sys
 from typing import List, Set, Tuple, Union, Dict, Counter, Optional
 
-from recentrifuge.config import Filename, Sample, Id, Parents, Score, Scores
-from recentrifuge.config import HTML_SUFFIX, CELLULAR_ORGANISMS
+from recentrifuge.config import Sample, Id, Parents, Score, Scores
+from recentrifuge.config import CELLULAR_ORGANISMS
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_SUMMARY, STR_CONTROL_SHARED
 from recentrifuge.config import UnionCounter, UnionScores
@@ -417,9 +416,6 @@ def summarize_analysis(*args,
     # Recover input and parameters
     analysis: str = args[0]
     ontology: Ontology = kwargs['ontology']
-    # TODO: Delete the following comment lines in a future release
-    # including = ontology.including   # See comment below for the reason
-    # excluding = ontology.excluding   # in/excluding are not used anymore
     counts: Dict[Sample, Counter[Id]] = kwargs['counts']
     scores: Dict[Sample, Dict[Id, Score]] = kwargs['scores']
     samples: List[Sample] = kwargs['samples']
@@ -439,7 +435,7 @@ def summarize_analysis(*args,
         red('ERROR! ') + analysis + gray(' has no samples to summarize!')
     for smpl in target_samples:
         summary_counts += counts[smpl]
-        summary_score.update(scores[smpl])
+        summary_score.update(scores[smpl])  # pylint: disable=no-member
 
     tree = TaxTree()
     tree.grow(ontology=ontology,
@@ -447,8 +443,8 @@ def summarize_analysis(*args,
               scores=summary_score)
     tree.subtract()
     tree.shape()
-    summary_counts.clear()
-    summary_score.clear()
+    summary_counts.clear()  # pylint: disable=no-member
+    summary_score.clear()  # pylint: disable=no-member
     # Avoid including/excluding here as get_taxa is not as 'clever' as allin1
     #  and taxa are already included/excluded in the derived samples
     tree.get_taxa(counts=summary_counts,

@@ -2,7 +2,6 @@
 
 You are expected to use this module via the Bio.SeqIO functions."""
 
-from Bio.Alphabet import single_letter_alphabet
 from Bio.Seq import UnknownSeq
 from Bio.SeqRecord import SeqRecord
 
@@ -48,7 +47,7 @@ def simple_out_parser(handle):
         raw_line = handle.readline()
 
 
-def cfg_out_iterator(handle, alphabet=single_letter_alphabet):
+def cfg_out_iterator(handle):
     """Generator to iterate Centrifuge output (as SeqRecord objects)
 
     Arguments:
@@ -76,7 +75,7 @@ def cfg_out_iterator(handle, alphabet=single_letter_alphabet):
             print(f'Error parsing score ({second_score}) for taxid {tax_id}'
                   f' in {handle}...')
             raise
-        yield SeqRecord(UnknownSeq(0, alphabet),
+        yield SeqRecord(UnknownSeq(0),
                         id=first_word,
                         name=first_word,
                         description=read_id,

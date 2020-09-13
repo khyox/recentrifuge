@@ -9,7 +9,6 @@ omitted, which improves the code performance.
 
 """
 
-from Bio.Alphabet import single_letter_alphabet
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqIO.Interfaces import SequentialSequenceWriter
@@ -18,13 +17,13 @@ from Bio.SeqIO.QualityIO import FastqGeneralIterator
 __docformat__ = "restructuredtext en"
 
 
-def quick_fastq_iterator(handle, alphabet=single_letter_alphabet):
+def quick_fastq_iterator(handle):
     """Parse Illumina 1.3 to 1.7 FASTQ files without decoding the qualities
     to improve the performance.
     """
     for title, sequence, quality in FastqGeneralIterator(handle):
         first_word = title.split()[0]
-        yield SeqRecord(Seq(sequence, alphabet),
+        yield SeqRecord(Seq(sequence),
                         id=first_word, name=first_word, description=title,
                         annotations={'quality': quality})
 

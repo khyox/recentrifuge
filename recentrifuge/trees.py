@@ -63,7 +63,7 @@ class SampleDataById(object):
 
     def get_counts(self) -> Counter[Id]:
         """Get (non shared) counts"""
-        if isinstance(self.counts, Counter):
+        if isinstance(self.counts, col.Counter):
             return self.counts
         raise TypeError
 
@@ -87,7 +87,7 @@ class SampleDataById(object):
 
     def get_accs(self) -> Counter[Id]:
         """Get accumulated counter"""
-        if isinstance(self.accs, Counter):
+        if isinstance(self.accs, col.Counter):
             return self.accs
         raise TypeError
 
@@ -104,9 +104,9 @@ class SampleDataById(object):
 
     def purge_counters(self) -> None:
         """Purge elements with zero counts in counters"""
-        if isinstance(self.counts, Counter):
+        if isinstance(self.counts, col.Counter):
             self.counts = +self.counts  # pylint: disable=E1130
-        if isinstance(self.accs, Counter):
+        if isinstance(self.accs, col.Counter):
             self.accs = +self.accs  # pylint: disable=E1130
 
     def get_taxlevels(self) -> TaxLevels:

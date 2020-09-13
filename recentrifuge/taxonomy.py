@@ -17,6 +17,9 @@ from recentrifuge.ontology import Ontology
 class Taxonomy(Ontology):
     """Taxonomy related data and methods."""
 
+    # pylint: disable=unsubscriptable-object,unsupported-assignment-operation
+    # pylint: disable=not-an-iterable,unsupported-membership-test,no-member
+
     def __init__(self,
                  nodes_file: Filename,
                  names_file: Filename,
