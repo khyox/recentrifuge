@@ -11,7 +11,7 @@ omitted, which improves the code performance.
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.SeqIO.Interfaces import SequentialSequenceWriter
+from Bio.SeqIO.Interfaces import SequenceWriter
 from Bio.SeqIO.QualityIO import FastqGeneralIterator
 
 __docformat__ = "restructuredtext en"
@@ -28,7 +28,7 @@ def quick_fastq_iterator(handle):
                         annotations={'quality': quality})
 
 
-class QuickFastqWriter(SequentialSequenceWriter):
+class QuickFastqWriter(SequenceWriter):
     """Class to write standard FASTQ format files with sequences
     previously read by QuickFastqIterator function.
 
