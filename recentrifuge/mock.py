@@ -111,7 +111,6 @@ def generate_mock(ncbi: Taxonomy,
             if out == TEST_REXT_SMPL:  # Test mode: create mock FASTQ for smpl
                 mock_fastq(reads_writen)
 
-
     def by_mock_files() -> None:
         """Do the job in case of mock files"""
         if len(mocks) == 1 and os.path.isdir(mocks[0]):
@@ -132,7 +131,9 @@ def generate_mock(ncbi: Taxonomy,
         # Expected index (taxids) in column after taxa name, and last row will
         #  be removed (reserved for sum of reads in Excel file)
         mock_df = pd.read_excel(xcel, index_col=1, skipfooter=1,
-                                dtype=str)
+                                dtype=str,
+                                engine='openpyxl',
+                                )
         del mock_df['RECENTRIFUGE MOCK']
         vprint(gray('Layout to generate the mock files:\n'), mock_df, '\n')
         for name, series in mock_df.iteritems():
