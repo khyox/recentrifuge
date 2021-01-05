@@ -6,7 +6,7 @@
 
 ____
 [![Build Status](https://travis-ci.org/khyox/recentrifuge.svg?branch=master)](https://travis-ci.org/khyox/recentrifuge)
-[![](https://img.shields.io/maintenance/yes/2020.svg)](http://www.recentrifuge.org)
+[![](https://img.shields.io/maintenance/yes/2021.svg)](http://www.recentrifuge.org)
 [![](https://img.shields.io/github/languages/top/khyox/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
 [![](https://img.shields.io/pypi/pyversions/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
 [![](https://img.shields.io/pypi/v/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
