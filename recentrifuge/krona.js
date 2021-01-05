@@ -73,7 +73,7 @@
 // 
 //----------------------------------------------------------------------------
 //
-// Copyright (C) 2017-2020 Jose Manuel Martí Martínez, for the changes in
+// Copyright (C) 2017-2021 Jose Manuel Martí Martínez, for the changes in
 // this file from the Krona Javascript 2.0 release.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -4803,16 +4803,16 @@ function load() {
 
     if (context == undefined) {
         document.body.innerHTML = '\
-<br/>This browser does not support HTML5 (see \
-<a href="https://github.com/marbl/Krona/wiki/Browser%20support">Browser support</a>).\
+<br/>Recentrifuge: Sorry, this browser does not support HTML5 (please see \
+<a href="https://github.com/khyox/recentrifuge/wiki/Browser-support">Browser support</a>).\
 	';
         return;
     }
 
     if (typeof context.fillText != 'function') {
         document.body.innerHTML = '\
-<br/>This browser does not support HTML5 canvas text (see \
-<a href="https://github.com/marbl/Krona/wiki/Browser%20support">Browser support</a>).\
+<br/>Recentrifuge: Sorry, this browser does not support HTML5 canvas text (please see \
+<a href="https://github.com/khyox/recentrifuge/wiki/Browser-support">Browser support</a>).\
 	';
         return;
     }
