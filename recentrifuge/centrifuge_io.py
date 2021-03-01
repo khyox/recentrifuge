@@ -52,7 +52,6 @@ def cfg_out_iterator(handle):
 
     Arguments:
      - handle - input file
-     - alphabet - optional alphabet
     """
     for (read_id, seq_id, tax_id, score, second_score,
          hit_length, query_length, num_matches) in simple_out_parser(handle):
