@@ -71,7 +71,7 @@ class KronaTree(ETree.ElementTree):
         """
         subnode = self.sub(parent, 'node',
                            {'name': name,
-                            'href': f'https://www.google.es/search?q={name}'})
+                            'href': f'https://www.google.com/search?q={name}'})
         count_node = self.sub(subnode, COUNT)
         counts: Dict[Sample, str] = {sample: values[COUNT][sample]
                                      for sample in self.samples}
