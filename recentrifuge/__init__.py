@@ -16,9 +16,9 @@
 #     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 """
-Robust comparative analysis and contamination removal for metagenomics library
+Robust comparative analysis and contamination removal for metagenomics.
 
-A front-end interface is provided by the companion Recentrifuge module,
+A front-end interface is provided by the companion rcf module,
 which will import this library.
 
 """
@@ -33,8 +33,8 @@ __license__ = 'GNU Affero General Public License Version 3'
 __email__ = 'jse.mnl **AT** gmail.com'
 __maintainer__ = 'Jose Manuel Martí'
 __status__ = 'Production/Stable'
-__date__ = 'Nov 2021'
-__version__ = '1.3.4'
+__date__ = 'Dec 2021'
+__version__ = '1.3.5'
 
 import sys
 from Bio import SeqIO
