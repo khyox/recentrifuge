@@ -15,7 +15,7 @@ jobs:
       - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
       - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
       - name: Check out repository code
-      - uses: actions/checkout@v2
+        uses: actions/checkout@v2
       - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
       - run: echo "🖥️ The workflow is now ready to test your code on the runner."
       - name: List files in the repository
@@ -34,8 +34,8 @@ jobs:
         run: |
           # stop the build if there are Python syntax errors or undefined names
           flake8 recentrifuge/ rcf remock retaxdump retest rextract --count --select=E9,F63,F7,F82 --show-source --statistics
-          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          flake8 recentrifuge/ rcf remock retaxdump retest rextract --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          # exit-zero treats all errors as warnings. 
+          flake8 recentrifuge/ rcf remock retaxdump retest rextract --count --exit-zero --max-complexity=10 --max-line-length=79 --statistics
       - name: Test with retest
         run: |
           ./retest -d -l -r
