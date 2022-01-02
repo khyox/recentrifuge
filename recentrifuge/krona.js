@@ -73,7 +73,7 @@
 // 
 //----------------------------------------------------------------------------
 //
-// Copyright (C) 2017-2021 Jose Manuel Martí Martínez, for the changes in
+// Copyright (C) 2017-2022 Jose Manuel Martí Martínez, for the changes in
 // this file from the Krona Javascript 2.0 release.
 //
 // Redistribution and use in source and binary forms, with or without
