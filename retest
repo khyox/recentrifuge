@@ -112,7 +112,7 @@ F_MHL = '-y='
 F_RND = '-r='
 F_MIN = '-m='
 F_CTR_MIN = '-w='
-F_CC = '-e=CMPLXCRUNCHER'
+F_CC = '-e=DYNOMICS'
 XLSX_PATH: Filename = Filename(os.path.join(TEST_OUTPUT_DIR, XLSX_FIL))
 STND_PATH: Filename = Filename(os.path.join(PATH_TEST, XLSX_FIL))
 MOCK_PATH: Filename = Filename(os.path.join(PATH_TEST, MOCK_XLSX))

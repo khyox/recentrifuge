@@ -193,7 +193,8 @@ def main():
             metavar='FILE',
             type=Filename,
             help='HTML output file (if not given, the filename will be '
-                 'inferred from input files)'
+                 'inferred from input files), whose name may also be '
+                 'used as prefix for the extra output files'
         )
         parser_out.add_argument(
             '-e', '--extra',
@@ -610,7 +611,7 @@ def main():
         """Save extra output with results via pandas DataFrame"""
 
         # Initial check and info
-        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+        if extra is Extra.FULL or extra is Extra.DYNOMICS:
             vprint(blue('INFO:'),
                    gray('Saving extra output as an Excel file.'))
         elif extra is Extra.CSV:
@@ -619,45 +620,51 @@ def main():
         elif extra is Extra.TSV:
             vprint(blue('INFO:'),
                    gray('Saving extra output as TSV files.'))
+        elif extra is Extra.MULTICSV:
+            vprint(blue('INFO:'),
+                   gray('Saving extra output as multiple CSV files.'))
         else:
-            raise Exception(red('\nERROR!'), f'Unknown Extra option "{extra}"')
+            raise Exception(f'ERROR! Unknown Extra option "{extra}"')
 
         # Setup of extra file name
         xlsxwriter: pd.ExcelWriter = None
         sv_base: Filename = None
         sv_ext: Filename = None
         sv_kargs: Dict[str, str] = {}
-        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+        if extra is Extra.FULL or extra is Extra.DYNOMICS:
             xlsx_name: Filename = Filename(htmlfile.split('.html')[0] +
                                            '.xlsx')
             print(gray(f'Generating Excel {str(extra).lower()} summary (') +
                   magenta(xlsx_name) + gray(')... '), end='')
             sys.stdout.flush()
             xlsxwriter = pd.ExcelWriter(xlsx_name)
-        elif extra is Extra.CSV or Extra.TSV:
+        elif extra in [Extra.CSV, Extra.TSV, Extra.MULTICSV]:
             sv_base = Filename(htmlfile.split('.html')[0])
-            if extra is Extra.CSV:
+            if extra in [Extra.CSV, Extra.MULTICSV]:
                 sv_ext = Filename('csv')
                 sv_kargs = {}
             elif extra is Extra.TSV:
                 sv_ext = Filename('tsv')
                 sv_kargs = {'sep': '\t'}
             print(gray(f'Generating {str(extra).lower()} extra output (') +
-                  magenta(sv_base + '.*.' + sv_ext) + gray(')... '), end='')
+                  magenta('[' + sv_base + '.]*.' + sv_ext)
+                  + gray(')... '), end='')
             sys.stdout.flush()
+        else:
+            raise Exception(f'ERROR! Unknown Extra option "{extra}"')
         odict_rows: Dict[Id, List] = col.OrderedDict()
 
         # Save basic statistics of raw samples
         data_frame: pd.DataFrame = pd.DataFrame.from_records(
             {raw: stats[raw].to_odict() for raw in raw_samples},
             index=stats[raw_samples[0]].to_odict().keys())
-        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+        if extra is Extra.FULL or extra is Extra.DYNOMICS:
             data_frame.to_excel(xlsxwriter, sheet_name=STATS_SHEET_NAME)
-        elif extra is Extra.CSV or extra is Extra.TSV:
+        elif extra in [Extra.CSV, Extra.TSV, Extra.MULTICSV]:
             data_frame.to_csv(sv_base + '.stat.' + sv_ext, **sv_kargs)
 
         # Save taxid related statistics per sample
-        if extra is Extra.FULL or extra is Extra.CSV or extra is Extra.TSV:
+        if extra in [Extra.FULL, Extra.CSV, Extra.TSV, Extra.MULTICSV]:
             polytree.to_odict(ontology=ncbi, odict=odict_rows)
             # Generate the pandas DataFrame from items and export to Extra
             iterable_1 = [samples, [COUNT, UNASSIGNED, SCORE]]
@@ -670,11 +677,23 @@ def main():
                                                 orient='index',
                                                 columns=cols)
             data_frame.index.names = ['Id']
-            if extra is Extra.CSV or extra is Extra.TSV:
+            if extra in [Extra.CSV, Extra.TSV]:
                 data_frame.to_csv(sv_base + '.data.' + sv_ext, **sv_kargs)
+            elif extra is Extra.MULTICSV:
+                for sample in samples:  # Only save taxa with counts per sample
+                    sub_df = data_frame[
+                        data_frame[sample, 'count'] > 0][[sample, 'Details']]
+                    csv_name: Filename
+                    # Shared samples need help (sv_base) to get the path right
+                    if sample.startswith(STR_SHARED):
+                        csv_name = Filename(sv_base + '_' + sample
+                                            + '.data.' + sv_ext)
+                    else:
+                        csv_name = Filename(sample + '.data.' + sv_ext)
+                    sub_df.to_csv(csv_name, **sv_kargs)
             else:
                 data_frame.to_excel(xlsxwriter, sheet_name=str(extra))
-        elif extra is Extra.CMPLXCRUNCHER:
+        elif extra is Extra.DYNOMICS:
             target_ranks: List = [Rank.NO_RANK]
             if args.controls:  # if controls, add specific ranks as targets
                 if args.strain:
@@ -708,7 +727,7 @@ def main():
                 data_frame.index.names = ['Id']
                 data_frame.to_excel(xlsxwriter, sheet_name=sheet_name)
         else:
-            raise Exception(red('\nERROR!'), f'Unknown Extra option "{extra}"')
+            raise Exception(f'ERROR! Unknown Extra option "{extra}"')
         if xlsxwriter is not None:
             xlsxwriter.save()
         print(green('OK!'))
@@ -816,7 +835,7 @@ def main():
     generate_krona()
     if _USE_PANDAS:
         if not _USE_OPENPYXL and (
-                extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER):
+                extra is Extra.FULL or extra is Extra.DYNOMICS):
             extra = Extra.CSV
             print(yellow('WARNING!'),
                   'Openpyxl python package not installed:\n\tExtra output '

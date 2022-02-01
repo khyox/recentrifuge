@@ -111,11 +111,12 @@ class Scoring(Enum):
 
 
 class Extra(Enum):
-    """Enumeration with options for the extra output."""
-    FULL = 0  # Provide excel with detailed results including score (default)
-    CMPLXCRUNCHER = 1  # Results in excel with cmplxcruncher format
-    CSV = 2  # Results as a collection of CSV files
-    TSV = 3  # Results as a collection of TSV files
+    """Enumeration with options for the extra (non-interactive) output."""
+    FULL = 0  # Provides excel with detailed results including score (default)
+    CSV = 1  # Results as two CSV files (statistics and data)
+    MULTICSV = 2  # Results as a collection of multiple CSV files
+    TSV = 3  # Results as two TSV files (statistics and data)
+    DYNOMICS = 4  # Provides excel with format expected by dynOmics
 
     def __str__(self):
         return f'{str(self.name)}'
