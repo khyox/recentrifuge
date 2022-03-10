@@ -32,7 +32,7 @@ from recentrifuge import __version__, __author__, __date__
 from recentrifuge.centrifuge import select_centrifuge_inputs
 from recentrifuge.clark import select_clark_inputs
 from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Extra
-from recentrifuge.config import HTML_SUFFIX, TAXDUMP_PATH
+from recentrifuge.config import HTML_SUFFIX, PKL_SUFFIX, TAXDUMP_PATH
 from recentrifuge.config import STATS_SHEET_NAME, LICENSE, Err, Classifier
 from recentrifuge.config import NODES_FILE, NAMES_FILE, PLASMID_FILE
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
@@ -58,6 +58,8 @@ try:
 except ImportError:
     pd = None
     _USE_PANDAS = False
+    print(yellow('WARNING!'), 'Pandas package not available. '
+                              'Some options may be ignored.')
 else:
     try:
         import openpyxl
@@ -188,13 +190,13 @@ def main():
         parser_out = parser.add_argument_group(
             'output', 'Related to the Recentrifuge output files')
         parser_out.add_argument(
-            '-o', '--outhtml',
+            '-o', '--outprefix',
             action='store',
             metavar='FILE',
             type=Filename,
-            help='HTML output file (if not given, the filename will be '
-                 'inferred from input files), whose name may also be '
-                 'used as prefix for the extra output files'
+            help='output prefix. If not given, it will be inferred '
+                 'from input files. An HTML filename is still accepted '
+                 'for backwards compatibility with legacy --outhtml option.'
         )
         parser_out.add_argument(
             '-e', '--extra',
@@ -210,6 +212,11 @@ def main():
             'Coarse tuning of algorithm parameters')
         parser_cross = parser_coarse.add_mutually_exclusive_group(
             required=False)
+        parser_cross.add_argument(
+            '-a', '--avoidcross',
+            action='store_true',
+            help='avoid cross analysis'
+        )
         parser_cross.add_argument(
             '-c', '--controls',
             action='store',
@@ -264,11 +271,6 @@ def main():
             help=('NCBI taxid code to include a taxon and all underneath '
                   '(multiple -i is available to include several taxid); '
                   'by default, all the taxa are considered for inclusion')
-        )
-        parser_cross.add_argument(
-            '-a', '--avoidcross',
-            action='store_true',
-            help='avoid cross analysis'
         )
         parser_fine = parser.add_argument_group(
             'fine tuning',
@@ -334,6 +336,12 @@ def main():
             '--sequential',
             action='store_true',
             help='deactivate parallel processing'
+        )
+        parser_mode.add_argument(
+            '-p', '--pickle',
+            action='store_true',
+            help=('pickle (serialize) results in a pandas DataFrame and '
+                  'suppress saving the HTML output file')
         )
         return parser
 
@@ -436,9 +444,9 @@ def main():
             for i in range(args.controls):
                 print(blue(f'\t{input_files[i]}'))
 
-    def select_html_file():
+    def select_rcf_outputs():
         """HTML filename selection"""
-        nonlocal htmlfile  # type: ignore  # mypy #7057
+        nonlocal out_prefix, htmlfile  # type: ignore  # mypy #7057
         if lmats:  # Select case for dir name or filename prefix
             if os.path.isdir(lmats[0]):  # Dir name
                 dirname = os.path.dirname(os.path.normpath(lmats[0]))
@@ -448,9 +456,11 @@ def main():
                     basename = os.path.basename(dirname)
             else:  # Explicit path and file name prefix is provided
                 dirname, basename = os.path.split(lmats[0])
-            htmlfile = Filename(os.path.join(dirname, basename + HTML_SUFFIX))
+            out_prefix = Filename(os.path.join(dirname, basename))
+            htmlfile = out_prefix + HTML_SUFFIX
         else:
-            htmlfile = Filename(input_files[0].split('_mhl')[0] + HTML_SUFFIX)
+            out_prefix = Filename(input_files[0].split('_mhl')[0])
+            htmlfile = out_prefix + HTML_SUFFIX
 
     def read_samples():
         """Read samples"""
@@ -600,12 +610,13 @@ def main():
                       accs=accs,
                       scores=scores)
         print(green('OK!'))
-        print(gray('Generating final plot (') + magenta(htmlfile) +
-              gray(')... '), end='')
-        sys.stdout.flush()
-        polytree.toxml(ontology=ncbi, krona=krona)
-        krona.tohtml(htmlfile, pretty=False)
-        print(green('OK!'))
+        if not args.pickle:
+            print(gray('Generating final plot (') + magenta(htmlfile) +
+                  gray(')... '), end='')
+            sys.stdout.flush()
+            polytree.toxml(ontology=ncbi, krona=krona)
+            krona.tohtml(htmlfile, pretty=False)
+            print(green('OK!'))
 
     def save_extra_output():
         """Save extra output with results via pandas DataFrame"""
@@ -628,7 +639,7 @@ def main():
 
         # Setup of extra file name
         xlsxwriter: pd.ExcelWriter = None
-        sv_base: Filename = None
+        sv_base: Filename = Filename(htmlfile.split('.html')[0])
         sv_ext: Filename = None
         sv_kargs: Dict[str, str] = {}
         if extra is Extra.FULL or extra is Extra.DYNOMICS:
@@ -639,7 +650,6 @@ def main():
             sys.stdout.flush()
             xlsxwriter = pd.ExcelWriter(xlsx_name)
         elif extra in [Extra.CSV, Extra.TSV, Extra.MULTICSV]:
-            sv_base = Filename(htmlfile.split('.html')[0])
             if extra in [Extra.CSV, Extra.MULTICSV]:
                 sv_ext = Filename('csv')
                 sv_kargs = {}
@@ -655,13 +665,13 @@ def main():
         odict_rows: Dict[Id, List] = col.OrderedDict()
 
         # Save basic statistics of raw samples
-        data_frame: pd.DataFrame = pd.DataFrame.from_records(
+        stat_frame: pd.DataFrame = pd.DataFrame.from_records(
             {raw: stats[raw].to_odict() for raw in raw_samples},
             index=stats[raw_samples[0]].to_odict().keys())
         if extra is Extra.FULL or extra is Extra.DYNOMICS:
-            data_frame.to_excel(xlsxwriter, sheet_name=STATS_SHEET_NAME)
+            stat_frame.to_excel(xlsxwriter, sheet_name=STATS_SHEET_NAME)
         elif extra in [Extra.CSV, Extra.TSV, Extra.MULTICSV]:
-            data_frame.to_csv(sv_base + '.stat.' + sv_ext, **sv_kargs)
+            stat_frame.to_csv(sv_base + '.stat.' + sv_ext, **sv_kargs)
 
         # Save taxid related statistics per sample
         if extra in [Extra.FULL, Extra.CSV, Extra.TSV, Extra.MULTICSV]:
@@ -673,9 +683,8 @@ def main():
             iterable_2 = [['Details'], ['Rank', 'Name']]
             cols2 = pd.MultiIndex.from_product(iterable_2)
             cols = cols1.append(cols2)
-            data_frame = pd.DataFrame.from_dict(odict_rows,
-                                                orient='index',
-                                                columns=cols)
+            data_frame: pd.DataFrame = pd.DataFrame.from_dict(
+                odict_rows, orient='index', columns=cols)
             data_frame.index.names = ['Id']
             if extra in [Extra.CSV, Extra.TSV]:
                 data_frame.to_csv(sv_base + '.data.' + sv_ext, **sv_kargs)
@@ -732,6 +741,25 @@ def main():
             xlsxwriter.save()
         print(green('OK!'))
 
+        # Serialize dataframes in compressed pickle files
+        if args.pickle:
+            # Serialize dataframe with basic statistics of raw samples
+            vprint(blue('INFO:'),
+                   gray('Serializing dataframes with stats and data.'))
+            pkl_file: Filename = sv_base + '.stat' + PKL_SUFFIX
+            print(gray(f'Generating output file ') +
+                  magenta(pkl_file) + gray(')... '), end='')
+            sys.stdout.flush()
+            stat_frame.to_pickle(pkl_file, compression='infer', protocol=-1)
+            print(green('OK!'))
+            # Serialize dataframe with taxid related statistics per sample
+            pkl_file = sv_base + '.data' + PKL_SUFFIX
+            print(gray(f'Generating output file ') +
+                  magenta(pkl_file) + gray(')... '), end='')
+            sys.stdout.flush()
+            data_frame.to_pickle(pkl_file, compression='infer', protocol=-1)
+            print(green('OK!'))
+
     # timing initialization
     start_time: float = time.time()
     # Program header
@@ -750,7 +778,7 @@ def main():
     input_files: List[Filename]
     nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
-    htmlfile: Filename = args.outhtml
+    out_prefix: Filename = Filename(args.outprefix)
     collapse: bool = not args.nokollapse
     excluding: Set[Id] = set(args.exclude)
     including: Set[Id] = set(args.include)
@@ -771,8 +799,14 @@ def main():
 
     select_inputs()
     check_controls()
-    if htmlfile is None:
-        select_html_file()
+
+    htmlfile: Filename = None
+    if out_prefix is None:
+        select_rcf_outputs()
+    elif out_prefix.endswith('.html') or out_prefix.endswith('.htm'):
+        htmlfile = out_prefix  # Support legacy --outhtml option
+    else:
+        htmlfile = out_prefix + HTML_SUFFIX
 
     # Load NCBI nodes, names and build children
     ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,

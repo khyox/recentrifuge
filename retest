@@ -50,7 +50,8 @@ import numpy as np
 from recentrifuge import __version__, __author__, __date__
 from recentrifuge import __path__  # type: ignore  # mypy issue #1422
 from recentrifuge.config import Filename, Score, Extra, Sample
-from recentrifuge.config import LICENSE, TAXDUMP_PATH, HTML_SUFFIX, XLSX_SUFFIX
+from recentrifuge.config import LICENSE, TAXDUMP_PATH
+from recentrifuge.config import HTML_SUFFIX, XLSX_SUFFIX
 from recentrifuge.config import REXTRACT_TEST_SAMPLE, REXTRACT_TEST_FASTQ
 from recentrifuge.config import REXTRACT_TEST_TAXID
 from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR, STR_CONTROL
@@ -89,7 +90,7 @@ PATH = os.path.dirname(os.path.realpath(__file__))
 PATH_TEST: Filename = Filename(os.path.join(__path__[0], 'test/'))
 F_FIL = '-f=' + TEST_OUTPUT_DIR
 TEST_PREFIX = 'TEST'
-HTML_FIL: Filename = Filename(TEST_PREFIX + HTML_SUFFIX)
+OUT_PRE: Filename = Filename(TEST_PREFIX)
 XLSX_FIL: Filename = Filename(TEST_PREFIX + XLSX_SUFFIX)
 TEST_PDF_FILE: Filename = Filename(TEST_PREFIX + '.rcf.pdf')
 ROC_CTRL_PDF_FILE: Filename = Filename('ROC_CTRL.rcf.pdf')
@@ -112,7 +113,7 @@ F_MHL = '-y='
 F_RND = '-r='
 F_MIN = '-m='
 F_CTR_MIN = '-w='
-F_CC = '-e=DYNOMICS'
+F_PKL = '--pickle'
 XLSX_PATH: Filename = Filename(os.path.join(TEST_OUTPUT_DIR, XLSX_FIL))
 STND_PATH: Filename = Filename(os.path.join(PATH_TEST, XLSX_FIL))
 MOCK_PATH: Filename = Filename(os.path.join(PATH_TEST, MOCK_XLSX))
@@ -264,13 +265,13 @@ def main():
             if not args.ignore:
                 sys.exit(4)
 
-    def test_rcf(html_filename: Filename = HTML_FIL,
+    def test_rcf(out_prefix: Filename = OUT_PRE,
                  mintaxa: int = None):
         """Test recentrifuge"""
         prog: Filename = Filename(prefix + 'rcf')
         print(magenta(f'\n>>> TESTING {prog} WITH MINTAXA {mintaxa} ...'))
-        argums = [prog, F_TAX, F_FIL,
-                  F_OUT + os.path.join(TEST_OUTPUT_DIR, html_filename),
+        argums = [prog, F_TAX, F_FIL,  # F_PKL,
+                  F_OUT + os.path.join(TEST_OUTPUT_DIR, out_prefix),
                   F_CTR, F_MHL + str(minscore), F_D]
         if mintaxa is not None:
             argums.append(F_MIN + str(mintaxa))
@@ -696,7 +697,7 @@ def main():
         for mintax, html in zip(vals, html_name):
             print(magenta(f' {mintax},'), end='', flush=True)
             if not args.skip:
-                test_rcf(html_filename=html, mintaxa=mintax)
+                test_rcf(out_prefix=html, mintaxa=mintax)
             xlsx_test_filename: Filename = Filename(
                 TEST_PREFIX + '_mintaxa' + str(mintax) + XLSX_SUFFIX)
             load_excels(just_excel=Filename(
