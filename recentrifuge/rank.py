@@ -28,7 +28,7 @@ class classproperty(object):  # pylint: disable=invalid-name
 
 
 class UnsupportedTaxLevelError(Exception):
-    """Raised if a unsupported tax level is found."""
+    """Raised if an unsupported tax level is found."""
 
 
 class Rank(Enum):
@@ -118,6 +118,12 @@ class Rank(Enum):
     NO_RANK = -1
     CLADE = 'NO_RANK'
     # pylint: enable=invalid-name
+
+    @classproperty
+    def list(cls) -> List['Rank']:  # pylint: disable=no-self-argument
+        """List all the taxonomic ranks in a list"""
+        return [r for r in map(lambda r: r.name, cls)
+                if not r.startswith('GO')]
 
     @classproperty
     def selected_ranks(cls) -> List['Rank']:  # pylint: disable=no-self-argument
