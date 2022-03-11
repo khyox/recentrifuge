@@ -72,6 +72,7 @@ ROOT: Id = Id('1')
 CELLULAR_ORGANISMS: Id = Id('131567')
 GO_ROOT: Id = Id('GO:ROOT')
 NO_SCORE = Score(float("-inf"))
+UNNAMED: str = 'Unnamed'
 
 
 class Classifier(Enum):

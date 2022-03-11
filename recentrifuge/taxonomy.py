@@ -5,10 +5,10 @@ Taxonomy class, currently representing the NCBI taxonomy.
 import collections as col
 import re
 import sys
-from typing import Set, Counter, Iterable, Tuple, Union
+from typing import Set, Counter, Iterable, Tuple, Union, List, Dict
 
 from recentrifuge.config import Filename, Id, Parents, Names, Children
-from recentrifuge.config import ROOT, CELLULAR_ORGANISMS
+from recentrifuge.config import ROOT, CELLULAR_ORGANISMS, UNNAMED
 from recentrifuge.config import red, magenta
 from recentrifuge.rank import Ranks, Rank, UnsupportedTaxLevelError
 from recentrifuge.ontology import Ontology
@@ -202,7 +202,7 @@ class Taxonomy(Ontology):
 
     def get_name(self, taxid: Id) -> str:
         """Retrieve the name for a Id."""
-        return self.names.get(taxid, 'Unnamed')
+        return self.names.get(taxid, UNNAMED)
 
     def get_ancestors(self, leaves: Iterable[Id]
                       ) -> Tuple[Set[Id], Set[Id]]:
@@ -220,3 +220,30 @@ class Taxonomy(Ontology):
                 else:
                     ancestors.add(tid)
         return ancestors, orphans
+
+    def get_lineage(self, taxid: Id, as_dict: bool = False,
+                    add_root: bool = False) -> List[Tuple[Rank, Id, str]]:
+        """Retrieve the lineage of a taxon up to the root of the taxonomy"""
+        lineage: List[Tuple[Rank, Id, str]] = []
+        lineage_as_dict: Dict[Rank, Dict[str, str]] = {}
+        if (self.get_rank(taxid) is Rank.UNCLASSIFIED
+                or self.get_name(taxid) is UNNAMED):
+            print(red('ERROR!'), f' Taxid {taxid} seems not valid.')
+            raise KeyError('Invalid taxonomic id')
+        while taxid != ROOT:
+            lineage.append((self.get_rank(taxid), taxid, self.get_name(taxid)))
+            lineage_as_dict[self.get_rank(taxid)] = {
+                'taxid': taxid, 'name': self.get_name(taxid)}
+            try:
+                taxid = self.parents[taxid]
+            except KeyError:
+                print(red('ERROR!'), f'Orphan taxid {taxid} found.')
+                raise
+        if add_root:
+            lineage.append((self.get_rank(ROOT), ROOT, self.get_name(ROOT)))
+            lineage_as_dict[self.get_rank(ROOT)] = {
+                'taxid': ROOT, 'name': self.get_name(ROOT)}
+        if as_dict:
+            return lineage_as_dict
+        else:
+            return lineage
