@@ -207,6 +207,17 @@ def main():
             help=(f'type of extra output to be generated, and can be one of '
                   f'{[str(xtra) for xtra in Extra]}')
         )
+        parser_out.add_argument(
+            '-p', '--pickle',
+            action='store_true',
+            help=('pickle (serialize) statistics and data results in pandas '
+                  'DataFrames (format affected by selection of --extra)')
+        )
+        parser_out.add_argument(
+            '--nohtml',
+            action='store_true',
+            help='suppress saving the HTML output file'
+        )
         parser_coarse = parser.add_argument_group(
             'tuning',
             'Coarse tuning of algorithm parameters')
@@ -337,12 +348,6 @@ def main():
             action='store_true',
             help='deactivate parallel processing'
         )
-        parser_mode.add_argument(
-            '-p', '--pickle',
-            action='store_true',
-            help=('pickle (serialize) results in a pandas DataFrame and '
-                  'suppress saving the HTML output file')
-        )
         return parser
 
     def parse_generic() -> GenericFormat:
@@ -444,8 +449,8 @@ def main():
             for i in range(args.controls):
                 print(blue(f'\t{input_files[i]}'))
 
-    def select_rcf_outputs():
-        """HTML filename selection"""
+    def infer_rcf_outputs():
+        """Infer output prefix and HTML filename from inputs"""
         nonlocal out_prefix, htmlfile  # type: ignore  # mypy #7057
         if lmats:  # Select case for dir name or filename prefix
             if os.path.isdir(lmats[0]):  # Dir name
@@ -610,8 +615,8 @@ def main():
                       accs=accs,
                       scores=scores)
         print(green('OK!'))
-        if not args.pickle:
-            print(gray('Generating final plot (') + magenta(htmlfile) +
+        if not args.nohtml:
+            print(gray('Generating interactive plot (') + magenta(htmlfile) +
                   gray(')... '), end='')
             sys.stdout.flush()
             polytree.toxml(ontology=ncbi, krona=krona)
@@ -786,27 +791,30 @@ def main():
     extra: Extra = Extra[args.extra]
     target_ranks: List[Rank] = Rank.selected_ranks
 
+    # Check and parse generic format, if selected
     genfmt: GenericFormat = None
     if args.generic:
         genfmt = parse_generic()
 
+    # Check arguments related to advanced modes of running
     check_advanced_modes()
 
+    # Choose right classifier, scoring, control and regular input files
     plasmidfile: Filename = None
     classifier: Classifier = None
     process: Callable[..., Tuple[Sample, TaxTree, SampleDataById,
                                  SampleStats, Err]]
-
     select_inputs()
     check_controls()
 
+    # Select the right output files (output prefix and HTML filename)
     htmlfile: Filename = None
-    if out_prefix is None:
-        select_rcf_outputs()
+    if out_prefix is None:  # Infer from inputs
+        infer_rcf_outputs()
     elif out_prefix.endswith('.html') or out_prefix.endswith('.htm'):
         htmlfile = out_prefix  # Support legacy --outhtml option
     else:
-        htmlfile = out_prefix + HTML_SUFFIX
+        htmlfile = Filename(out_prefix + HTML_SUFFIX)
 
     # Load NCBI nodes, names and build children
     ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,
