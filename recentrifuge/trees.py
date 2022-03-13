@@ -190,7 +190,7 @@ class TaxTree(dict):
         def populate_output(taxid: Id, source: TaxTree) -> None:
             """Populate the output structure"""
             nonlocal out
-            if out is None:  # If not defined out, do nothing
+            if out is None:  # If "out" not defined, do nothing and return
                 return
             if out.counts is not None:
                 out.counts[taxid] = source[taxid].counts

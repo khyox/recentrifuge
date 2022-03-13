@@ -230,19 +230,32 @@ class Taxonomy(Ontology):
                 or self.get_name(taxid) is UNNAMED):
             print(red('ERROR!'), f' Taxid {taxid} seems not valid.')
             raise KeyError('Invalid taxonomic id')
+        no_rank_cnt: int = 1
         while taxid != ROOT:
-            lineage.append((self.get_rank(taxid), taxid, self.get_name(taxid)))
-            lineage_as_dict[self.get_rank(taxid)] = {
-                'taxid': taxid, 'name': self.get_name(taxid)}
+            taxid_label: str = 'taxid'
+            name_label: str = 'name'
+            this_rank: Rank = self.get_rank(taxid)
+            if this_rank is Rank.NO_RANK:
+                taxid_label = 'taxid_' + str(no_rank_cnt)
+                name_label = 'name_' + str(no_rank_cnt)
+                no_rank_cnt += 1
+            lineage.append((this_rank, taxid, self.get_name(taxid)))
+            if lineage_as_dict.get(this_rank) is None:
+                lineage_as_dict[this_rank] = {}
+            lineage_as_dict[this_rank].update({
+                taxid_label: taxid, name_label: self.get_name(taxid)})
             try:
                 taxid = self.parents[taxid]
             except KeyError:
                 print(red('ERROR!'), f'Orphan taxid {taxid} found.')
                 raise
         if add_root:
-            lineage.append((self.get_rank(ROOT), ROOT, self.get_name(ROOT)))
-            lineage_as_dict[self.get_rank(ROOT)] = {
-                'taxid': ROOT, 'name': self.get_name(ROOT)}
+            root_rank: Rank = self.get_rank(ROOT)
+            lineage.append((root_rank, ROOT, self.get_name(ROOT)))
+            if lineage_as_dict.get(root_rank) is None:
+                lineage_as_dict[root_rank] = {}
+            lineage_as_dict[root_rank].update({
+                'taxid': ROOT, 'name': self.get_name(ROOT)})
         if as_dict:
             return lineage_as_dict
         else:
