@@ -31,7 +31,7 @@ from Bio import SeqIO, SeqRecord
 from recentrifuge import __version__, __author__, __date__
 from recentrifuge.config import Filename, Id, Score
 from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, TAXDUMP_PATH
-from recentrifuge.config import gray, red, green, cyan, magenta, blue
+from recentrifuge.config import gray, red, green, cyan, magenta, blue, yellow
 from recentrifuge.rank import Rank, Ranks, TaxLevels
 from recentrifuge.taxonomy import Taxonomy
 from recentrifuge.trees import TaxTree
@@ -206,8 +206,8 @@ def main():
     num_taxlevels = +num_taxlevels
 
     # Statistics about including taxa
-    print(f'  {len(taxids)}\033[90m taxid selected in \033[0m', end='')
-    print(f'{len(num_taxlevels)}\033[90m different taxonomical levels:\033[0m')
+    print(f'  {len(taxids)}', gray(' taxid selected in '), end='')
+    print(f'{len(num_taxlevels)}', gray(' different taxonomic levels:'))
     for rank in num_taxlevels:
         print(f'  Number of different {rank}: {num_taxlevels[rank]}')
     assert taxids, red('ERROR! No taxids to search for!')
@@ -235,12 +235,16 @@ def main():
                         output_file + '"')
     print(green(' OK!'))
 
-    # Basic records statistics
+    # Basic records statistics (or exit if no matching read)
     print(gray('  Load elapsed time: ') +
           f'{time.perf_counter() - start_time_load:.3g}' + gray(' sec'))
-    print(f'  \033[90mMatching reads: \033[0m{len(records):_d} \033[90m\t'
-          f'(\033[0m{len(records) / num_seqs:.4%}\033[90m of sample)')
-    sys.stdout.flush()
+    if num_seqs:
+        print(gray('  Matching reads: '), f'{len(records):_d}\t', gray('('),
+              f'{len(records) / num_seqs:.4%}', gray(' of sample)'))
+        sys.stdout.flush()
+    else:
+        print(yellow('WARNING!'), 'No matching read found! Exiting.')
+        sys.exit(1)
 
     # FASTQ sequence dealing
     # records_ids: List[SeqRecord] = [record.id for record in records]
