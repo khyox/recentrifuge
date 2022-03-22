@@ -470,6 +470,7 @@ def main():
     def read_samples():
         """Read samples"""
         print(gray('\nPlease, wait, processing files in parallel...\n'))
+        void_sample_cnt: int = 0
         # Enable parallelization with 'spawn' under known platforms
         if platform.system() and not args.sequential:  # Only for known systems
             mpctx = mp.get_context('fork')
@@ -492,6 +493,8 @@ def main():
                         scores[sample] = out.scores
                         stats[sample] = stat
                         mintaxas[sample] = stat.mintaxa
+                    elif err is Err.VOID_SAMPLE:
+                        void_sample_cnt += 1
                     elif err is Err.VOID_CTRL:
                         print('There were void controls.', red('Aborting!'))
                         exit(1)
@@ -508,10 +511,18 @@ def main():
                     scores[sample] = out.scores
                     stats[sample] = stat
                     mintaxas[sample] = stat.mintaxa
+                elif err is Err.VOID_SAMPLE:
+                    void_sample_cnt += 1
                 elif err is Err.VOID_CTRL:
                     print('There were void controls.', red('Aborting!'))
                     exit(1)
         raw_samples.extend(samples)  # Store raw sample names
+        if not raw_samples:
+            print('All the samples are void.', red('Aborting!'))
+            exit(2)
+        elif void_sample_cnt:
+            print(yellow('Warning! '), void_sample_cnt, ' of the ',
+                  len(input_files), ' input samples are ', yellow('VOID!'))
 
     def analyze_samples():
         """Cross analysis of samples in parallel by taxlevel"""

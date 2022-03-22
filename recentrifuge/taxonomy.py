@@ -51,7 +51,12 @@ class Taxonomy(Ontology):
             print('List of taxa (and below) to be explicitly included:')
             print('\t\tId\tScientific Name')
             for taxid in including:
-                print(f'\t\t{taxid}\t{self.names[taxid]}')
+                try:
+                    print(f'\t\t{taxid}\t{self.names[taxid]}')
+                except KeyError:
+                    print(red('ERROR!'), 'The taxid', taxid,
+                          'to include seems invalid.', red('Aborting!'))
+                    raise
         else:
             # For excluding to operate not on single taxa but on subtrees
             including = {ROOT}
@@ -60,7 +65,12 @@ class Taxonomy(Ontology):
             print('List of taxa (and below) to be excluded:')
             print('\t\tId\tScientific Name')
             for taxid in excluding:
-                print(f'\t\t{taxid}\t{self.names[taxid]}')
+                try:
+                    print(f'\t\t{taxid}\t{self.names[taxid]}')
+                except KeyError:
+                    print(red('ERROR!'), 'The taxid', taxid,
+                          'to exclude seems invalid.', red('Aborting!'))
+                    raise
         self.excluding: Union[Tuple, Set[Id]] = excluding
 
     def read_nodes(self, nodes_file: Filename) -> None:
