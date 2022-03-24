@@ -61,6 +61,7 @@ REXTRACT_TEST_FASTQ: Filename = Filename('smpl3.fastq')
 REXTRACT_TEST_TAXID: Id = Id('2208')
 TEST_INPUT_DIR: Filename = Filename('test/')
 TEST_OUTPUT_DIR: Filename = Filename('rcf_test/')
+GZEXT: Filename = Filename('.gz')
 STATS_SHEET_NAME: str = '_sample_stats'
 STR_CONTROL: str = 'CTRL'
 STR_EXCLUSIVE: str = 'EXCLUSIVE'

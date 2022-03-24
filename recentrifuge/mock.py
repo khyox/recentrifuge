@@ -4,6 +4,7 @@ Methods related to generation of mock data.
 """
 
 import collections as col
+import gzip
 import os
 import random
 import sys
@@ -14,7 +15,7 @@ from Bio.SeqRecord import SeqRecord
 from Bio import SeqIO
 
 from recentrifuge.centrifuge import select_centrifuge_inputs
-from recentrifuge.config import Id, Filename
+from recentrifuge.config import Id, Filename, GZEXT
 from recentrifuge.config import TEST_INPUT_DIR, TEST_OUTPUT_DIR, MOCK_XLSX
 from recentrifuge.config import REXTRACT_TEST_SAMPLE, REXTRACT_TEST_FASTQ
 from recentrifuge.config import gray, blue, green, red, yellow, cyan, magenta
@@ -43,6 +44,7 @@ def generate_mock(ncbi: Taxonomy,
                   mocks: List[Filename],
                   xcel: Filename,
                   debug: bool,
+                  gzipped: bool = False,
                   ):
     
     def vprint(*args):
@@ -92,6 +94,38 @@ def generate_mock(ncbi: Taxonomy,
 
     def mock_from_scratch(out: Filename, mock_layout: Counter[Id]) -> None:
         """Generate a mock Centrifuge output file from scratch"""
+
+        def mock_fastq(num_reads: int) -> None:
+            """Create a mock FASTQ file (gzipped or not)"""
+
+            def fastq_seqs():
+                """Generator function that creates mock fastq sequences
+
+                Sequences are very short (4 nt) and with the same quality
+                so that they file is lighter and easier to compress
+                """
+                for seq in range(num_reads):
+                    yield SeqRecord(Seq('AGTC'),
+                                    id=f'test{seq}', name=f'test{seq}',
+                                    description=f'test{seq}',
+                                    annotations={'quality': '@@@@',
+                                                 'molecule_type': 'DNA'}
+                                    )
+
+            if gzipped:
+                print(gray('Compressing'), magenta(f'{num_reads}'),
+                      gray('reads in'), TEST_REXT_FSTQ + GZEXT, gray('...'),
+                      end='', flush=True)
+                with gzip.open(TEST_REXT_FSTQ + GZEXT, 'wt') as fgz:
+                    SeqIO.write((sq for sq in fastq_seqs()), fgz, 'quickfastq')
+            else:
+                print(gray('Writing'), magenta(f'{num_reads}'),
+                      gray('reads in'),
+                      TEST_REXT_FSTQ, gray('...'), end='', flush=True)
+                SeqIO.write((sq for sq in fastq_seqs()), TEST_REXT_FSTQ,
+                            'quickfastq')
+            print(green(' OK!'))
+
         with open(out, 'w') as fout:
             vprint(gray('Generating'), blue(out), gray('file... '))
             fout.write('readID\tseqID\ttaxID\tscore\t2ndBestScore\t'
@@ -145,30 +179,11 @@ def generate_mock(ncbi: Taxonomy,
             else:
                 mock_from_scratch(test, mock_layout)
 
-    def mock_fastq(num_reads: int) -> None:
-        """Do the job in case of Excel file with all the details"""
-
-        def fastq_seqs():
-            """Generator function that creates mock fastq sequences
-            """
-            for seq in range(num_reads):
-                yield SeqRecord(Seq('AGTC'),
-                                id=f'test{seq}', name=f'test{seq}',
-                                description=f'test{seq}',
-                                annotations={'quality': '@@@@',
-                                             'molecule_type': 'DNA'}
-                                )
-
-        print(gray('Writing'), magenta(f'{num_reads}'), gray('reads in'),
-              TEST_REXT_FSTQ, gray('...'), end='', flush=True)
-        SeqIO.write((sq for sq in fastq_seqs()), TEST_REXT_FSTQ, 'quickfastq')
-        print(green(' OK!'))
-
     if mocks:
         by_mock_files()
     elif xcel:
         by_excel_file()
-    else:  # Test mode
+    else:  # Test mode in remock (-t)
         path = os.path.dirname(os.path.realpath(__file__))
         xcel = Filename(os.path.join(path, TEST_MOCK_XLSX))
         vprint(gray('Test mode! Processing'), xcel, '\n')
