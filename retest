@@ -34,6 +34,7 @@ Meaning of retest exit codes:
 
 import argparse
 import collections as col
+import gzip
 import os
 import re
 import subprocess as sp
@@ -53,7 +54,7 @@ from recentrifuge.config import Filename, Score, Extra, Sample
 from recentrifuge.config import LICENSE, TAXDUMP_PATH
 from recentrifuge.config import HTML_SUFFIX, XLSX_SUFFIX
 from recentrifuge.config import REXTRACT_TEST_SAMPLE, REXTRACT_TEST_FASTQ
-from recentrifuge.config import REXTRACT_TEST_TAXID
+from recentrifuge.config import REXTRACT_TEST_TAXID, GZEXT
 from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR, STR_CONTROL
 from recentrifuge.config import MOCK_XLSX, MOCK_SHEET, KEY_SHEET
 from recentrifuge.config import gray, blue, magenta, green, red, yellow
@@ -96,15 +97,16 @@ TEST_PDF_FILE: Filename = Filename(TEST_PREFIX + '.rcf.pdf')
 ROC_CTRL_PDF_FILE: Filename = Filename('ROC_CTRL.rcf.pdf')
 ROC_MINTAX_PDF_FILE: Filename = Filename('ROC_MINTAX.rcf.pdf')
 # # General
+F_C = '-c'
 F_D = '-d'
 F_T = '-t'
 # # For rextract
 F_CFG = '-f=' + os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_SAMPLE)
 F_INC = '-i=' + REXTRACT_TEST_TAXID
-F_FAQ = '-q=' + os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_FASTQ)
-REXTRACTED_FASTQ = Filename(
+F_FAQ = '-q=' + os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_FASTQ + GZEXT)
+REXTRACTED_FASTQ_GZ = Filename(
     os.path.join(TEST_OUTPUT_DIR, REXTRACT_TEST_FASTQ).rstrip('.fastq') +
-    '_rxtr_incl' + REXTRACT_TEST_TAXID + '.fastq'
+    '_rxtr_incl' + REXTRACT_TEST_TAXID + '.fastq.gz'
 )
 # # For rcf
 F_OUT = '-o='
@@ -253,7 +255,7 @@ def main():
         """Test remock"""
         prog: Filename = Filename(prefix + 'remock')
         print(magenta(f'\n>>> TESTING {prog} ...'))
-        argums = [prog, F_TAX, F_RND + str(minscore), F_T, F_D]
+        argums = [prog, F_TAX, F_RND + str(minscore), F_T, F_D, F_C]
         if args.debug:
             print(argums)
         cproc = sp.run(argums, universal_newlines=True)
@@ -293,7 +295,7 @@ def main():
         """Test rextract"""
         prog: Filename = Filename(prefix + 'rextract')
         print(magenta(f'\n>>> TESTING {prog} ...'))
-        argums = [prog, F_CFG, F_FAQ, F_INC, F_D]
+        argums = [prog, F_CFG, F_FAQ, F_INC, F_D, F_C]
         if args.debug:
             print(argums)
         cproc = sp.run(argums, universal_newlines=True)
@@ -371,8 +373,9 @@ def main():
         except KeyError:
             cnt_mck = 0
 
-        record_iterator = SeqIO.parse(REXTRACTED_FASTQ, "quickfastq")
-        num_seqs: int = len(list(record_iterator))
+        with gzip.open(REXTRACTED_FASTQ_GZ, 'rt') as fgz:
+            record_iterator = SeqIO.parse(fgz, "quickfastq")
+            num_seqs: int = len(list(record_iterator))
         if num_seqs == cnt_mck:
             print(blue(f'{cnt_mck}'), 'fastq seqs', green('OK!'))
         else:

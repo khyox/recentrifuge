@@ -20,16 +20,18 @@ Selectively extract reads following Centrifuge/Kraken output.
 """
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse
+import gzip
+import io
 import os
 import sys
 import time
 from collections import Counter
-from typing import List, Set
+from typing import Callable, List, Set, TextIO
 
 from Bio import SeqIO, SeqRecord
 
 from recentrifuge import __version__, __author__, __date__
-from recentrifuge.config import Filename, Id, Score
+from recentrifuge.config import Filename, Id, Score, GZEXT
 from recentrifuge.config import LICENSE, NODES_FILE, NAMES_FILE, TAXDUMP_PATH
 from recentrifuge.config import gray, red, green, cyan, magenta, blue, yellow
 from recentrifuge.rank import Rank, Ranks, TaxLevels
@@ -51,11 +53,6 @@ def main():
             formatter_class=argparse.RawDescriptionHelpFormatter
         )
         parser.add_argument(
-            '-V', '--version',
-            action='version',
-            version=f'%(prog)s release {__version__} ({__date__})'
-        )
-        parser.add_argument(
             '-d', '--debug',
             action='store_true',
             help='increase output verbosity and perform additional checks'
@@ -65,7 +62,7 @@ def main():
             action='store',
             metavar='FILE',
             required=True,
-            help='Centrifuge output file.'
+            help='Centrifuge output file'
         )
         parser.add_argument(
             '-l', '--limit',
@@ -73,8 +70,8 @@ def main():
             metavar='NUMBER',
             type=int,
             default=None,
-            help=('Limit of FASTQ reads to extract. '
-                  'Default: no limit')
+            help=('limit of FASTQ reads to extract; '
+                  'default: no limit')
         )
         parser.add_argument(
             '-m', '--maxreads',
@@ -82,8 +79,8 @@ def main():
             metavar='NUMBER',
             type=int,
             default=None,
-            help=('Maximum number of FASTQ reads to search for the taxa. '
-                  'Default: no maximum')
+            help=('maximum number of FASTQ reads to search for the taxa; '
+                  'default: no maximum')
         )
         parser.add_argument(
             '-n', '--nodespath',
@@ -100,8 +97,8 @@ def main():
             type=Id,
             default=[],
             help=('NCBI taxid code to include a taxon and all underneath ' +
-                  '(multiple -i is available to include several taxid). ' +
-                  'By default all the taxa is considered for inclusion.')
+                  '(multiple -i is available to include several taxid); ' +
+                  'by default all the taxa is considered for inclusion')
         )
         parser.add_argument(
             '-x', '--exclude',
@@ -127,14 +124,14 @@ def main():
             action='store',
             metavar='FILE',
             default=None,
-            help='Single FASTQ file (no paired-ends)'
+            help='single FASTQ file (no paired-ends), which may be gzipped'
         )
         filein.add_argument(
             '-1', '--mate1',
             action='store',
             metavar='FILE',
             default=None,
-            help='Paired-ends FASTQ file for mate 1s '
+            help='paired-ends FASTQ file (gzipped or not) for mate 1s '
                  '(filename usually includes _1)'
         )
         parser.add_argument(
@@ -142,8 +139,18 @@ def main():
             action='store',
             metavar='FILE',
             default=None,
-            help='Paired-ends FASTQ file for mate 2s '
+            help='paired-ends FASTQ file (gzipped or not) for mate 2s '
                  '(filename usually includes _2)'
+        )
+        parser.add_argument(
+            '-c', '--compress',
+            action='store_true',
+            help='any generated FASTQ file will be gzipped'
+        )
+        parser.add_argument(
+            '-V', '--version',
+            action='version',
+            version=f'%(prog)s release {__version__} ({__date__})'
         )
         return parser
 
@@ -213,7 +220,7 @@ def main():
     assert taxids, red('ERROR! No taxids to search for!')
 
     # Get the records
-    records: List[SeqRecord] = []
+    records: List[SeqRecord.SeqRecord] = []
     num_seqs: int = 0
     # timing initialization
     start_time_load: float = time.perf_counter()
@@ -246,28 +253,51 @@ def main():
         print(yellow('WARNING!'), 'No matching read found! Exiting.')
         sys.exit(1)
 
+    def is_gzipped(fpath: Filename):
+        """Check if a file exists and is gzipped"""
+        try:
+            with open(fpath, 'rb') as ftest:
+                return ftest.read(2) == b'\x1f\x8b'
+        except FileNotFoundError:
+            return False
+
     # FASTQ sequence dealing
-    # records_ids: List[SeqRecord] = [record.id for record in records]
-    records_ids: Set[SeqRecord] = {record.id for record in records}
-    seqs1: List[SeqRecord] = []
-    seqs2: List[SeqRecord] = []
+    records_ids: Set[SeqRecord.SeqRecord] = {record.id for record in records}
+    seqs1: List[SeqRecord.SeqRecord] = []
+    seqs2: List[SeqRecord.SeqRecord] = []
     extracted: int = 0
     i: int = 0
     if fastq_2:
         print(f'\033[90mLoading FASTQ files {fastq_1} and {fastq_2}...\n'
               f'Mseqs: \033[0m', end='')
         sys.stdout.flush()
+        mate1handler: Callable[..., TextIO]
+        mate2handler: Callable[..., TextIO]
+        if is_gzipped(fastq_1):
+            mate1handler = gzip.open
+        else:
+            mate1handler = open
+        if is_gzipped(fastq_2):
+            mate2handler = gzip.open
+        else:
+            mate2handler = open
         try:
-            with open(fastq_1, 'r', newline=None) as file1, \
-                 open(fastq_2, 'r', newline=None) as file2:
+            with mate1handler(fastq_1, 'rt') as file1, \
+                 mate2handler(fastq_2, 'rt') as file2:
                 for i, (rec1, rec2) in enumerate(zip(SeqIO.parse(file1,
                                                                  'quickfastq'),
                                                      SeqIO.parse(file2,
                                                                  'quickfastq'))
                                                  ):
-                    if not records_ids or (
-                            args.maxreads and i >= args.maxreads) or (
-                            args.limit and extracted >= args.limit):
+                    if not records_ids:
+                        print(green(' [all records found]'), end='')
+                        break
+                    elif args.maxreads and i >= args.maxreads:
+                        print(yellow(' [stopping by maxreads limit!]'), end='')
+                        break
+                    elif args.limit and extracted >= args.limit:
+                        print(yellow(f' [stopping by {extracted} limit!]'),
+                              end='')
                         break
                     elif not i % 1000000:
                         print(f'{i // 1000000:_d}', end='')
@@ -287,15 +317,26 @@ def main():
         except FileNotFoundError:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read FASTQ files')
     else:
-        print(f'\033[90mLoading FASTQ files {fastq_1}...\n'
-              f'Mseqs: \033[0m', end='')
+        print(gray('Loading FASTQ file'), f'{fastq_1}', gray('...\nMseqs: '),
+              end='')
         sys.stdout.flush()
+        mate1handler: Callable[..., TextIO]
+        if is_gzipped(fastq_1):
+            mate1handler = gzip.open
+        else:
+            mate1handler = open
         try:
-            with open(fastq_1, 'r', newline=None) as file1:
+            with mate1handler(fastq_1, 'rt') as file1:
                 for i, rec1 in enumerate(SeqIO.parse(file1, 'quickfastq')):
-                    if not records_ids or (
-                            args.maxreads and i >= args.maxreads) or (
-                            args.limit and extracted >= args.limit):
+                    if not records_ids:
+                        print(green(' [all records found]'), end='')
+                        break
+                    elif args.maxreads and i >= args.maxreads:
+                        print(yellow(' [stopping by maxreads limit]!'), end='')
+                        break
+                    elif args.limit and extracted >= args.limit:
+                        print(yellow(f' [stopping by {extracted} limit]!'),
+                              end='')
                         break
                     elif not i % 1000000:
                         print(f'{i // 1000000:_d}', end='')
@@ -318,11 +359,17 @@ def main():
         """Auxiliary function to properly format the output filenames.
 
         Args:
-            fastq: Complete filename of the fastq input file
+            fastq: Complete filename of the fastq input file (gzipped or not)
 
         Returns: Filename of the rextracted fastq output file
         """
-        fastq_filename, _ = os.path.splitext(fastq)
+        # Get filename and extension, accounting for 2 extensions,
+        #  typically found in filename.fastq.gz
+        fastq_filename, fastq_ext = os.path.splitext(fastq)
+        if fastq_ext.casefold() == GZEXT:
+            fastq_filename, fastq_ext = os.path.splitext(fastq_filename)
+        if args.compress and not fastq_ext.casefold().endswith(GZEXT):
+            fastq_ext += GZEXT
         output_list: List[str] = [fastq_filename, '_rxtr']
         if including:
             output_list.append('_incl')
@@ -330,17 +377,26 @@ def main():
         if excluding:
             output_list.append('_excl')
             output_list.extend('_'.join(excluding))
-        output_list.append('.fastq')
+        output_list.append(fastq_ext)
         return Filename(''.join(output_list))
 
-    filename1: Filename = format_filename(fastq_1)
-    SeqIO.write(seqs1, filename1, 'quickfastq')
-    print(gray('Wrote'), magenta(f'{len(seqs1)}'), gray('reads in'), filename1)
+    def write_seqs(seqs: List[SeqRecord.SeqRecord], fname_in: Filename,
+                   gzipped: bool = False) -> None:
+        """Aux function to save the extracted sequences"""
+        fname_out: Filename = format_filename(fname_in)
+        if gzipped:
+            with gzip.open(fname_out, 'wt') as fgz:
+                SeqIO.write(seqs, fgz, 'quickfastq')
+            print(gray('Compressed'), magenta(f'{len(seqs)}'),
+                  gray('reads in'), fname_out)
+        else:
+            SeqIO.write(seqs, fname_out, 'quickfastq')
+            print(gray('Wrote'), magenta(f'{len(seqs)}'),
+                  gray('reads in'), fname_out)
+
+    write_seqs(seqs1, fastq_1, gzipped=args.compress)
     if fastq_2:
-        filename2: Filename = format_filename(fastq_2)
-        SeqIO.write(seqs2, filename2, 'quickfastq')
-        print(gray('Wrote'), magenta(f'{len(seqs1)}'), gray('reads in'),
-              filename2)
+        write_seqs(seqs2, fastq_2, gzipped=args.compress)
 
     # Timing results
     print(gray('Total elapsed time:'), time.strftime(

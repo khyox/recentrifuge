@@ -89,6 +89,7 @@ def main():
                 type=Filename,
                 help='Excel file with the mock layout.'
             )
+            # Test mode really characterized by None in mock and xcel arguments
             parser_input.add_argument(
                 '-t', '--test',
                 action='store_true',
@@ -101,6 +102,11 @@ def main():
             default=TAXDUMP_PATH,
             help=('path for the nodes information files '
                   '(nodes.dmp and names.dmp from NCBI)')
+        )
+        parser.add_argument(
+            '-c', '--compress',
+            action='store_true',
+            help='Any generated FASTQ file will be gzipped'
         )
         parser.add_argument(
             '-V', '--version',
@@ -137,7 +143,7 @@ def main():
     generate_mock(ncbi,
                   args.file, args.random,
                   args.mock, args.xcel,
-                  args.debug)
+                  args.debug, gzipped=args.compress)
 
 
 if __name__ == '__main__':
