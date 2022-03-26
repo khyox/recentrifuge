@@ -21,7 +21,6 @@ Selectively extract reads following Centrifuge/Kraken output.
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse
 import gzip
-import io
 import os
 import sys
 import time
@@ -90,7 +89,17 @@ def main():
             help=('path for the nodes information files '
                   '(nodes.dmp and names.dmp from NCBI)')
         )
-        parser.add_argument(
+        parser_selection = parser.add_argument_group(
+            'selection',
+            'Selection of reads based on the classification')
+        parser_classif = parser_selection.add_mutually_exclusive_group(
+            required=False)
+        parser_classif.add_argument(
+            '-u', '--unclassified',
+            action='store_true',
+            help='Just extract unclassified reads (overrides other options)'
+        )
+        parser_classif.add_argument(
             '-i', '--include',
             action='append',
             metavar='TAXID',
@@ -100,7 +109,7 @@ def main():
                   '(multiple -i is available to include several taxid); ' +
                   'by default all the taxa is considered for inclusion')
         )
-        parser.add_argument(
+        parser_selection.add_argument(
             '-x', '--exclude',
             action='append',
             metavar='TAXID',
@@ -118,7 +127,9 @@ def main():
             help=('minimum score/confidence of the classification of a read '
                   'to pass the quality filter; all pass by default')
         )
-        filein = parser.add_mutually_exclusive_group(required=True)
+        parser_in = parser.add_argument_group(
+            'input', 'Define Rextract input files')
+        filein = parser_in.add_mutually_exclusive_group(required=True)
         filein.add_argument(
             '-q', '--fastq',
             action='store',
@@ -134,7 +145,7 @@ def main():
             help='paired-ends FASTQ file (gzipped or not) for mate 1s '
                  '(filename usually includes _1)'
         )
-        parser.add_argument(
+        parser_in.add_argument(
             '-2', '--mate2',
             action='store',
             metavar='FILE',
@@ -176,6 +187,7 @@ def main():
     output_file = args.file
     nodesfile: Filename = Filename(os.path.join(args.nodespath, NODES_FILE))
     namesfile: Filename = Filename(os.path.join(args.nodespath, NAMES_FILE))
+    unclass: bool = args.unclassified
     excluding: Set[Id] = set(args.exclude)
     including: Set[Id] = set(args.include)
     fastq_1: Filename
@@ -188,66 +200,77 @@ def main():
     check_debug()
 
     # Load NCBI nodes, names and build children
-    plasmidfile: Filename = None
-    ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,
-                              False, excluding, including)
+    if not unclass:
+        plasmidfile: Filename = None
+        ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,
+                                  False, excluding, including)
 
-    # Build taxonomy tree
-    print(gray('Building taxonomy tree...'), end='')
-    sys.stdout.flush()
-    tree = TaxTree()
-    tree.grow(ontology=ncbi, look_ancestors=False)
-    print(green(' OK!'))
+        # Build taxonomy tree
+        print(gray('Building taxonomy tree...'), end='')
+        sys.stdout.flush()
+        tree = TaxTree()
+        tree.grow(ontology=ncbi, look_ancestors=False)
+        print(green(' OK!'))
 
-    # Get the taxa
-    print(gray('Filtering taxa...'), end='')
-    sys.stdout.flush()
-    ranks: Ranks = Ranks({})
-    tree.get_taxa(ranks=ranks,
-                  include=including,
-                  exclude=excluding)
-    print(green(' OK!'))
-    taxids: Set[Id] = set(ranks)
-    taxlevels: TaxLevels = Rank.ranks_to_taxlevels(ranks)
-    num_taxlevels = Counter({rank: len(taxlevels[rank]) for rank in taxlevels})
-    num_taxlevels = +num_taxlevels
+        # Get the taxa
+        print(gray('Filtering taxa...'), end='')
+        sys.stdout.flush()
+        ranks: Ranks = Ranks({})
+        tree.get_taxa(ranks=ranks,
+                      include=including,
+                      exclude=excluding)
+        print(green(' OK!'))
+        taxids: Set[Id] = set(ranks)
+        taxlevels: TaxLevels = Rank.ranks_to_taxlevels(ranks)
+        num_taxlevels = Counter({rank: len(taxlevels[rank])
+                                 for rank in taxlevels})
+        num_taxlevels = +num_taxlevels
 
-    # Statistics about including taxa
-    print(f'  {len(taxids)}', gray(' taxid selected in '), end='')
-    print(f'{len(num_taxlevels)}', gray(' different taxonomic levels:'))
-    for rank in num_taxlevels:
-        print(f'  Number of different {rank}: {num_taxlevels[rank]}')
-    assert taxids, red('ERROR! No taxids to search for!')
+        # Statistics about including taxa
+        print(f'  {len(taxids)}', gray('taxid selected in '), end='')
+        print(f'{len(num_taxlevels)}', gray('different taxonomic levels:'))
+        for rank in num_taxlevels:
+            print(f'  Number of different {rank}: {num_taxlevels[rank]}')
+        assert taxids, red('ERROR! No taxids to search for!')
 
     # Get the records
     records: List[SeqRecord.SeqRecord] = []
     num_seqs: int = 0
     # timing initialization
     start_time_load: float = time.perf_counter()
-    print(gray(f'Loading output file {output_file}...'), end='')
+    print(gray('Parsing Centrifuge output file'), output_file, gray('...'),
+          end='')
     sys.stdout.flush()
     try:
         with open(output_file, 'r', newline=None) as file:
             file.readline()  # discard header
             for num_seqs, record in enumerate(SeqIO.parse(file, 'centrifuge')):
-                tid: Id = record.annotations['taxID']
-                if tid not in taxids:
-                    continue  # Ignore read if low confidence
-                score: Score = Score(record.annotations['score'])
-                if args.minscore is not None and score < args.minscore:
-                    continue
-                records.append(record)
+                if unclass:
+                    if record.dbxrefs[0] != 'unclassified':
+                        continue  # Ignore read if classified
+                    else:
+                        records.append(record)
+                else:
+                    tid: Id = record.annotations['taxID']
+                    if tid not in taxids:
+                        continue
+                    score: Score = Score(record.annotations['score'])
+                    if args.minscore is not None and score < args.minscore:
+                        continue  # Ignore read if low confidence
+                    else:
+                        records.append(record)
     except FileNotFoundError:
         raise Exception(red('ERROR!') + 'Cannot read "' +
                         output_file + '"')
     print(green(' OK!'))
 
     # Basic records statistics (or exit if no matching read)
-    print(gray('  Load elapsed time: ') +
+    print(gray('  Parse elapsed time: ') +
           f'{time.perf_counter() - start_time_load:.3g}' + gray(' sec'))
     if num_seqs:
-        print(gray('  Matching reads: '), f'{len(records):_d}\t', gray('('),
-              f'{len(records) / num_seqs:.4%}', gray(' of sample)'))
+        modifier: str = ('Unclassified' if unclass else 'Matching')
+        print(gray(f'  {modifier} reads: '), f'{len(records):_d}\t', gray('('),
+              f'{len(records) / num_seqs:.4%}', gray('of sample )'))
         sys.stdout.flush()
     else:
         print(yellow('WARNING!'), 'No matching read found! Exiting.')
@@ -268,8 +291,8 @@ def main():
     extracted: int = 0
     i: int = 0
     if fastq_2:
-        print(f'\033[90mLoading FASTQ files {fastq_1} and {fastq_2}...\n'
-              f'Mseqs: \033[0m', end='')
+        print(gray('Loading FASTQ files'), fastq_1, gray('and'), fastq_2,
+              gray('...\nMseqs: '), end='')
         sys.stdout.flush()
         mate1handler: Callable[..., TextIO]
         mate2handler: Callable[..., TextIO]
@@ -371,12 +394,15 @@ def main():
         if args.compress and not fastq_ext.casefold().endswith(GZEXT):
             fastq_ext += GZEXT
         output_list: List[str] = [fastq_filename, '_rxtr']
-        if including:
-            output_list.append('_incl')
-            output_list.extend('_'.join(including))
-        if excluding:
-            output_list.append('_excl')
-            output_list.extend('_'.join(excluding))
+        if unclass:
+            output_list.append('_unclass')
+        else:
+            if including:
+                output_list.append('_incl')
+                output_list.extend('_'.join(including))
+            if excluding:
+                output_list.append('_excl')
+                output_list.extend('_'.join(excluding))
         output_list.append(fastq_ext)
         return Filename(''.join(output_list))
 
