@@ -125,6 +125,16 @@ class Extra(Enum):
         return f'{str(self.name)}'
 
 
+class Summary(Enum):
+    """Enumeration with options for the summary option."""
+    ADD = 0  # Add summary samples to the rest of samples (default)
+    ONLY = 1  # Generate raw and summary samples only
+    AVOID = 2  # Do not generate summary samples at all
+
+    def __str__(self):
+        return f'{str(self.name)}'
+
+
 class Err(Enum):
     """Enumeration with error codes"""
     NO_ERROR = 0  # No error
