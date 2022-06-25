@@ -142,7 +142,7 @@ def main():
     omag: str = ceil(log10(num_files))  # Get order of magnitude ceil
     for n in range(num_files):
         key: str = f'{n:0>{omag}}'
-        in_handler[key] = handler(Filename(out_root + str(n) + fext), 'wt')
+        in_handler[key] = handler(Filename(out_root + key + fext), 'wt')
         nts[key] = 0  # Initialize counter so that most_common will work
 
     # Main loop: split FASTA file
