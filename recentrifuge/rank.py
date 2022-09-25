@@ -148,7 +148,7 @@ class Rank(Enum):
 
     @classmethod
     def centrifuge(cls, tax_level: str) -> 'Rank':
-        """Transforms Centrifuge codes for taxonomical levels"""
+        """Transforms Centrifuge codes for taxonomic levels"""
         taxonomic_level: Rank
         if tax_level == '-':
             taxonomic_level = cls.NO_RANK
