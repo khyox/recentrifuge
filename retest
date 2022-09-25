@@ -272,7 +272,7 @@ def main():
         """Test recentrifuge"""
         prog: Filename = Filename(prefix + 'rcf')
         print(magenta(f'\n>>> TESTING {prog} WITH MINTAXA {mintaxa} ...'))
-        argums = [prog, F_TAX, F_FIL, F_PKL,
+        argums = [prog, F_TAX, F_FIL, F_PKL, F_PKL,  # '--pickle' twice
                   F_OUT + os.path.join(TEST_OUTPUT_DIR, out_prefix),
                   F_CTR, F_MHL + str(minscore), F_D]
         if mintaxa is not None:

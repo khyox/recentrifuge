@@ -20,9 +20,11 @@ Analyze metagenomic (taxonomic) classification data.
 """
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse
+import bz2
 import collections as col
 import multiprocessing as mp
 import os
+import pickle
 import platform
 import sys
 import time
@@ -210,9 +212,12 @@ def main():
         )
         parser_out.add_argument(
             '-p', '--pickle',
-            action='store_true',
+            action='count',
+            default=0,
             help=('pickle (serialize) statistics and data results in pandas '
-                  'DataFrames (format affected by selection of --extra)')
+                  'DataFrames (format affected by selection of --extra); one'
+                  ' additional flag and the input samples will be serialized'
+                  ' as a dict of sample names and TaxTree objects')
         )
         parser_out.add_argument(
             '--nohtml',
@@ -759,7 +764,7 @@ def main():
         print(green('OK!'))
 
         # Serialize dataframes in compressed pickle files
-        if args.pickle:
+        if args.pickle > 0:
             # Serialize dataframe with basic statistics of raw samples
             vprint(blue('INFO:'),
                    gray('Serializing dataframes with stats and data.'))
@@ -776,6 +781,16 @@ def main():
             sys.stdout.flush()
             data_frame.to_pickle(pkl_file, compression='infer', protocol=-1)
             print(green('OK!'))
+            if args.pickle > 1:  # Serializing 'samples' as well
+                vprint(blue('INFO:'),
+                       gray('Serializing input sample\'s dict of TaxTree(s).'))
+                pkl_file = sv_base + '.samples' + PKL_SUFFIX
+                print(gray(f'Generating output file ') +
+                      magenta(pkl_file) + gray(')... '), end='')
+                sys.stdout.flush()
+                with bz2.BZ2File(pkl_file, 'wb') as fbz2:
+                    pickle.dump(trees, fbz2, pickle.HIGHEST_PROTOCOL)
+                print(green('OK!'))
 
     # timing initialization
     start_time: float = time.time()
@@ -786,7 +801,7 @@ def main():
 
     # Parse arguments
     argparser = configure_parser()
-    args = argparser.parse_args()
+    args: argparse.Namespace = argparser.parse_args()
     clarks: List[Filename] = args.clark
     generics: List[Filename] = args.generic
     krakens: List[Filename] = args.kraken

@@ -117,7 +117,7 @@ class SampleDataById(object):
 
 
 class TaxTree(dict):
-    """Nodes of a taxonomical tree"""
+    """Nodes of a taxonomic tree"""
 
     def __init__(self, *args,
                  counts: int = 0,
@@ -522,7 +522,7 @@ class TaxTree(dict):
         """
         Recursively populate accumulated counts and score.
 
-        From bottom to top, accumulate counts in higher taxonomical
+        From bottom to top, accumulate counts in higher taxonomic
         levels, so populate self.acc of the tree. Also calculate
         score for levels that have no reads directly assigned
         (unassigned = 0). It eliminates leaves with no accumulated
@@ -553,7 +553,7 @@ class TaxTree(dict):
         """
         Recursively subtract counts of lower levels from higher ones.
 
-        From bottom to top, subtract counts from higher taxonomical
+        From bottom to top, subtract counts from higher taxonomic
         levels, under the assumption than they were accumulated before.
 
         """
@@ -670,7 +670,7 @@ class TaxTree(dict):
                     nodes.append(target)
                     target_found = True
                     break
-                if self[tid].trace(target, nodes):
+                if self[tid].trace(ontology, target, nodes):
                     target_found = True
                     break
                 else:
@@ -679,7 +679,7 @@ class TaxTree(dict):
 
 
 class MultiTree(dict):
-    """Nodes of a multiple taxonomical tree"""
+    """Nodes of a multiple taxonomic tree"""
 
     def __init__(self, *args,
                  samples: List[Sample],
@@ -739,7 +739,7 @@ class MultiTree(dict):
              taxid: Id = None,
              _path: List[Id] = None) -> None:
         """
-        Recursively build a ontology tree.
+        Recursively build an ontology tree.
 
         Args:
             ontology: Ontology object.
