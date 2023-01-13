@@ -5,8 +5,8 @@
 
 
 ____
-[![Retest](https://github.com/khyox/Recentrifuge/actions/workflows/retest.yaml/badge.svg?branch=v1.10.0)](https://github.com/khyox/recentrifuge/actions/workflows/retest.yaml)
-[![](https://img.shields.io/maintenance/yes/2022.svg)](http://www.recentrifuge.org)
+[![Retest](https://github.com/khyox/Recentrifuge/actions/workflows/retest.yaml/badge.svg?branch=v1.10.1)](https://github.com/khyox/recentrifuge/actions/workflows/retest.yaml)
+[![](https://img.shields.io/maintenance/yes/2023.svg)](http://www.recentrifuge.org)
 [![](https://img.shields.io/github/languages/top/khyox/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
 [![](https://img.shields.io/pypi/pyversions/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
 [![](https://img.shields.io/pypi/v/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
