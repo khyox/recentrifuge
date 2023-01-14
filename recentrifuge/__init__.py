@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2017–2022, Jose Manuel Martí Martínez
+#     Copyright (C) 2017–2023, Jose Manuel Martí Martínez
 #
 #     With the single exception of the file krona.js, which has embedded
 #     its own free software licence, you can redistribute Recentrifuge
@@ -34,7 +34,7 @@ __email__ = 'jse.mnl **AT** gmail.com'
 __maintainer__ = 'Jose Manuel Martí'
 __status__ = 'Production/Stable'
 __date__ = 'Jan 2023'
-__version__ = '1.10.1'
+__version__ = '1.11.0'
 
 import sys
 from Bio import SeqIO
@@ -47,6 +47,10 @@ MAJOR, MINOR, *_ = sys.version_info
 PYTHON_REL = (MAJOR == 3 and MINOR >= 6)
 if not PYTHON_REL:
     raise ImportError('Recentrifuge requires Python 3.6 or later')
+if MINOR == 6:
+    FutureWarning("Support for Python 3.6 will be dropped very soon!")
+if MINOR == 7:
+    FutureWarning("Support for Python 3.7 will be dropped soon")
 
 # Addition of new custom formats to SeqIO
 # pylint: disable=protected-access
