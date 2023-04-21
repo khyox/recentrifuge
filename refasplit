@@ -16,7 +16,7 @@
 #     along with this program. If not, see <https://www.gnu.org/licenses/>.
 #
 """
-Split a FASTA file into several files for external parallel processing.
+Symmetrically split a FASTA file into several files for parallel processing.
 """
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse
@@ -40,7 +40,7 @@ def main():
     def configure_parser():
         """Argument Parser Configuration"""
         parser = argparse.ArgumentParser(
-            description='Split a FASTA file into several files',
+            description='Symmetrically split a FASTA file into several files',
             epilog=f'%(prog)s  - Release {__version__} - {__date__}' + LICENSE,
             formatter_class=argparse.RawDescriptionHelpFormatter
         )
