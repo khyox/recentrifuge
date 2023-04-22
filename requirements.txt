@@ -1,5 +1,5 @@
 biopython==1.79
-numpy>=1.24.2
+numpy>=1.19.5
 openpyxl==3.1.2
 matplotlib==3.6.3
 pandas<2.0.0
