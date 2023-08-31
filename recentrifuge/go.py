@@ -119,8 +119,9 @@ def read_go(output_file: Filename,
     output.write(gray('  Length: min = ') + f'{stat.len.mini},' +
                  gray(' max = ') + f'{stat.len.maxi},' +
                  gray(' avr = ') + f'{stat.len.mean}\n')
-    output.write(f'  {stat.num_taxa}' +
-                 gray(f' GOs with assigned annotations\n'))
+    output.write(gray('  GOids: by classifier = ') + f'{stat.tid.clas}'
+                 + gray(', by filter = ') + f'{stat.tid.filt}\n')
+
     # Select score output
     out_scores: Dict[Id, Score]
     if scoring is Scoring.SHEL:

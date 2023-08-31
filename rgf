@@ -1,43 +1,68 @@
 #!/usr/bin/env python3
+#
+#     Copyright (C) 2017–2023, Jose Manuel Martí Martínez
+#
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU Affero General Public License as
+#     published by the Free Software Foundation, either version 3 of the
+#     License, or (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#     GNU Affero General Public License for more details.
+#
+#     You should have received a copy of the GNU Affero General Public License
+#     along with this program. If not, see <https://www.gnu.org/licenses/>.
+#
 """
-Post-process Gene Ontology output.
+Analyze metagenomic (functional) classification data.
 """
 # pylint: disable=no-name-in-module, not-an-iterable
 import argparse
+import bz2
 import collections as col
 import multiprocessing as mp
 import os
+import pickle
 import platform
 import sys
 import time
 from typing import Counter, List, Dict, Set
 
+from recentrifuge import __version__, __author__, __date__
 from recentrifuge.config import DEFMINGENE, GODUMP_PATH, NODES_FILE, NAMES_FILE
-from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Chart
-from recentrifuge.config import HTML_SUFFIX, Extra, Err
+from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Extra
+from recentrifuge.config import Chart
+from recentrifuge.config import HTML_SUFFIX, PKL_SUFFIX, TAXDUMP_PATH
+from recentrifuge.config import STATS_SHEET_NAME, LICENSE, Err, Classifier
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_CONTROL_SHARED
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.core import process_rank, summarize_analysis
 from recentrifuge.gene_ontology import GeneOntology
 from recentrifuge.go import process_goutput
-from recentrifuge.krona import KronaTree
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
+from recentrifuge.krona import KronaTree
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.stats import SampleStats
-from recentrifuge.trees import TaxTree, MultiTree
+from recentrifuge.trees import TaxTree, MultiTree, SampleDataById
 
-# optional package pandas (to generate Extra output)
-_USE_PANDAS = True
+# Test for recommended but optional packages
+_USE_PANDAS = True  # optional package pandas (to generate extra output)
+_USE_OPENPYXL = True  # optional package openpyxl (for pandas to save excel)
 try:
     import pandas as pd
 except ImportError:
     pd = None
     _USE_PANDAS = False
-
-__version__ = '0.2.0'
-__author__ = 'Jose Manuel Marti'
-__date__ = 'Nov 2018'
+    print(yellow('WARNING!'), 'Pandas package not available. '
+                              'Some options may be ignored.')
+else:
+    try:
+        import openpyxl
+    except ImportError:
+        _USE_OPENPYXL = False
 
 
 def _debug_dummy_plot(geno: GeneOntology,
@@ -75,9 +100,15 @@ def main():
     def configure_parser():
         """Argument Parser Configuration"""
         parser = argparse.ArgumentParser(
-            description='Post-process Gene Ontology output',
-            epilog=f'%(prog)s  - {__author__} - {__date__}',
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+            description=('Robust comparative analysis and contamination '
+                         'removal for functional metagenomics'),
+            epilog=f'%(prog)s - Release {__version__} - {__date__}' + LICENSE,
+            formatter_class=argparse.RawDescriptionHelpFormatter
+        )
+        parser.add_argument(
+            '-V', '--version',
+            action='version',
+            version=f'%(prog)s release {__version__} ({__date__})'
         )
         parser.add_argument(
             '-n', '--nodespath',
@@ -86,11 +117,6 @@ def main():
             default=GODUMP_PATH,
             help=('path for the nodes information files '
                   '(nodes.dmp and names.dmp adapted from GO)')
-        )
-        parser.add_argument(
-            '-V', '--version',
-            action='version',
-            version=f'%(prog)s release {__version__} ({__date__})'
         )
         parser_filein = parser.add_mutually_exclusive_group(required=True)
         parser_filein.add_argument(
@@ -137,6 +163,15 @@ def main():
             type=Filename,
             help='HTML output file (if not given the filename will be '
                  'inferred from input files)',
+        )
+        parser_output.add_argument(
+            '-p', '--pickle',
+            action='count',
+            default=0,
+            help=('pickle (serialize) statistics and data results in pandas '
+                  'DataFrames (format affected by selection of --extra); one'
+                  ' additional flag and the input samples will be serialized'
+                  ' as a dict of sample names and TaxTree objects')
         )
         parser_mode = parser.add_argument_group('mode',
                                                 'Specific modes of running')
@@ -244,11 +279,12 @@ def main():
                     if err is Err.NO_ERROR:
                         samples.append(sample)
                         trees[sample] = tree
-                        ids[sample] = out.get_taxlevels()
+                        goids[sample] = out.get_taxlevels()
                         counts[sample] = out.counts
                         accs[sample] = out.accs
                         scores[sample] = out.scores
                         stats[sample] = stat
+                        mintaxas[sample] = stat.mintaxa
                     elif err is Err.VOID_CTRL:
                         print('There were void controls.', red('Aborting!'))
                         exit(1)
@@ -259,11 +295,12 @@ def main():
                 if err is Err.NO_ERROR:
                     samples.append(sample)
                     trees[sample] = tree
-                    ids[sample] = out.get_taxlevels()
+                    goids[sample] = out.get_taxlevels()
                     counts[sample] = out.counts
                     accs[sample] = out.accs
                     scores[sample] = out.scores
                     stats[sample] = stat
+                    mintaxas[sample] = stat.mintaxa
                 elif err is Err.VOID_CTRL:
                     print('There were void controls.', red('Aborting!'))
                     exit(1)
@@ -273,7 +310,7 @@ def main():
         """Cross analysis of samples in parallel by rank"""
         print(gray('Please, wait. Performing cross analysis in parallel...\n'))
         # Update kwargs with more parameters for the followings func calls
-        kwargs.update({'taxids': ids, 'counts': counts, 'scores': scores,
+        kwargs.update({'taxids': goids, 'counts': counts, 'scores': scores,
                        'accs': accs, 'raw_samples': raw_samples})
         if platform.system() and not args.sequential:  # Only for known systems
             mpctx = mp.get_context('fork')  # Important for OSX&Win
@@ -386,7 +423,7 @@ def main():
         """Save extra output with results via pandas DataFrame"""
 
         # Initial check and info
-        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+        if extra is Extra.FULL or extra is Extra.DYNOMICS:
             vprint(blue('INFO:'),
                    gray('Saving extra output as an Excel file.'))
         elif extra is Extra.CSV:
@@ -395,44 +432,51 @@ def main():
         elif extra is Extra.TSV:
             vprint(blue('INFO:'),
                    gray('Saving extra output as TSV files.'))
+        elif extra is Extra.MULTICSV:
+            vprint(blue('INFO:'),
+                   gray('Saving extra output as multiple CSV files.'))
         else:
-            raise Exception(red('\nERROR!'), f'Unknown Extra option "{extra}"')
+            raise Exception(f'ERROR! Unknown Extra option "{extra}"')
 
         # Setup of extra file name
         xlsxwriter: pd.ExcelWriter = None
-        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
+        sv_base: Filename = Filename(htmlfile.split('.html')[0])
+        sv_ext: Filename = None
+        sv_kargs: Dict[str, str] = {}
+        if extra is Extra.FULL or extra is Extra.DYNOMICS:
             xlsx_name: Filename = Filename(htmlfile.split('.html')[0] +
                                            '.xlsx')
             print(gray(f'Generating Excel {str(extra).lower()} summary (') +
                   magenta(xlsx_name) + gray(')... '), end='')
             sys.stdout.flush()
             xlsxwriter = pd.ExcelWriter(xlsx_name)
-        elif extra is Extra.CSV or Extra.TSV:
-            sv_base: Filename = Filename(htmlfile.split('.html')[0])
-            sv_ext: Filename
-            sv_kargs: Dict[str, str]
-            if extra is Extra.CSV:
-                sv_ext = 'csv'
+        elif extra in [Extra.CSV, Extra.TSV, Extra.MULTICSV]:
+            if extra in [Extra.CSV, Extra.MULTICSV]:
+                sv_ext = Filename('csv')
                 sv_kargs = {}
             elif extra is Extra.TSV:
-                sv_ext = 'tsv'
+                sv_ext = Filename('tsv')
                 sv_kargs = {'sep': '\t'}
             print(gray(f'Generating {str(extra).lower()} extra output (') +
-                  magenta(sv_base + '.*.' + sv_ext) + gray(')... '), end='')
+                  magenta('[' + sv_base + '.]*.' + sv_ext)
+                  + gray(')... '), end='')
             sys.stdout.flush()
-        list_rows: List = []
+        else:
+            raise Exception(f'ERROR! Unknown Extra option "{extra}"')
+        odict_rows: Dict[Id, List] = col.OrderedDict()
 
-        # Save raw samples basic statistics
-        data_frame: pd.DataFrame = pd.DataFrame.from_dict(
-            {raw: stats[raw].to_dict() for raw in raw_samples})
-        if extra is Extra.FULL or extra is Extra.CMPLXCRUNCHER:
-            data_frame.to_excel(xlsxwriter, sheet_name='_sample_stats')
-        elif extra is Extra.CSV or extra is Extra.TSV:
-            data_frame.to_csv(sv_base + '.stat.' + sv_ext, **sv_kargs)
+        # Save basic statistics of raw samples
+        stat_frame: pd.DataFrame = pd.DataFrame.from_records(
+            {raw: stats[raw].to_odict() for raw in raw_samples},
+            index=stats[raw_samples[0]].to_odict().keys())
+        if extra is Extra.FULL or extra is Extra.DYNOMICS:
+            stat_frame.to_excel(xlsxwriter, sheet_name=STATS_SHEET_NAME)
+        elif extra in [Extra.CSV, Extra.TSV, Extra.MULTICSV]:
+            stat_frame.to_csv(sv_base + '.stat.' + sv_ext, **sv_kargs)
 
         # Save taxid related statistics per sample
-        if extra is Extra.FULL or extra is Extra.CSV or extra is Extra.TSV:
-            polytree.to_items(ontology=geno, items=list_rows)
+        if extra in [Extra.FULL, Extra.CSV, Extra.TSV, Extra.MULTICSV]:
+            polytree.to_odict(ontology=geno, odict=odict_rows)
             # Generate the pandas DataFrame from items and export to Extra
             iterable_1 = [samples, [COUNT, UNASSIGNED, SCORE]]
             cols1 = pd.MultiIndex.from_product(iterable_1,
@@ -440,22 +484,35 @@ def main():
             iterable_2 = [['Details'], ['Rank', 'Name']]
             cols2 = pd.MultiIndex.from_product(iterable_2)
             cols = cols1.append(cols2)
-            data_frame = pd.DataFrame.from_items(list_rows,
-                                                 orient='index',
-                                                 columns=cols)
+            data_frame: pd.DataFrame = pd.DataFrame.from_dict(
+                odict_rows, orient='index', columns=cols)
             data_frame.index.names = ['Id']
-            if extra is Extra.CSV or extra is Extra.TSV:
+            if extra in [Extra.CSV, Extra.TSV]:
                 data_frame.to_csv(sv_base + '.data.' + sv_ext, **sv_kargs)
+            elif extra is Extra.MULTICSV:
+                for sample in samples:  # Only save taxa with counts per sample
+                    sub_df = data_frame[
+                        data_frame[sample, 'count'] > 0][[sample, 'Details']]
+                    csv_name: Filename
+                    # Shared samples need help (sv_base) to get the path right
+                    if sample.startswith(STR_SHARED):
+                        csv_name = Filename(sv_base + '_' + sample
+                                            + '.data.' + sv_ext)
+                    else:
+                        csv_name = Filename(sample + '.data.' + sv_ext)
+                    sub_df.to_csv(csv_name, **sv_kargs)
             else:
                 data_frame.to_excel(xlsxwriter, sheet_name=str(extra))
-
-        elif extra is Extra.CMPLXCRUNCHER:
+        elif extra is Extra.DYNOMICS:
             target_ranks: List = [Rank.NO_RANK]
-            if args.controls:  # if controls, add specific sheet for rank
-                target_ranks.extend(Rank.genomic_ranks)
+            if args.controls:  # if controls, add specific ranks as targets
+                if args.strain:
+                    target_ranks.extend(Rank.selected_ranks_ext)
+                else:
+                    target_ranks.extend(Rank.selected_ranks)
             for rank in target_ranks:  # Once for no rank dependency (NO_RANK)
-                indexes: List[int]
-                sheet_name: str
+                indexes: List[int] = None
+                sheet_name: str = 'RCF sheet'
                 columns: List[str] = ['__Rank', '__Name']
                 if args.controls:
                     indexes = [i for i in range(len(raw_samples), len(samples))
@@ -471,20 +528,48 @@ def main():
                     indexes = list(range(len(raw_samples)))
                     sheet_name = f'raw_samples_{rank.name.lower()}'
                     columns.extend(raw_samples)
-                list_rows = []
-                polytree.to_items(ontology=geno, items=list_rows,
+                polytree.to_odict(ontology=geno, odict=odict_rows,
+                                  cmplxcruncher=True,
                                   sample_indexes=indexes)
-                data_frame = pd.DataFrame.from_items(list_rows,
-                                                     orient='index',
-                                                     columns=columns)
+                data_frame = pd.DataFrame.from_dict(odict_rows,
+                                                    orient='index',
+                                                    columns=columns)
                 data_frame.index.names = ['Id']
                 data_frame.to_excel(xlsxwriter, sheet_name=sheet_name)
-
         else:
-            raise Exception(red('\nERROR!'), f'Unknown Extra option "{extra}"')
+            raise Exception(f'ERROR! Unknown Extra option "{extra}"')
         if xlsxwriter is not None:
             xlsxwriter.save()
         print(green('OK!'))
+
+        # Serialize dataframes in compressed pickle files
+        if args.pickle > 0:
+            # Serialize dataframe with basic statistics of raw samples
+            vprint(blue('INFO:'),
+                   gray('Serializing dataframes with stats and data.'))
+            pkl_file: Filename = sv_base + '.stat' + PKL_SUFFIX
+            print(gray(f'Generating output file ') +
+                  magenta(pkl_file) + gray(')... '), end='')
+            sys.stdout.flush()
+            stat_frame.to_pickle(pkl_file, compression='infer', protocol=-1)
+            print(green('OK!'))
+            # Serialize dataframe with taxid related statistics per sample
+            pkl_file = sv_base + '.data' + PKL_SUFFIX
+            print(gray(f'Generating output file ') +
+                  magenta(pkl_file) + gray(')... '), end='')
+            sys.stdout.flush()
+            data_frame.to_pickle(pkl_file, compression='infer', protocol=-1)
+            print(green('OK!'))
+            if args.pickle > 1:  # Serializing 'samples' as well
+                vprint(blue('INFO:'),
+                       gray('Serializing input sample\'s dict of TaxTree(s).'))
+                pkl_file = sv_base + '.samples' + PKL_SUFFIX
+                print(gray(f'Generating output file ') +
+                      magenta(pkl_file) + gray(')... '), end='')
+                sys.stdout.flush()
+                with bz2.BZ2File(pkl_file, 'wb') as fbz2:
+                    pickle.dump(trees, fbz2, pickle.HIGHEST_PROTOCOL)
+                print(green('OK!'))
 
     # timing initialization
     start_time: float = time.time()
@@ -521,15 +606,19 @@ def main():
         _debug_dummy_plot(geno, htmlfile, scoring)
         exit(0)
 
+    # Declare variables of known data before the core analysis
+    samples: List[Sample] = []
+    raw_samples: List[Sample] = []
+
     # Declare variables that will hold results for the samples analyzed
     trees: Dict[Sample, TaxTree] = {}
     counts: Dict[Sample, Counter[Id]] = {}
     accs: Dict[Sample, Counter[Id]] = {}
-    ids: Dict[Sample, TaxLevels] = {}
+    goids: Dict[Sample, TaxLevels] = {}
     scores: Dict[Sample, Dict[Id, Score]] = {}
     stats: Dict[Sample, SampleStats] = {}
     samples: List[Sample] = []
-    raw_samples: List[Sample] = []
+    mintaxas: Dict[Sample, int] = {}
 
     # Define dictionary of parameters for methods to be called (to be extended)
     kwargs = {'controls': args.controls,
@@ -545,6 +634,15 @@ def main():
               }
     # The big stuff (done in parallel)
     read_samples()
+    # Read the samples in parallel
+    read_samples()
+    # Update kwargs with more parameters for the followings func calls
+    kwargs.update({'goids': goids, 'counts': counts, 'scores': scores,
+                   'accs': accs, 'raw_samples': raw_samples,
+                   'mintaxas': mintaxas})
+    kwargs.pop('mintaxa')  # mintaxa info is included in mintaxas dict
+    kwargs.pop('ctrlmintaxa')  # ctrlmintaxa info is included in mintaxas dict
+
     # Avoid cross analysis if just one report file or explicitly stated by flag
     if len(raw_samples) > 1 and not args.avoidcross:
         analyze_samples()

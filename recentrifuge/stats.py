@@ -144,7 +144,6 @@ class SampleStats(object):
         else:
             self.sco = ScoreStats()
             self.tid = TidStats()
-            self.num_taxa = 0
         if scores2 is not None:
             self.sco2: ScoreStats = stats(scores2, ScoreStats, Score)
         if scores3 is not None:
