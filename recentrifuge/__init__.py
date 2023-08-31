@@ -25,7 +25,7 @@ which will import this library.
 
 __all__ = ['config', 'shared_counter', 'taxonomy', 'trees', 'rank', 'core',
            'centrifuge', 'lmat', 'clark', 'krona', 'kraken', 'generic',
-           'ontology', 'params', 'stats', 'taxclass', 'mock',
+           'ontology', 'params', 'stats', 'taxclass', 'mock', 'go',
            '__author__', '__date__', '__version__']
 __author__ = 'Jose Manuel Martí'
 __copyright__ = 'Copyright (C) 2017–2023 Jose Manuel Marti Martinez'
@@ -33,8 +33,8 @@ __license__ = 'GNU Affero General Public License Version 3'
 __email__ = 'jse.mnl **AT** gmail.com'
 __maintainer__ = 'Jose Manuel Marti'
 __status__ = 'Production/Stable'
-__date__ = 'Apr 2023'
-__version__ = '1.12.1'
+__date__ = 'Sep 2023'
+__version__ = '2.0.0'
 
 import sys
 from Bio import SeqIO
