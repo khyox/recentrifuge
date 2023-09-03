@@ -182,7 +182,7 @@ class KronaTree(ETree.ElementTree):
         elif self.chart == Chart.GENOMIC:
             iden = 'GenID'
             hrefbase = HREFBASE_GEN
-            display = 'Score from Eval'
+            display = 'Kraken AA k-mer cov (%)'
         else:
             raise Exception(f'ERROR! Unknown Chart "{self.chart}"')
 

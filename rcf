@@ -889,7 +889,7 @@ def main():
     kwargs.update({'taxids': taxids, 'counts': counts, 'scores': scores,
                    'accs': accs, 'raw_samples': raw_samples,
                    'mintaxas': mintaxas})
-    kwargs.pop('mintaxa')  # mintaxa info is included in mintaxas dict
+    kwargs.pop('mintaxa')  # mintaxa info is now included in mintaxas dict
     kwargs.pop('ctrlmintaxa')  # ctrlmintaxa info is included in mintaxas dict
 
     # Avoid cross analysis if just one report file or explicitly stated by flag

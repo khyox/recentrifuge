@@ -3,27 +3,29 @@ Functions directly related with Gene Ontology.
 
 """
 
+import collections as col
 import io
 import os
 import sys
 import time
 from math import log10, isclose
 from statistics import mean
-from typing import Tuple, Counter, Set, Dict, List
+from typing import Tuple, Counter, Set, Dict, List, Optional, Union
 
 from recentrifuge.config import Filename, Id, Score, Scoring, Sample
 from recentrifuge.config import Err, NO_SCORE
 from recentrifuge.config import gray, red, green, yellow, blue
+from recentrifuge.kraken import read_kraken_output
 from recentrifuge.ontology import Ontology
 from recentrifuge.stats import SampleStats
 from recentrifuge.trees import TaxTree, SampleDataById
 from recentrifuge.rank import Ranks
 
 
-def read_go(output_file: Filename,
-            scoring: Scoring = Scoring.SHEL,
-            minscore: Score = None,
-            ) -> Tuple[str, SampleStats,
+def read_blast_go(output_file: Filename,
+                  scoring: Scoring = Scoring.SHEL,
+                  minscore: Score = None,
+                  ) -> Tuple[str, SampleStats,
                        Counter[Id], Dict[Id, Score]]:
     """
     Read GO output file
@@ -89,7 +91,7 @@ def read_go(output_file: Filename,
         raise Exception(red('\nERROR! ') + f'Cannot read "{output_file}"')
     if error_read == num_read + 1:  # Check if error in last line: truncated!
         print(yellow('Warning!'), f'{output_file} seems truncated!')
-    counts: Counter[Id] = Counter({tid: len(all_scores[tid])
+    counts: Counter[Id] = col.Counter({tid: len(all_scores[tid])
                                    for tid in all_scores})
     output.write(green('OK!\n'))
     if num_read == 0:
@@ -143,7 +145,6 @@ def read_go(output_file: Filename,
     # Return
     return output.getvalue(), stat, counts, out_scores
 
-
 def process_goutput(*args, **kwargs
                    ) -> Tuple[Sample, TaxTree, SampleDataById,
                               SampleStats, Err]:
@@ -161,10 +162,10 @@ def process_goutput(*args, **kwargs
               target_file, gray('...'))
         sys.stdout.flush()
     ontology: Ontology = kwargs['ontology']
-    mintaxa: int = kwargs['ctrlmintaxa'] if is_ctrl else kwargs['mintaxa']
+    minhit: int = (kwargs['ctrlminhit'] if is_ctrl else kwargs['minhit'])
     minscore: Score = kwargs['ctrlminscore'] if is_ctrl else kwargs['minscore']
-    including: Set[Id] = ontology.including
-    excluding: Set[Id] = ontology.excluding
+    including: Union[Tuple, Set[Id]] = ontology.including
+    excluding: Union[Tuple, Set[Id]] = ontology.excluding
     scoring: Scoring = kwargs['scoring']
     output: io.StringIO = io.StringIO(newline='')
 
@@ -180,7 +181,9 @@ def process_goutput(*args, **kwargs
     counts: Counter[Id]
     scores: Dict[Id, Score]
     ranks: Ranks = Ranks({})
-    log, stat, counts, scores = read_go(target_file, scoring, minscore)
+#    log, stat, counts, scores = read_blast_go(target_file, scoring, minscore)
+    log, stat, counts, scores = read_kraken_output(
+        target_file, scoring, minscore)
     output.write(log)
     # Update field in stat about control nature of the sample
     stat.is_ctrl = is_ctrl
@@ -190,7 +193,7 @@ def process_goutput(*args, **kwargs
         vwrite(gray('Removing'), counts[ontology.ROOT],
                gray('"ROOT" reads... '))
         stat.seq = stat.seq._replace(filt=stat.seq.filt-counts[ontology.ROOT])
-        stat.num_taxa -= 1
+        stat.decrease_filtered_taxids()
         counts[ontology.ROOT] = 0
         scores[ontology.ROOT] = NO_SCORE
         vwrite(green('OK!'), '\n')
@@ -204,27 +207,69 @@ def process_goutput(*args, **kwargs
     ancestors, orphans = ontology.get_ancestors(counts.keys())
     out = SampleDataById(['all'])
     tree.allin1(ontology=ontology, counts=counts, scores=scores,
-                ancestors=ancestors, min_taxa=mintaxa,
+                ancestors=ancestors, min_taxa=minhit,
                 include=including, exclude=excluding, out=out)
     out.purge_counters()
     vwrite(green('OK!'), '\n')
 
-    # Give stats about orphan taxid
+    # Stats: Complete final value for TaxIDs after tree building and folding
+    final_goids: int = len(out.counts) if out.counts is not None else 0
+    stat.set_final_taxids(final_goids)
+
+    # Check for additional loss of reads (due to include/exclude an orphans)
+    output.write(gray('  Check for more seqs lost ([in/ex]clude affects)... '))
+    if out.counts is not None:
+        discard: int = sum(counts.values()) - sum(out.counts.values())
+        if discard:
+            output.write(blue('\n  Info:') + f' {discard} ' +
+                         gray('additional seqs discarded (') +
+                         f'{discard/sum(counts.values()):.3%} ' +
+                         gray('of accepted)\n'))
+        else:
+            output.write(green('OK!\n'))
+    else:
+        output.write(red('No counts in sample tree!\n'))
+    # Warn or give detailed stats about orphan GOid and orphan seqs
     if debug:
-        vwrite(gray('  Checking taxid loss (orphans)... '))
+        vwrite(gray('  Checking GOid loss (orphans)... '))
         lost: int = 0
         if orphans:
             for orphan in orphans:
-                vwrite(yellow('Warning!'), f'Orphan taxid={orphan}\n')
+                vwrite(yellow('  Warning!'), gray('Orphan GOid'),
+                       f'{orphan}\n')
                 lost += counts[orphan]
-            vwrite(yellow('WARNING!'),
-                   f'{len(orphans)} orphan taxids ('
-                   f'{len(orphans)/len(counts):.2%} of total)\n'
-                   f'{lost} orphan sequences ('
-                   f'{lost/sum(counts.values()):.3%} of total)\n')
+            vwrite(yellow('  WARNING!'),
+                   f'{len(orphans)} orphan GOids ('
+                   f'{len(orphans)/len(counts):.2%} of accepted)\n'
+                   f'    and {lost} orphan sequences ('
+                   f'{lost/sum(counts.values()):.3%} of accepted)\n')
         else:
             vwrite(green('OK!\n'))
-
+    elif orphans:
+        output.write(yellow('\n  Warning!') + f' {len(orphans)} orphan GOids'
+                     + gray(' (rerun with --debug for details)\n'))
+    # Check the removal of TaxIDs (accumulation of leaves in parents)
+    if debug and not excluding and including == {ontology.ROOT}:
+        vwrite(gray('  Assess accumulation due to "folding the tree"...\n'))
+        migrated: int = 0
+        if out.counts is not None:
+            for goid in counts:
+                if out.counts[goid] == 0:
+                    migrated += 1
+                    vwrite(blue('  Info:'), gray(f'Folded GOid {goid} (') +
+                           f'{ontology.get_name(goid)}' + gray(') with ') +
+                           f'{counts[goid]}' + gray(' original seqs\n'))
+        if migrated:
+            vwrite(
+                blue('  INFO:'), f'{migrated} GOids folded ('
+                f'{migrated/len(+counts):.2%} of GOAF —GOids After Filtering—)'
+                '\n')
+            vwrite(
+                blue('  INFO:'), f'Final assigned GOids: {final_goids} '
+                f'(reduced to {final_goids/len(+counts):.2%} of '
+                'number of GOAF)\n')
+        else:
+            vwrite(blue('  INFO:'), gray('No migration!'), green('OK!\n'))
     # Print last message and check if the sample is void
     if out.counts:
         output.write(sample + blue(' ctrl ' if is_ctrl else ' sample ')

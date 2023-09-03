@@ -11,7 +11,7 @@ from math import log10
 from statistics import mean
 from typing import Tuple, Counter, Dict, List, Set, Any, Union, TextIO, IO
 
-from recentrifuge.config import Filename, Id, Score, Scoring
+from recentrifuge.config import Filename, Id, Score, Scoring, GO_ROOT
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.stats import SampleStats
 
@@ -64,20 +64,23 @@ def read_kraken_output(output_file: Filename,
     output.write(gray(f'Loading output file {output_file}... '))
     try:
         with open_compressed_and_uncompressed(output_file) as file:
-            # Check number of cols in header
-            header = file.readline().split('\t')
-            if len(header) != 5:
-                print(red('\nERROR! ') + 'Kraken output format of ',
-                      yellow(f'"{output_file}"'), 'not supported.')
-                print(magenta('Expected:'),
-                      'C/U, ID, taxid, length, list of mappings')
-                print(magenta('Found:'), '\t'.join(header), end='')
-                print(blue('HINT:'), 'Use Kraken or Kraken2 direct output.')
-                raise Exception('Unsupported file format. Aborting.')
+            check_format: bool = True
+            are_proteins: bool = False
             for raw_line in file:
+                if check_format:  # Check number of cols in first line
+                    header = raw_line.split('\t')
+                    if len(header) != 5:
+                        print(red('\nERROR! ') + 'Kraken output format of ',
+                              yellow(f'"{output_file}"'), 'not supported.')
+                        print(magenta('Expected:'),
+                              'C/U, seqID, go/taxID, length, list of mappings')
+                        print(magenta('Found:'), '\t'.join(header), end='')
+                        print(blue('HINT:'),
+                              'Use Kraken or Kraken2 direct output.')
+                        raise Exception('Unsupported file format. Aborting.')
                 try:
                     output_line = raw_line.strip()
-                    (_clas, _label, _tid, _length,
+                    (_clas, _label, _myid, _length,
                      _maps) = output_line.split('\t')
                 except ValueError:
                     print(yellow('Failure'), 'parsing line elements:'
@@ -87,29 +90,47 @@ def read_kraken_output(output_file: Filename,
                     num_errors += 1
                     continue
                 try:
+                    maps: Union[List[str], Set[str]] = _maps.split()
+                    if check_format:
+                        if '-:-' in maps:  # Results from protein classification
+                            are_proteins = True
+                        check_format = False  # Finished checking format
                     length: int = sum(map(int, _length.split('|')))
                     num_read += 1
                     nt_read += length
                     if _clas == UNCLASSIFIED:  # Just count unclassified reads
                         num_uncl += 1
                         continue
-                    tid: Id
-                    try:
-                        tid = Id(str(int(_tid)))
-                    except ValueError:
-                        tid = Id(re.search('\(taxid (\d+)\)', _tid).group(1))
-                    maps: List[str] = _maps.split()
-                    try:
-                        maps.remove('|:|')
-                    except ValueError:
-                        pass
+                    myid: Id
+                    if are_proteins:  # TODO: Check again when krk2 DB is right!
+                        myid = Id('GO:' + _myid.zfill(7))
+                        if myid == 'GO:0000001':  # TODO: Change virtual root of GO in DB build
+                            myid = GO_ROOT
+                    else:
+                        try:
+                            myid = Id(str(int(_myid)))
+                        except ValueError:
+                            myid = Id(re.search('\(taxid (\d+)\)', _myid).group(1))
+                    if are_proteins:
+                        # TODO: Check for better approaches (6 frames problem)
+                        maps = set(maps)  # Remove duplicated frame entries
+                        maps.remove('-:-')
+                    else:  # Results from taxonomic classification
+                        try:  # try to remove paired read separator
+                            maps.remove('|:|')
+                        except ValueError:
+                            pass
                     mappings: Counter[Id] = col.Counter()
                     for pair in maps:
                         couple: List[str] = pair.split(':')
-                        mappings[Id(couple[0])] += int(couple[1])
+                        if are_proteins:
+                            mappings[Id(
+                                'GO:' + couple[0].zfill(7))] += int(couple[1])
+                        else:
+                            mappings[Id(couple[0])] += int(couple[1])
                     # From Kraken score get "single hit equivalent length"
-                    shel: Score = Score(mappings[tid] + K_MER_SIZE)
-                    score: Score = Score(mappings[tid] / sum(mappings.values())
+                    shel: Score = Score(mappings[myid] + K_MER_SIZE)
+                    score: Score = Score(mappings[myid] / sum(mappings.values())
                                          * 100)  # % relative to all k-mers
                 except (ValueError, IndexError):
                     print(yellow('Failure'), 'parsing line elements:'
@@ -119,7 +140,7 @@ def read_kraken_output(output_file: Filename,
                     num_errors += 1
                     continue
                 else:
-                    taxids.add(tid)  # Save all the tids of classified reads
+                    taxids.add(myid)  # Save all the tids of classified reads
                 if minscore is not None:  # Decide if ignore read if low score
                     if scoring is Scoring.KRAKEN:
                         if score < minscore:
@@ -128,17 +149,17 @@ def read_kraken_output(output_file: Filename,
                         if shel < minscore:
                             continue
                 try:
-                    all_scores[tid].append(shel)
+                    all_scores[myid].append(shel)
                 except KeyError:
-                    all_scores[tid] = [shel, ]
+                    all_scores[myid] = [shel, ]
                 try:
-                    all_kmerel[tid].append(score)
+                    all_kmerel[myid].append(score)
                 except KeyError:
-                    all_kmerel[tid] = [score, ]
+                    all_kmerel[myid] = [score, ]
                 try:
-                    all_length[tid].append(length)
+                    all_length[myid].append(length)
                 except KeyError:
-                    all_length[tid] = [length, ]
+                    all_length[myid] = [length, ]
     except FileNotFoundError:
         raise Exception(red('\nERROR! ') + f'Cannot read "{output_file}"')
     if last_error_read == num_read + 1:  # Check error in last line: truncated!

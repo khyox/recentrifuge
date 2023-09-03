@@ -31,22 +31,23 @@ import time
 from typing import Counter, List, Dict, Set
 
 from recentrifuge import __version__, __author__, __date__
-from recentrifuge.config import DEFMINGENE, GODUMP_PATH, NODES_FILE, NAMES_FILE
+from recentrifuge.config import DEFMINHIT, GODUMP_PATH, NODES_FILE, NAMES_FILE
 from recentrifuge.config import Filename, Sample, Id, Score, Scoring, Extra
 from recentrifuge.config import Chart
-from recentrifuge.config import HTML_SUFFIX, PKL_SUFFIX, TAXDUMP_PATH
-from recentrifuge.config import STATS_SHEET_NAME, LICENSE, Err, Classifier
+from recentrifuge.config import HTML_SUFFIX, PKL_SUFFIX
+from recentrifuge.config import STATS_SHEET_NAME, LICENSE, Err
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_CONTROL_SHARED
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.core import process_rank, summarize_analysis
 from recentrifuge.gene_ontology import GeneOntology
 from recentrifuge.go import process_goutput
+from recentrifuge.kraken import select_kraken_inputs
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.krona import KronaTree
 from recentrifuge.rank import Rank, TaxLevels
 from recentrifuge.stats import SampleStats
-from recentrifuge.trees import TaxTree, MultiTree, SampleDataById
+from recentrifuge.trees import TaxTree, MultiTree
 
 # Test for recommended but optional packages
 _USE_PANDAS = True  # optional package pandas (to generate extra output)
@@ -67,7 +68,7 @@ else:
 
 def _debug_dummy_plot(geno: GeneOntology,
                       htmlfile: Filename,
-                      scoring: Scoring = Scoring.SHEL,
+                      scoring: Scoring = Scoring.KRAKEN,
                       ):
     """
 
@@ -152,7 +153,7 @@ def main():
             action='store',
             metavar='OUTPUT_TYPE',
             choices=[str(extra) for extra in Extra],
-            default=str(Extra(0)),
+            default=str(Extra(3)),  # KRAKEN
             help=(f'type of scoring to be applied, and can be one of '
                   f'{[str(extra) for extra in Extra]}')
         )
@@ -194,12 +195,12 @@ def main():
             'tuning',
             'Fine tuning of algorithm parameters')
         parser_tuning.add_argument(
-            '-m', '--mingene',
+            '-m', '--minhit',
             action='store',
             metavar='INT',
             type=int,
-            default=DEFMINGENE,
-            help='minimum genes to avoid collapsing GO genes hierarchy levels'
+            default=DEFMINHIT,
+            help='minimum hits to GO to avoid collapsing hierarchy levels'
         )
         parser_tuning.add_argument(
             '-i', '--include',
@@ -255,10 +256,31 @@ def main():
         )
         return parser
 
-    def check_debug():
-        """Check debugging mode"""
+
+    def check_advanced_modes():
+        """Check advanced modes of running"""
+
+        # Check for debugging mode
         if args.debug:
-            print(gray('INFO: Debugging mode activated\n'))
+            print(blue('INFO:'), gray('Debugging mode activated'))
+            print(blue('INFO:'), gray('Active parameters:'))
+            for key, val in vars(args).items():
+                if val is not None and val is not False and val != []:
+                    print(gray(f'\t{key} ='), f'{val}')
+        # Check for sequential mode
+        if args.sequential:
+            print(blue('INFO:'), gray('Parallel mode deactivated'))
+
+
+    def check_controls():
+        """Check and info about the control samples"""
+        if args.controls:
+            if args.controls > len(input_files):
+                print(red(' ERROR!'), gray('More controls than samples'))
+                exit(1)
+            print(gray('Control(s) sample(s) for subtractions:'))
+            for i in range(args.controls):
+                print(blue(f'\t{input_files[i]}'))
 
     def read_samples():
         """Read samples"""
@@ -412,7 +434,7 @@ def main():
                       accs=accs,
                       scores=scores)
         print(green('OK!'))
-        print(gray('Generating final plot (') + magenta(htmlfile) +
+        print(gray('Generating interactive plot (') + magenta(htmlfile) +
               gray(')... '), end='')
         sys.stdout.flush()
         polytree.toxml(ontology=geno, krona=krona)
@@ -574,7 +596,8 @@ def main():
     # timing initialization
     start_time: float = time.time()
     # Program header
-    print(f'\n=-= {sys.argv[0]} =-= v{__version__} =-= {__date__} =-=\n')
+    print(f'\n=-= {sys.argv[0]} =-= v{__version__} - {__date__}'
+          f' =-= by {__author__} =-=\n')
     sys.stdout.flush()
 
     # Parse arguments
@@ -587,15 +610,19 @@ def main():
     htmlfile: Filename = args.outhtml
     scoring: Scoring = Scoring[args.scoring]
     args.ctrlminscore = None
-    args.ctrlmingene = None
+    args.ctrlminhit = None
     excluding: Set[Id] = set(args.exclude)
     including: Set[Id] = set(args.include)
     extra: Extra = Extra[args.extra]
 
-    check_debug()
+    check_advanced_modes()
+    check_controls()
+
     input_files = outputs  # Done by select_inputs() in recentrifuge
-    if htmlfile is None:   # Done by select_html_file() in recentrifuge
-        htmlfile = Filename(outputs[0].split('_go')[0] + HTML_SUFFIX)
+    if len(input_files) == 1 and os.path.isdir(input_files[0]):
+        select_kraken_inputs(input_files)
+        if htmlfile is None:   # Done by select_html_file() in recentrifuge
+            htmlfile = Filename(outputs[0].split('_go')[0] + HTML_SUFFIX)
 
     # Load GO nodes, names and build children
     geno: GeneOntology = GeneOntology(nodesfile, namesfile,
@@ -625,23 +652,21 @@ def main():
               'ctrlminscore': (
                   args.ctrlminscore
                   if args.ctrlminscore is not None else args.minscore),
-              'ctrlmintaxa': (
-                  args.ctrlmintaxa
-                  if args.ctrlmingene is not None else args.mingene),
+              'ctrlminhit': (
+                  args.ctrlminhit
+                  if args.ctrlminhit is not None else args.minhit),
               'debug': args.debug, 'root': args.takeoutroot,
               'minscore': args.minscore,
-              'mintaxa': args.mingene, 'scoring': scoring, 'ontology': geno,
+              'minhit': args.minhit, 'scoring': scoring, 'ontology': geno,
               }
-    # The big stuff (done in parallel)
-    read_samples()
     # Read the samples in parallel
     read_samples()
     # Update kwargs with more parameters for the followings func calls
     kwargs.update({'goids': goids, 'counts': counts, 'scores': scores,
                    'accs': accs, 'raw_samples': raw_samples,
                    'mintaxas': mintaxas})
-    kwargs.pop('mintaxa')  # mintaxa info is included in mintaxas dict
-    kwargs.pop('ctrlmintaxa')  # ctrlmintaxa info is included in mintaxas dict
+    kwargs.pop('minhit')  # mintaxa info is now included in mintaxas dict
+    kwargs.pop('ctrlminhit')  # ctrlmintaxa info is included in mintaxas dict
 
     # Avoid cross analysis if just one report file or explicitly stated by flag
     if len(raw_samples) > 1 and not args.avoidcross:

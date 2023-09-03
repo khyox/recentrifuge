@@ -63,9 +63,9 @@ class GeneOntology(Ontology):
         sys.stdout.flush()
         try:
             with open(nodes_file, 'r') as file:
-                file.readline()  # Discard header
+                file.readline()  # Discard header or root -> root map
                 for line in file:
-                    _goid, _parent = line.rstrip().split('\t')
+                    _goid, _parent = line.rstrip('\t\n|').split('\t|\t')
                     goid = GOid(_goid)
                     parent = GOid(_parent)
                     self.parents[goid] = parent
@@ -78,6 +78,14 @@ class GeneOntology(Ontology):
             raise
         else:
             # Create relations to GO_ROOT
+#            self.parents[GOid('3674')] = GO_ROOT  # Molecular function
+#            self.parents[GOid('5554')] = GO_ROOT  # ... alternate ID
+#            self.parents[GOid('5575')] = GO_ROOT  # Cellular component
+#            self.parents[GOid('8372')] = GO_ROOT  # ... alternate ID
+#            self.parents[GOid('8150')] = GO_ROOT  # Biological process
+#            self.parents[GOid('4')] = GO_ROOT  # ... alternate ID
+#            self.parents[GOid('7582')] = GO_ROOT  # ... alternate ID
+#            self.parents[GOid('44699')] = GO_ROOT  # ... alternate ID
             self.parents[GOid('GO:0003674')] = GO_ROOT  # Molecular function
             self.parents[GOid('GO:0005554')] = GO_ROOT  # ... alternate ID
             self.parents[GOid('GO:0005575')] = GO_ROOT  # Cellular component
@@ -94,17 +102,17 @@ class GeneOntology(Ontology):
         sys.stdout.flush()
         try:
             with open(names_file, 'r') as file:
-                file.readline()  # Discard header
+#                file.readline()  # Discard header
                 for line in file:
-                    _goid, _activity, _name = line.rstrip().split('\t')
-                    goid = Id(_goid)
+                    _goid, _name, *_ = line.rstrip().split('\t|\t')
+                    goid = GOid(_goid)
                     self.names[goid] = _name
                     self.ranks[goid] = Rank.NO_RANK
         except OSError:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read "' +
                             names_file + '"')
         else:
-            self.names[GO_ROOT] = str(GO_ROOT)
+            self.names[GO_ROOT] = "GO:ROOT" #str(GO_ROOT)
             print('\033[92m OK! \033[0m')
 
     def build_children(self) -> None:
