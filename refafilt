@@ -311,12 +311,20 @@ def main():
         (pass_lens_np, tiny_lens_np, long_lens_np))
     bins = np.logspace(np.floor(np.log10(np.min(lens_np))),
                        np.ceil(np.log10(np.max(lens_np))), 100)
+    plt.style.use('seaborn-v0_8-darkgrid')
     plt.hist(lens_np, bins=bins)
     plt.title(f'{in_fasta}: read length log-histogram')
     plt.yscale("log")
     plt.ylabel("Number of reads per bin")
     plt.xscale("log")
     plt.xlabel("Length of the reads in nucleotides (100 bins)")
+    # Restore ticks despite style selected
+    ax = plt.gca()
+    ax.xaxis.set_tick_params(which='major', direction='out', size=4)
+    ax.xaxis.set_tick_params(which='minor', direction='out', size=2)
+    ax.yaxis.set_tick_params(which='major', direction='out', size=4)
+    ax.yaxis.set_tick_params(which='minor', direction='out', size=2)
+    # Draw red lines for the filter(s) thresholds
     if min_filt:
         plt.axvline(x=min_len, color='r')
     if max_filt:
