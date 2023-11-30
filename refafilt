@@ -266,21 +266,24 @@ def main():
 
     # Final statistics                                                    
     print(cyan(f' {i / 1e+6:.3g} Mseqs'), green('OK! '))
-    print(gray('Passed'), magenta(f'{stats["nt_pass"] / 1e+6:.3g}'),
-          gray('Mnucs in'), stats['seq_pass'], gray('sequences '),
-          magenta(f'({stats["seq_passed"]/i:.3%}).'))
+    nt_tot: int = stats['nt_pass'] + stats['nt_tiny'] + stats['nt_long']
+    print(gray('\nPassed'), magenta(f'{stats["nt_pass"] / 1e+6:.3g}'),
+          gray('Mnucs'), magenta(f'({stats["nt_pass"]/nt_tot:.3%})'),
+          gray('in'), stats['seq_pass'], gray('sequences'),
+          magenta(f'({stats["seq_pass"]/i:.3%})'))
     pass_lens_np = np.array(pass_lens)
     if pass_lens:   
-        print(gray('MIN length: '), f'{np.min(pass_lens_np):n}')
-        print(gray('AVG length: '), f'{np.average(pass_lens_np):.2g}')
-        print(gray('MAX length: '), f'{np.max(pass_lens_np, initial=0):n}')
+        print(gray('Passed MIN length: '), f'{np.min(pass_lens_np):n}')
+        print(gray('Passed AVG length: '), f'{np.average(pass_lens_np):.2g}')
+        print(gray('Passed MAX length: '), f'{np.max(pass_lens_np, initial=0):n}')
     print('')
 
     tiny_lens_np = np.array(tiny_lens)
     if min_filt:
         print(gray('Too short'), magenta(f'{stats["nt_tiny"] / 1e+3:.3g}'),
-            gray('Knucs in'), stats['seq_tiny'], gray('sequences '),
-            magenta(f'({stats["seq_tiny"]/i:.3%}).'))
+            gray('Knucs'), magenta(f'({stats["nt_tiny"]/nt_tot:.3%})'),
+            gray('in'), stats['seq_tiny'], gray('sequences'),
+            magenta(f'({stats["seq_tiny"]/i:.3%})'))
         if tiny_lens:
             print(gray('Too short MIN length: '), f'{np.min(tiny_lens_np):n}')
             print(gray('Too short AVG length: '),
@@ -291,8 +294,9 @@ def main():
     long_lens_np = np.array(long_lens)
     if max_filt:
         print(gray('Too long'), magenta(f'{stats["nt_long"] / 1e+6:.3g}'),
-            gray('Mnucs in'), stats['seq_long'], gray('sequences '),
-            magenta(f'({stats["seq_long"]/i:.3%}).'))
+            gray('Mnucs'), magenta(f'({stats["nt_long"]/nt_tot:.3%})'),
+          gray('in'), stats['seq_long'], gray('sequences'),
+            magenta(f'({stats["seq_long"]/i:.3%})'))
         if long_lens:
             print(gray('Too long MIN length: '), f'{np.min(long_lens_np):n}')
             print(gray('Too long AVG length: '),
@@ -301,12 +305,14 @@ def main():
         print('')
 
     # Histogram
+    print(gray('Generating log-histogram in file'), f'{output_plot}',
+        gray('... '), end='')
     lens_np: np.ndarray = np.concatenate(
         (pass_lens_np, tiny_lens_np, long_lens_np))
     bins = np.logspace(np.floor(np.log10(np.min(lens_np))),
                        np.ceil(np.log10(np.max(lens_np))), 100)
     plt.hist(lens_np, bins=bins)
-    plt.title("Log histogram of reads by length in nucleotides")
+    plt.title(f'{in_fasta}: read length log-histogram')
     plt.yscale("log")
     plt.ylabel("Number of reads per bin")
     plt.xscale("log")
@@ -316,9 +322,10 @@ def main():
     if max_filt:
         plt.axvline(x=max_len, color='r')
     plt.savefig(output_plot)
+    print(green('OK! '))
 
     # Timing results
-    print(gray('Total elapsed time:'), time.strftime(
+    print(gray('\nTotal elapsed time:'), time.strftime(
         "%H:%M:%S", time.gmtime(time.time() - start_time)))
 
 
