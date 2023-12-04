@@ -33,8 +33,8 @@ __license__ = 'GNU Affero General Public License Version 3'
 __email__ = 'jse.mnl **AT** gmail.com'
 __maintainer__ = 'Jose Manuel Marti'
 __status__ = 'Production/Stable'
-__date__ = 'Apr 2023'
-__version__ = '1.12.1'
+__date__ = 'Dec 2023'
+__version__ = '1.12.2'
 
 import sys
 from Bio import SeqIO
