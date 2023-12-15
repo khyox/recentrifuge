@@ -73,7 +73,7 @@
 // 
 //----------------------------------------------------------------------------
 //
-// Copyright (C) 2017-2022 Jose Manuel Martí Martínez, for the changes in
+// Copyright (C) 2017-2023 Jose Manuel Martí Martínez, for the changes in
 // this file from the Krona Javascript 2.0 release.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -4998,6 +4998,7 @@ function load() {
                 datasets = datasetNames.length;
                 break;
 
+            case 'n':
             case 'node':
                 head = loadTreeDOM
                 (
@@ -5051,6 +5052,7 @@ function load() {
                     fontSize = Number(pair[1]);
                     break;
 
+                case 'n':
                 case 'node':
                     nodeDefault = Number(pair[1]);
                     break;
@@ -5107,6 +5109,9 @@ function loadTreeDOM
     if (domNode.getAttribute('href')) {
         newNode.href = domNode.getAttribute('href');
     }
+    else {
+        newNode.href = 'https://www.google.com/search?q=' + newNode.name
+    }
 
     if (hueName) {
         newNode.hues = new Array();
@@ -5114,6 +5119,7 @@ function loadTreeDOM
 
     for (var i = getFirstChild(domNode); i; i = getNextSibling(i)) {
         switch (i.tagName.toLowerCase()) {
+            case 'n':
             case 'node':
                 var newChild = loadTreeDOM
                 (

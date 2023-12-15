@@ -23,11 +23,6 @@ Elm = ETree.Element
 # pylint: enable=invalid-name
 
 # Predefined constants
-COUNT = Attrib('count')
-UNASSIGNED = Attrib('unassigned')
-TID = Attrib('tid')
-RANK = Attrib('rank')
-SCORE = Attrib('score')
 HREFBASE_TAX = 'https://www.ncbi.nlm.nih.gov/Taxonomy/Browser/wwwtax.cgi?mode=Info&id='
 HREFBASE_GEN = 'http://amigo.geneontology.org/amigo/term/'
 LOGO_RCF = '/img/logo-rcf-mini.uri'
@@ -35,6 +30,12 @@ LOGO_RGF = '/img/logo-rgf-mini.uri'
 HIDDEN = '/img/hidden.uri'
 LOADING = '/img/loading.uri'
 FAVICON = '/img/favicon.uri'
+# Krona plot attributes
+COUNT = Attrib('count')
+UNASSIGNED = Attrib('unassigned')
+TID = Attrib('tid')
+RANK = Attrib('rank')
+SCORE = Attrib('score')
 
 # Define encoding dialect for TSV files expected by Krona
 csv.register_dialect('krona', csv.get_dialect('unix'), delimiter='\t',
@@ -69,9 +70,9 @@ class KronaTree(ETree.ElementTree):
         For details, please consult:
         https://github.com/marbl/Krona/wiki/Krona-2.0-XML-Specification
         """
-        subnode = self.sub(parent, 'node',
-                           {'name': name,
-                            'href': f'https://www.google.com/search?q={name}'})
+        subnode = self.sub(parent, 'n',  # 'node' in previous versions
+                           {'name': name,})
+#                            'href': f'https://www.google.com/search?q={name}'})
         count_node = self.sub(subnode, COUNT)
         counts: Dict[Sample, str] = {sample: values[COUNT][sample]
                                      for sample in self.samples}
@@ -199,28 +200,28 @@ class KronaTree(ETree.ElementTree):
         self.sub(self.attributes, 'attribute',
                  {'display': 'Count', 'dataAll': 'members',
                   'tip': 'Number of reads assigned to this and child taxa'},
-                 'count')
+                  COUNT)
         # # Set Unassigned attribute
         self.sub(self.attributes, 'attribute',
                  {'display': 'Unassigned', 'dataNode': 'members',
                   'tip': 'Number of reads assigned specifically to this taxon'},
-                 'unassigned')
+                  UNASSIGNED)
         # # Set Id attribute
         self.sub(self.attributes, 'attribute',
                  {'display': iden, 'mono': 'true', 'hrefBase': hrefbase,
                   'tip': 'Taxonomic identifier'},
-                 'tid')
+                  TID)
         # # Set Rank attribute
         self.sub(self.attributes, 'attribute',
                  {'display': 'Rank', 'mono': 'true',
                   'tip': 'Taxonomic rank/level'},
-                 'rank')
+                  RANK)
         # # Set confidence/score attribute
         self.sub(self.attributes, 'attribute',
                  {'display': display,
                   'tip': 'Averaged score of reads assigned'
                          ' to this and child taxa'},
-                 'score')
+                  SCORE)
 
         # Set datasets
         self.samples = samples

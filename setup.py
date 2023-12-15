@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='recentrifuge',
-    version='1.12.2',
+    version='1.13.0',
     packages=['recentrifuge'],
     url='http://www.recentrifuge.org',
     license='AGPL except krona.js, with its own license by BNBI',
@@ -12,7 +12,7 @@ setup(
     long_description="""
 **Robust comparative analysis and contamination removal for metagenomics**
 
-[![Retest](https://github.com/khyox/Recentrifuge/actions/workflows/retest.yaml/badge.svg?branch=v1.12.2)](https://github.com/khyox/recentrifuge/actions/workflows/retest.yaml)
+[![Retest](https://github.com/khyox/Recentrifuge/actions/workflows/retest.yaml/badge.svg?branch=v1.13.0)](https://github.com/khyox/recentrifuge/actions/workflows/retest.yaml)
 
 With Recentrifuge, researchers can interactively explore what organisms are in their samples and at which level of confidence, thus enabling a robust comparative analysis of multiple samples in any metagenomic study.
 
