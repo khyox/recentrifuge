@@ -9,7 +9,7 @@ import statistics
 import sys
 from typing import List, Set, Tuple, Union, Dict, Counter, Optional
 
-from recentrifuge.config import Sample, Id, Parents, Score, Scores
+from recentrifuge.config import Sample, Id, Parents, Score, Scores, Scoring
 from recentrifuge.config import CELLULAR_ORGANISMS
 from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_SUMMARY, STR_CONTROL_SHARED
@@ -46,6 +46,7 @@ def process_rank(*args,
     accs: Dict[Sample, Counter[Id]] = kwargs['accs']
     scores: Dict[Sample, UnionScores] = kwargs['scores']
     raws: List[Sample] = kwargs['raw_samples']
+    scoring: Scoring = kwargs['scoring']
     output: io.StringIO = io.StringIO(newline='')
 
     def vwrite(*args) -> None:
@@ -72,6 +73,7 @@ def process_rank(*args,
 
     # Declare/define variables
     samples: List[Sample] = []
+    log_scores: bool = (True if scoring is Scoring.LOGLENGTH else False)
     # pylint: disable = unused-variable
     shared_counts: SharedCounter = SharedCounter()
     shared_score: SharedCounter = SharedCounter()
@@ -128,6 +130,7 @@ def process_rank(*args,
                             min_taxa=mintaxas[raw],
                             min_rank=rank,
                             just_min_rank=True,
+                            log_scores=log_scores,
                             include=including,
                             exclude=exclude,
                             out=exclude_out)
@@ -151,6 +154,7 @@ def process_rank(*args,
                                min_taxa=mintaxas[raw],
                                min_rank=rank,
                                just_min_rank=True,
+                               log_scores=log_scores,
                                include=including,
                                exclude=excluding,
                                out=sub_shared_out)
@@ -169,6 +173,7 @@ def process_rank(*args,
                            counts=shared_counts,
                            scores=shared_score,
                            min_taxa=get_shared_mintaxa(),
+                           log_scores=log_scores,
                            include=including,
                            exclude=excluding,
                            out=shared_out)
@@ -326,6 +331,7 @@ def process_rank(*args,
                              min_taxa=mintaxas[raw],
                              min_rank=rank,
                              just_min_rank=True,
+                             log_scores=log_scores,
                              include=including,
                              exclude=exclude_sets[raw],
                              out=ctrl_out)
@@ -349,6 +355,7 @@ def process_rank(*args,
                                     counts=shared_ctrl_counts,
                                     scores=shared_ctrl_score,
                                     min_taxa=get_shared_mintaxa(),
+                                    log_scores=log_scores,
                                     include=including,
                                     exclude=(exclude_candidates
                                              - shared_crossover),

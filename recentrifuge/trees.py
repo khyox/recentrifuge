@@ -5,6 +5,7 @@ TaxTree and MultiTree classes.
 
 import collections as col
 import io
+from math import log10
 from typing import Counter, Union, Dict, List, Iterable, Tuple, Set, Optional
 
 from recentrifuge.config import Id, Parents, Sample, Score, Scores
@@ -159,6 +160,7 @@ class TaxTree(dict):
                min_taxa: int = 1,
                min_rank: Rank = None,
                just_min_rank: bool = False,
+               log_scores: bool = False,
                include: Union[Tuple, Set[Id]] = (),
                exclude: Union[Tuple, Set[Id]] = (),
                out: SampleDataById = None,
@@ -176,6 +178,7 @@ class TaxTree(dict):
                 one level to the parent one.
             min_rank: if any, minimum Rank allowed in the TaxTree.
             just_min_rank: If set, just min_rank taxa will be counted.
+            log_scores: Treat scores as log10 values 
             include: contains the root taxid of the subtrees to be
                 included. If it is empty (default) all the taxa is
                 included (except explicitly excluded).
@@ -255,6 +258,10 @@ class TaxTree(dict):
                         return sco2
                     elif sco2 == NO_SCORE:
                         return sco1
+                    if True: ###log_scores:
+                        return Score(log10(
+                            (cnt1 * 10**sco1 + cnt2 * 10**sco2) / (cnt1 + cnt2)
+                            ))
                     return Score((cnt1 * sco1 + cnt2 * sco2) / (cnt1 + cnt2))
 
                 if self[tid].acc + child_acc:
@@ -270,7 +277,8 @@ class TaxTree(dict):
                 ontology=ontology, counts=counts, scores=scores,
                 ancestors=ancestors, tid=chld,
                 min_taxa=min_taxa, min_rank=min_rank,
-                just_min_rank=just_min_rank, include=include, exclude=exclude,
+                just_min_rank=just_min_rank, log_scores=log_scores,
+                include=include, exclude=exclude,
                 out=out, _path=_path + [tid])
             if child_acc is None:  # No child created, continue
                 continue
@@ -823,7 +831,7 @@ class MultiTree(dict):
                         TID: str(tid),
                         RANK: ontology.get_rank(tid).name.lower(),
                         SCORE: {self.samples[i]: (
-                            f'{self[tid].score[i]:.1f}'
+                            f'{self[tid].score[i]:.2f}'
                             if self[tid].score[i] != NO_SCORE else '0')
                             for i in range(num_samples)},
                         }
