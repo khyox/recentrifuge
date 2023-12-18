@@ -31,11 +31,11 @@ HIDDEN = '/img/hidden.uri'
 LOADING = '/img/loading.uri'
 FAVICON = '/img/favicon.uri'
 # Krona plot attributes
-COUNT = Attrib('count')
-UNASSIGNED = Attrib('unassigned')
+COUNT = Attrib('cnt')
+UNASSIGNED = Attrib('una')
 TID = Attrib('tid')
-RANK = Attrib('rank')
-SCORE = Attrib('score')
+RANK = Attrib('rnk')
+SCORE = Attrib('sco')
 
 # Define encoding dialect for TSV files expected by Krona
 csv.register_dialect('krona', csv.get_dialect('unix'), delimiter='\t',
@@ -195,7 +195,7 @@ class KronaTree(ETree.ElementTree):
 
         # Set attributes
         self.attributes = ETree.SubElement(self.krona, 'attributes',
-                                           {'magnitude': 'count'})
+                                           {'magnitude': COUNT})
         # # Set Count attribute
         self.sub(self.attributes, 'attribute',
                  {'display': 'Count', 'dataAll': 'members',
@@ -236,7 +236,7 @@ class KronaTree(ETree.ElementTree):
 
         # Set color
         self.color = self.sub(self.krona, 'color',
-                              {'attribute': 'score',
+                              {'attribute': SCORE,
                                'hueStart': '0',
                                'hueEnd': '300',
                                'valueStart': f'{min_score:.1f}',
