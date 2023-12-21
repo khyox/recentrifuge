@@ -73,6 +73,8 @@ except ImportError:
     print(red('ERROR!'), 'Please install pandas (v0.23.2 or higher) for '
                          'testing recentrifuge.')
     sys.exit(1)
+else:
+    from pandas.testing import assert_frame_equal
 
 # # BioPython
 try:
@@ -804,10 +806,11 @@ def main():
                 engine='openpyxl',
             )
             df_xlsx.columns = df_stnd.columns  # Normalize columns name
-            if df_xlsx.equals(df_stnd):
-                print(green('OK!'))
-            else:
+            try:
+                assert_frame_equal(df_xlsx, df_stnd, check_exact=False)
+            except AssertionError as e:
                 print(red('FAILED!'))
+                print(e)
                 df_mask = df_xlsx.ne(df_stnd)
                 print(blue('Test results are:'))
                 df_drop = df_xlsx[df_mask].dropna(axis=0, how='all')
@@ -819,6 +822,8 @@ def main():
                 print(df_drop)
                 if not args.ignore:
                     sys.exit(8)
+            else:
+                print(green('OK!'))
 
     # Timing initialization
     start_time: float = time.time()
