@@ -56,7 +56,7 @@ from recentrifuge.config import HTML_SUFFIX, XLSX_SUFFIX
 from recentrifuge.config import REXTRACT_TEST_SAMPLE, REXTRACT_TEST_FASTQ
 from recentrifuge.config import REXTRACT_TEST_TAXID, GZEXT
 from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR, STR_CONTROL
-from recentrifuge.config import MOCK_XLSX, MOCK_SHEET, KEY_SHEET
+from recentrifuge.config import MOCK_XLSX, MOCK_SHEET, KEY_SHEET, UNASSIGNED
 from recentrifuge.config import gray, blue, magenta, green, red, yellow
 
 # Check for general optional dependencies but required for retest
@@ -437,13 +437,13 @@ def main():
             rects.append(
                 ax_raw.bar(
                     ind + num * width,
-                    [df_xlsx[s]['unassigned'][int(taxid)] for s in SAMPLES],
+                    [df_xlsx[s][UNASSIGNED][int(taxid)] for s in SAMPLES],
                     width, color=[taxon["COLOR"]], hatch=taxon["HATCH"],
                     alpha=0.5, label=taxon["NAME"])
             )
             ax_ctr.bar(ind + num * width,
                        [0.1, 0.1, 0.1] +
-                       [df_xlsx[s]['unassigned'][int(taxid)] for s in CTRL_SP],
+                       [df_xlsx[s][UNASSIGNED][int(taxid)] for s in CTRL_SP],
                        width, color=[taxon["COLOR"]], hatch=taxon["HATCH"],
                        alpha=0.5, label=taxon["NAME"])
         # Add mintaxa threshold
@@ -581,12 +581,12 @@ def main():
                 except KeyError:
                     cnt_mck = 0
                 try:
-                    cnt_raw = df_xlsx[spl]['unassigned'][int(taxid)]
+                    cnt_raw = df_xlsx[spl][UNASSIGNED][int(taxid)]
                 except KeyError:
                     cnt_raw = 0
                 try:
                     cnt_ctr = df_xlsx[spl
-                                      + STR_CTRL_SP]['unassigned'][int(taxid)]
+                                      + STR_CTRL_SP][UNASSIGNED][int(taxid)]
                 except KeyError:
                     cnt_ctr = 0
                 if spl in taxon['NATIVES']:

@@ -11,14 +11,14 @@ import xml.etree.ElementTree as ETree
 from xml.dom import minidom
 from typing import List, Dict, NewType, Any, Optional
 
-from recentrifuge.config import Filename, Sample, Scoring, Chart
+from recentrifuge.config import Filename, Sample, Scoring, Chart, Attrib
+from recentrifuge.config import COUNT, UNASSIGNED, TID, RANK, SCORE
 from recentrifuge.config import JSLIB, HTML_SUFFIX
 from recentrifuge.config import yellow, red
 from recentrifuge.stats import SampleStats
 
 # Type annotations
 # pylint: disable=invalid-name
-Attrib = NewType('Attrib', str)  # Refers to Krona attributes not XML ones
 Elm = ETree.Element
 # pylint: enable=invalid-name
 
@@ -30,12 +30,6 @@ LOGO_RGF = '/img/logo-rgf-mini.uri'
 HIDDEN = '/img/hidden.uri'
 LOADING = '/img/loading.uri'
 FAVICON = '/img/favicon.uri'
-# Krona plot attributes
-COUNT = Attrib('cnt')
-UNASSIGNED = Attrib('una')
-TID = Attrib('tid')
-RANK = Attrib('rnk')
-SCORE = Attrib('sco')
 
 # Define encoding dialect for TSV files expected by Krona
 csv.register_dialect('krona', csv.get_dialect('unix'), delimiter='\t',

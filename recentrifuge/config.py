@@ -39,6 +39,7 @@ Score = NewType('Score', float)
 Scores = NewType('Scores', Dict[Id, Score])
 UnionCounter = Union[Counter[Id], SharedCounter]
 UnionScores = Union[Scores, SharedCounter]
+Attrib = NewType('Attrib', str)  # Refers to Krona attributes not XML ones
 # pylint: enable=invalid-name
 
 # Predefined internal constants
@@ -74,7 +75,12 @@ CELLULAR_ORGANISMS: Id = Id('131567')
 GO_ROOT: Id = Id('GO:ROOT')
 NO_SCORE = Score(float("-inf"))
 UNNAMED: str = 'Unnamed'
-
+# Krona plot attributes
+COUNT = Attrib('cnt')
+UNASSIGNED = Attrib('una')
+TID = Attrib('tid')
+RANK = Attrib('rnk')
+SCORE = Attrib('sco')
 
 class Classifier(Enum):
     """Enumeration with supported taxonomic classifiers."""

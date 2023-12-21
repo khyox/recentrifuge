@@ -10,7 +10,7 @@ from typing import Counter, Union, Dict, List, Iterable, Tuple, Set, Optional
 
 from recentrifuge.config import Id, Parents, Sample, Score, Scores
 from recentrifuge.config import NO_SCORE, UnionCounter, UnionScores
-from recentrifuge.krona import COUNT, UNASSIGNED, TID, RANK, SCORE
+from recentrifuge.config import COUNT, UNASSIGNED, TID, RANK, SCORE
 from recentrifuge.krona import KronaTree, Elm
 from recentrifuge.ontology import Ontology
 from recentrifuge.rank import Rank, Ranks, TaxLevels
