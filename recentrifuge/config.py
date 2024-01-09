@@ -10,7 +10,7 @@ from recentrifuge.shared_counter import SharedCounter
 # Licence notice
 LICENSE = ('''
 
-    Copyright (C) 2017–2022, Jose Manuel Martí Martínez
+    Copyright (C) 2017–2024, Jose Manuel Martí Martínez
     
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as
