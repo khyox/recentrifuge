@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-#     Copyright (C) 2017–2023, Jose Manuel Martí Martínez
+#     Copyright (C) 2017–2024, Jose Manuel Martí Martínez
 #
 #     This program is free software: you can redistribute it and/or modify
 #     it under the terms of the GNU Affero General Public License as
@@ -135,6 +135,12 @@ def main():
             help='the resulting FASTA files will be gzipped'
         )
         parser.add_argument(
+            '-e', '--expand',
+            action='store_true',
+            default=False,
+            help='expand multiple headers in multiple sequences'
+        )
+        parser.add_argument(
             '-V', '--version',
             action='version',
             version=f'%(prog)s release {__version__} ({__date__})'
@@ -162,15 +168,18 @@ def main():
     args = argparser.parse_args()
     check_debug()
     compr = args.compress
+    expand = args.expand
     in_fasta: Filename = Filename(args.input)
-    output_pass: Filename = args.output_pass 
+    output_pass: Filename = args.output_pass
     if output_pass is None:
-        output_pass = Filename(f'{in_fasta.stem}_passed.fa')
+        output_pass = Filename(
+            in_fasta.with_name(f'{in_fasta.stem}_passed.fa'))
         vprint(blue('INFO:'),
                gray('Passing filter output file: '), f'{output_pass}')
     output_plot: Filename = args.output_plot 
     if output_plot is None:
-        output_plot = Filename(f'{in_fasta.stem}_hist.pdf')
+        output_plot = Filename(
+            in_fasta.with_name(f'{in_fasta.stem}_hist.pdf'))
 
     min_filt: bool
     if args.filter_less_than is None:
@@ -180,7 +189,8 @@ def main():
         min_len: int = args.filter_less_than
         output_short: Filename = args.output_short
         if output_short is None:
-            output_short = Filename(f'{in_fasta.stem}_tooshort{min_len}.fa')
+            output_short = Filename(
+                in_fasta.with_name(f'{in_fasta.stem}_tooshort{min_len}.fa'))
             vprint(blue('INFO:'),
                    gray('Too short filter output: '), f'{output_short}')
   
@@ -192,7 +202,8 @@ def main():
         max_len: int = args.filter_more_than
         output_long: Filename = args.output_long
         if output_long is None:
-            output_long = Filename(f'{in_fasta.stem}_toolong{max_len}nt.fa')
+            output_long = Filename(
+                in_fasta.with_name(f'{in_fasta.stem}_toolong{max_len}nt.fa'))
             vprint(blue('INFO:'),
                    gray('Too long filter output: '), f'{output_long}')
 
@@ -313,7 +324,7 @@ def main():
                        np.ceil(np.log10(np.max(lens_np))), 100)
     plt.style.use('seaborn-v0_8-darkgrid')
     plt.hist(lens_np, bins=bins)
-    plt.title(f'{in_fasta}: read length log-histogram')
+    plt.title(f'{in_fasta.name}: read length log-histogram')
     plt.yscale("log")
     plt.ylabel("Number of reads per bin")
     plt.xscale("log")
