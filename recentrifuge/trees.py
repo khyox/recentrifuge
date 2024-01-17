@@ -258,7 +258,7 @@ class TaxTree(dict):
                         return sco2
                     elif sco2 == NO_SCORE:
                         return sco1
-                    if True: ###log_scores:
+                    if log_scores:
                         return Score(log10(
                             (cnt1 * 10**sco1 + cnt2 * 10**sco2) / (cnt1 + cnt2)
                             ))
