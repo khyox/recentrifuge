@@ -227,9 +227,10 @@ def main():
 
     # Main loop: filter FASTA file
     i: int = 0
-    pass_lens: dict[int] = []
-    tiny_lens: dict[int] = []
-    long_lens: dict[int] = []
+    pass_lens: list[int] = []
+    tiny_lens: list[int] = []
+    long_lens: list[int] = []
+    multiplicity: list[int] = []  # Multiplicity sequences per expanded header
     print(gray('Filtering FASTA file'), f'{in_fasta}', gray('...\nMseqs: '),
           end='')
     sys.stdout.flush()
@@ -244,8 +245,8 @@ def main():
           open(output_long, 'w') if max_filt else contextlib.nullcontext(
               None) as long_file
               ):
-        for i, (title, seq) in enumerate(SimpleFastaParser(fa)
-                                         ):
+        for i, (title, seq) in enumerate(SimpleFastaParser(fa)):
+            # Stop by max number of reads or print progress
             if args.maxreads and i >= args.maxreads:
                 print(yellow(' [stopping by maxreads limit]!'), end='')
                 break
@@ -256,26 +257,35 @@ def main():
                 print('.', end='')
                 sys.stdout.flush()
             seq_len : int = len(seq)
+            # Expand header
+            maxsplit = (-1 if expand else 0)
+            title_split = title.split('>', maxsplit=maxsplit)
+            if expand and ((num_headers := len(title_split)) > 1): 
+                multiplicity.append(num_headers) 
+                # Filter by length
             if min_filt and seq_len < min_len:
-                short_file.write(f'>{title}\n')
-                short_file.write(seq + '\n')
-                stats['seq_tiny'] += 1
-                stats['nt_tiny'] += seq_len         
-                tiny_lens.append(seq_len)
+                for header in title_split:
+                    short_file.write(f'>{header}\n')
+                    short_file.write(seq + '\n')
+                    stats['seq_tiny'] += 1
+                    stats['nt_tiny'] += seq_len         
+                    tiny_lens.append(seq_len)
             elif max_filt and seq_len > max_len:
-                long_file.write(f'>{title}\n')
-                long_file.write(seq + '\n')
-                stats['seq_long'] += 1
-                stats['nt_long'] += seq_len         
-                long_lens.append(seq_len)
+                for header in title_split:               
+                    long_file.write(f'>{header}\n')
+                    long_file.write(seq + '\n')
+                    stats['seq_long'] += 1
+                    stats['nt_long'] += seq_len         
+                    long_lens.append(seq_len)
             else:
-                pass_file.write(f'>{title}\n')
-                pass_file.write(seq + '\n')
-                stats['seq_pass'] += 1
-                stats['nt_pass'] += seq_len
-                pass_lens.append(seq_len)
+                for header in title_split:                
+                    pass_file.write(f'>{header}\n')
+                    pass_file.write(seq + '\n')
+                    stats['seq_pass'] += 1
+                    stats['nt_pass'] += seq_len
+                    pass_lens.append(seq_len)
 
-    # Final statistics                                                    
+    # Statistics depending on length filters                                                   
     print(cyan(f' {i / 1e+6:.3g} Mseqs'), green('OK! '))
     nt_tot: int = stats['nt_pass'] + stats['nt_tiny'] + stats['nt_long']
     print(gray('\nPassed'), magenta(f'{stats["nt_pass"] / 1e+6:.3g}'),
@@ -315,7 +325,7 @@ def main():
             print(gray('Too long MAX length: '), f'{np.max(long_lens_np):n}')
         print('')
 
-    # Histogram
+    # Read length log-histogram
     print(gray('Generating log-histogram in file'), f'{output_plot}',
         gray('... '), end='')
     lens_np: np.ndarray = np.concatenate(
@@ -342,6 +352,20 @@ def main():
         plt.axvline(x=max_len, color='r')
     plt.savefig(output_plot)
     print(green('OK! '))
+    print('')
+
+    # Statistic for expanded headers
+    multiplicity_np = np.array(multiplicity)
+    if expand:
+        print(gray('Multiple headers in'), len(multiplicity),
+            gray('sequences'), magenta(f'({len(multiplicity)/i:.3%})'))
+        if multiplicity:
+            print(gray('Header MIN multiplicity: '), 
+                  f'{np.min(multiplicity_np):n}')
+            print(gray('Header AVG multiplicity: '),
+                   f'{np.average(multiplicity_np):.2g}')
+            print(gray('Header MAX multiplicity: '),
+                   f'{np.max(multiplicity_np):n}')
 
     # Timing results
     print(gray('\nTotal elapsed time:'), time.strftime(
