@@ -24,6 +24,7 @@ import collections
 import contextlib
 import gzip
 import pathlib
+import re
 import sys
 import time
 from typing import Callable, Dict, TextIO, Counter, TypeAlias
@@ -37,6 +38,8 @@ from recentrifuge.config import LICENSE, GZEXT
 from recentrifuge.config import gray, red, green, cyan, magenta, blue, yellow
 
 Filename: TypeAlias = pathlib.Path
+
+RE_NT_PATTERN = re.compile(r'(>[A-Za-z0-9_]+\.[0-9]+ )')
 
 def main():
     """Main entry point to script."""
@@ -246,6 +249,7 @@ def main():
               None) as long_file
               ):
         for i, (title, seq) in enumerate(SimpleFastaParser(fa)):
+            title = '>' + title
             # Stop by max number of reads or print progress
             if args.maxreads and i >= args.maxreads:
                 print(yellow(' [stopping by maxreads limit]!'), end='')
@@ -258,28 +262,37 @@ def main():
                 sys.stdout.flush()
             seq_len : int = len(seq)
             # Expand header
-            maxsplit = (-1 if expand else 0)
-            title_split = title.split('>', maxsplit=maxsplit)
-            if expand and ((num_headers := len(title_split)) > 1): 
-                multiplicity.append(num_headers) 
-                # Filter by length
+            maxsplit = (0 if expand else 1)
+            title_split: list[str] = RE_NT_PATTERN.split(
+                title, maxsplit=maxsplit)
+            headers: list[str]
+            if title_split[0] != '':
+                print('WARNING! Entry with non-parseable title: ', title_split)
+                headers = [''.join(title_split)]  # Resort to one single header
+                stats['seq_nonparse'] += 1 
+            else:  # Construct list of meaningful headers
+                headers = [title_split[i]+title_split[i+1]
+                            for i in range(1, len(title_split)-1, 2)]
+            if expand and len(headers) > 1: 
+                multiplicity.append(len(headers)) 
+            # Filter by length
             if min_filt and seq_len < min_len:
-                for header in title_split:
-                    short_file.write(f'>{header}\n')
+                for header in headers:
+                    short_file.write(f'{header}\n')
                     short_file.write(seq + '\n')
                     stats['seq_tiny'] += 1
                     stats['nt_tiny'] += seq_len         
                     tiny_lens.append(seq_len)
             elif max_filt and seq_len > max_len:
-                for header in title_split:               
-                    long_file.write(f'>{header}\n')
+                for header in headers:               
+                    long_file.write(f'{header}\n')
                     long_file.write(seq + '\n')
                     stats['seq_long'] += 1
                     stats['nt_long'] += seq_len         
                     long_lens.append(seq_len)
             else:
-                for header in title_split:                
-                    pass_file.write(f'>{header}\n')
+                for header in headers:                
+                    pass_file.write(f'{header}\n')
                     pass_file.write(seq + '\n')
                     stats['seq_pass'] += 1
                     stats['nt_pass'] += seq_len
@@ -354,7 +367,10 @@ def main():
     print(green('OK! '))
     print('')
 
-    # Statistic for expanded headers
+    # Statistic for parsed headers and expanded headers
+    if stats['seq_nonparse']:
+        print(gray('Non-parseable headers in'), stats['seq_nonparse'],
+            gray('sequences'), magenta(f'({stats["seq_nonparse"]/i:.3%})'))
     multiplicity_np = np.array(multiplicity)
     if expand:
         print(gray('Multiple headers in'), len(multiplicity),
