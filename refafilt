@@ -39,7 +39,7 @@ from recentrifuge.config import gray, red, green, cyan, magenta, blue, yellow
 
 Filename: TypeAlias = pathlib.Path
 
-RE_NT_PATTERN = re.compile(r'(>[A-Za-z0-9_]+\.[0-9]+ )')
+RE_NT_PATTERN = re.compile(r'(>[A-Za-z0-9_.]+ )')
 
 def main():
     """Main entry point to script."""
