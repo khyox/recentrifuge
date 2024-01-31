@@ -261,6 +261,7 @@ def main():
                 print('.', end='')
                 sys.stdout.flush()
             seq_len : int = len(seq)
+            stats['nt_src'] += seq_len
             # Expand header
             maxsplit = (0 if expand else 1)
             title_split: list[str] = RE_NT_PATTERN.split(
@@ -297,19 +298,29 @@ def main():
                     stats['seq_pass'] += 1
                     stats['nt_pass'] += seq_len
                     pass_lens.append(seq_len)
+    print(green(' OK! '))
 
-    # Statistics depending on length filters                                                   
-    print(cyan(f' {i / 1e+6:.3g} Mseqs'), green('OK! '))
+    # General statistics
     nt_tot: int = stats['nt_pass'] + stats['nt_tiny'] + stats['nt_long']
-    print(gray('\nPassed'), magenta(f'{stats["nt_pass"] / 1e+6:.3g}'),
-          gray('Mnucs'), magenta(f'({stats["nt_pass"]/nt_tot:.3%})'),
-          gray('in'), stats['seq_pass'], gray('sequences'),
-          magenta(f'({stats["seq_pass"]/i:.3%})'))
+    seq_tot: int = stats['seq_pass'] + stats['seq_tiny'] + stats['seq_long']
+    print(cyan(f' {i / 1e+6:.3g} Mseqs'), gray('read and'),
+          cyan(f'{seq_tot / 1e+6:.3g} Mseqs'), gray('written'),
+          magenta(f'({(seq_tot-i)/i:.3%} expansion in seqs)'))
+    print(cyan(f' {stats["nt_src"] / 1e+9:.3g} Gnucs'), gray('read and'),
+          cyan(f'{nt_tot / 1e+9:.3g} Gnucs'), gray('written'),
+          magenta(f'({(nt_tot-stats["nt_src"])/stats["nt_src"]:.3%} expansion in nucs)'))
+
+    # Statistics depending on length filters
+    print(gray('\nPassed'), magenta(f'{stats["nt_pass"] / 1e+9:.3g}'),
+          gray('Gnucs'), magenta(f'({stats["nt_pass"]/nt_tot:.3%})'),
+          gray('in'), f'{stats["seq_pass"] / 1e+6:.3g} Mseqs',
+          gray('sequences'), magenta(f'({stats["seq_pass"]/seq_tot:.3%})'))
     pass_lens_np = np.array(pass_lens)
     if pass_lens:   
         print(gray('Passed MIN length: '), f'{np.min(pass_lens_np):n}')
         print(gray('Passed AVG length: '), f'{np.average(pass_lens_np):.2g}')
-        print(gray('Passed MAX length: '), f'{np.max(pass_lens_np, initial=0):n}')
+        print(gray('Passed MAX length: '),
+               f'{np.max(pass_lens_np, initial=0):n}')
     print('')
 
     tiny_lens_np = np.array(tiny_lens)
@@ -317,7 +328,7 @@ def main():
         print(gray('Too short'), magenta(f'{stats["nt_tiny"] / 1e+3:.3g}'),
             gray('Knucs'), magenta(f'({stats["nt_tiny"]/nt_tot:.3%})'),
             gray('in'), stats['seq_tiny'], gray('sequences'),
-            magenta(f'({stats["seq_tiny"]/i:.3%})'))
+            magenta(f'({stats["seq_tiny"]/seq_tot:.3%})'))
         if tiny_lens:
             print(gray('Too short MIN length: '), f'{np.min(tiny_lens_np):n}')
             print(gray('Too short AVG length: '),
@@ -330,7 +341,7 @@ def main():
         print(gray('Too long'), magenta(f'{stats["nt_long"] / 1e+6:.3g}'),
             gray('Mnucs'), magenta(f'({stats["nt_long"]/nt_tot:.3%})'),
           gray('in'), stats['seq_long'], gray('sequences'),
-            magenta(f'({stats["seq_long"]/i:.3%})'))
+            magenta(f'({stats["seq_long"]/seq_tot:.3%})'))
         if long_lens:
             print(gray('Too long MIN length: '), f'{np.min(long_lens_np):n}')
             print(gray('Too long AVG length: '),
