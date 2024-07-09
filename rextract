@@ -273,7 +273,7 @@ def main():
               f'{len(records) / num_seqs:.4%}', gray('of sample )'))
         sys.stdout.flush()
     else:
-        print(yellow('WARNING!'), 'No matching read found! Exiting.')
+        print(red('ERROR!'), 'No matching read found on Centrifuge output!')
         sys.exit(1)
 
     def is_gzipped(fpath: Filename):
@@ -289,6 +289,7 @@ def main():
     seqs1: List[SeqRecord.SeqRecord] = []
     seqs2: List[SeqRecord.SeqRecord] = []
     extracted: int = 0
+    failed: int = 0
     i: int = 0
     if fastq_2:
         print(gray('Loading FASTQ files'), fastq_1, gray('and'), fastq_2,
@@ -331,11 +332,14 @@ def main():
                     try:
                         records_ids.remove(rec1.id)
                     except KeyError:
-                        pass
-                    else:
-                        seqs1.append(rec1)
-                        seqs2.append(rec2)
-                        extracted += 1
+                        try: # Try again for labels like SIM3.1-1999998(/1|/2)
+                            records_ids.remove(rec1.id.split('/')[0])
+                        except KeyError:
+                            failed += 1
+                            continue
+                    seqs1.append(rec1)
+                    seqs2.append(rec2)
+                    extracted += 1
 
         except FileNotFoundError:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read FASTQ files')
@@ -370,13 +374,24 @@ def main():
                     try:
                         records_ids.remove(rec1.id)
                     except KeyError:
-                        pass
+                        failed += 1
                     else:
                         seqs1.append(rec1)
                         extracted += 1
         except FileNotFoundError:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read FASTQ file')
     print(cyan(f' {i / 1e+6:.3g} Mseqs'), green('OK! '))
+    print(extracted, gray('successfully extracted reads ('),
+          f'{extracted/i:.2%}', gray(') and'), failed,
+          gray('failed extracted reads ('), f'{failed/i:.2%}', gray(')'), '\n')
+    if not extracted:
+        print(yellow('ERROR!'), 'No matching read(s) in the FASTQ file(s)!')
+        sys.exit(2)
+    elif failed:
+        print(yellow('WARNING!'), 'Some reads missing in the FASTQ file(s)!')
+        
+    sys.stdout.flush()
+
 
     def format_filename(fastq: Filename) -> Filename:
         """Auxiliary function to properly format the output filenames.
