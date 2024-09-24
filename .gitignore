@@ -64,3 +64,4 @@ rcf_test/
 build/
 dist/
 emg/
+.vscode

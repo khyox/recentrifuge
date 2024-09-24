@@ -5,10 +5,11 @@ Functions directly related with a generic taxonomic classifier.
 
 import collections as col
 import io
+import os
 from enum import Enum
 from math import log10
 from statistics import mean
-from typing import Tuple, Counter, Dict, List, Set
+from typing import Tuple, Counter, Dict, List, Set, Any, Union, TextIO, IO
 
 from recentrifuge.config import Filename, Id, Score, Scoring
 from recentrifuge.config import gray, red, green, yellow, blue
@@ -106,6 +107,20 @@ class GenericFormat(object):
                 f'LEN:{self.len}, SCO:{self.sco}, UNC:{self.unc}.')
 
 
+def open_compressed_and_uncompressed(filename: Filename
+                                     ) -> Union[TextIO, IO[Any]]:
+    """Aux method to deal with compressed generic files"""
+    ext = os.path.splitext(filename)[1]
+    if ext == '.gz':
+        import gzip
+        return gzip.open(filename, mode='rt')
+    elif ext == '.bz2':
+        import bz2
+        return bz2.open(filename, mode='rt')
+    else:
+        return open(filename, mode='rt')
+
+
 def read_generic_output(output_file: Filename,
                         scoring: Scoring = Scoring.GENERIC,
                         minscore: Score = None,
@@ -141,7 +156,7 @@ def read_generic_output(output_file: Filename,
         raise Exception(red('\nERROR!'),
                         'Missing GenericFormat when reading a generic output.')
     try:
-        with open(output_file, 'r') as file:
+        with open_compressed_and_uncompressed(output_file) as file:
             # Main loop processing each file line
             for raw_line in file:
                 raw_line = raw_line.strip(' \n\t')
@@ -221,7 +236,7 @@ def read_generic_output(output_file: Filename,
                         + f'Cannot read any sequence from "{output_file}"')
     filt_seqs: int = sum([len(scores) for scores in all_scores.values()])
     if filt_seqs == 0:
-        raise Exception(red('\nERROR! ') + 'No sequence passed the filter!')
+        print(yellow('Warning!'), f'{output_file}: No seq passed the filter!')
     # Get statistics
     stat: SampleStats = SampleStats(
         minscore=minscore, nt_read=nt_read, lens=all_length, scores=all_scores,
@@ -268,3 +283,18 @@ def read_generic_output(output_file: Filename,
                         f'Generic: Unsupported Scoring "{scoring}"')
     # Return
     return output.getvalue(), stat, counts, out_scores
+
+
+def select_generic_inputs(generics: List[Filename]) -> None:
+    """Search for generic files to analyze"""
+    dir_name = generics[0]
+    generics.clear()
+    with os.scandir(dir_name) as dir_entry:
+        for fil in dir_entry:
+            if not fil.name.startswith('.'):
+                if dir_name != '.':
+                    generics.append(Filename(os.path.join(dir_name, fil.name)))
+                else:  # Avoid sample names starting with just the dot
+                    generics.append(Filename(fil.name))
+    generics.sort()
+    print(gray(f'Generic files to analyze:'), generics)

@@ -42,7 +42,7 @@ from recentrifuge.config import STR_CONTROL, STR_EXCLUSIVE, STR_SHARED
 from recentrifuge.config import STR_CONTROL_SHARED
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
 from recentrifuge.core import process_rank, summarize_analysis
-from recentrifuge.generic import GenericFormat
+from recentrifuge.generic import GenericFormat, select_generic_inputs
 from recentrifuge.kraken import select_kraken_inputs
 from recentrifuge.krona import COUNT, UNASSIGNED, SCORE
 from recentrifuge.krona import KronaTree
@@ -156,8 +156,10 @@ def main():
             metavar='FILE',
             type=Filename,
             help=('output file from a generic classifier; it requires the flag'
-                  ' --format (see such option for details); multiple -g is '
-                  'available to include several generic samples')
+                  ' --format (see such option for details); if a single '
+                  'directory is entered, every file inside will be taken as a '
+                  'different sample; multiple -g is available to include '
+                  'several generic samples by filename')
         )
         parser_filein.add_argument(
             '-l', '--lmat',
@@ -188,7 +190,7 @@ def main():
             help=('Kraken output files; if a single directory is entered, '
                   'every .krk file inside will be taken as a different sample;'
                   ' multiple -k is available to include several Kraken '
-                  '(version 1 or 2) samples')
+                  '(version 1 or 2) samples by filename')
         )
         parser_out = parser.add_argument_group(
             'output', 'Related to the Recentrifuge output files')
@@ -400,6 +402,8 @@ def main():
                                           'generic classifier; using GENERIC.')
                 scoring = Scoring.GENERIC
             input_files = generics
+            if len(generics) == 1 and os.path.isdir(generics[0]):
+                select_generic_inputs(generics)
         elif krakens:
             classifier = Classifier.KRAKEN
             process = process_output
