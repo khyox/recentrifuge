@@ -5,7 +5,7 @@ Classes with statistical data
 
 import collections as col
 
-from math import log10
+from math import log10, nan
 from statistics import mean
 from typing import NamedTuple, Dict, List, Union, Type, Optional, overload
 
@@ -88,13 +88,19 @@ def stats(dict_list: Dict[Id, List[int]],
 
 def stats(dic_lst, tuple_cls, elems_cls):
     """Get minimum, mean and maximum of dictionary of list"""
-    return (tuple_cls(
-        mini=elems_cls(min([min(e) for e in dic_lst.values()])),
-        mean=elems_cls(mean([val for lst in dic_lst.values() for val in lst])),
-        # mean=elems_cls(mean(chain.from_iterable(dic_lst.values()))),
-        # Using itertools.chain here provided no benefit in the tests!
-        maxi=elems_cls(max([max(e) for e in dic_lst.values()]))
-    ))
+    
+    statistics: tuple_cls  
+    try:
+        statistics = tuple_cls(
+            mini=elems_cls(min([min(e) for e in dic_lst.values()])),
+            mean=elems_cls(mean([val for lst in dic_lst.values() for val in lst])),
+            # mean=elems_cls(mean(chain.from_iterable(dic_lst.values()))),
+            # Using itertools.chain here provided no benefit in the tests!
+            maxi=elems_cls(max([max(e) for e in dic_lst.values()]))
+        )
+    except ValueError:
+        statistics = tuple_cls(mini=nan, mean=nan, maxi=nan)
+    return statistics
 # pylint: enable=function-redefined, unused-argument
 
 
@@ -186,15 +192,30 @@ class SampleStats(object):
 
     def get_unclas_ratio(self) -> float:
         """Get ratio of unclassified sequences"""
-        return self.seq.unclas / self.seq.read
+        ratio: float
+        try:
+            ratio = self.seq.unclas / self.seq.read
+        except ZeroDivisionError:
+            ratio = nan
+        return ratio
 
     def get_reject_ratio(self) -> float:
         """Get ratio of rejected sequences by filtering"""
-        return 1 - self.seq.filt / self.seq.clas
+        ratio: float
+        try:
+            ratio = 1 - self.seq.filt / self.seq.clas
+        except ZeroDivisionError:
+            ratio = nan
+        return ratio
 
     def guess_mintaxa(self) -> int:
         """Automatically guess a good value for mintaxa"""
-        return round(log10(self.seq.filt))
+        mintaxa: int = 1
+        try: 
+            mintaxa = round(log10(self.seq.filt))
+        except ValueError:
+            pass
+        return mintaxa
 
     def set_final_taxids(self, tids: int) -> None:
         """Set the final value for TaxIDs after tree building and folding"""
