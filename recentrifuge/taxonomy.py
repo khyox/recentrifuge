@@ -232,7 +232,9 @@ class Taxonomy(Ontology):
         return ancestors, orphans
 
     def get_lineage(self, taxid: Id, as_dict: bool = False,
-                    add_root: bool = False) -> List[Tuple[Rank, Id, str]]:
+                    add_root: bool = False) -> Union[
+                        List[Tuple[Rank, Id, str]],
+                        Dict[Rank, Dict[str, Union[Id, str]]]]:
         """Retrieve the lineage of a taxon up to the root of the taxonomy"""
         lineage: List[Tuple[Rank, Id, str]] = []
         lineage_as_dict: Dict[Rank, Dict[str, str]] = {}
