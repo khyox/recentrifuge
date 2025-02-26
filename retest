@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-#     Copyright (C) 2017–2024 Jose Manuel Martí Martínez
+#     Copyright (C) 2017–2025 Jose Manuel Martí Martínez
 #
 #     This program is free software: you can redistribute it and/or modify
 #     it under the terms of the GNU Affero General Public License as
@@ -415,7 +415,17 @@ def main():
             skiprows=None, index_col=0,
             engine='openpyxl',
         )
-        df_xlsx.columns = df_stnd.columns  # Normalize columns name
+        try:
+            df_xlsx.columns = df_stnd.columns  # Normalize columns name
+        except ValueError as e:
+            print(red('FAILED!'))
+            print(e)
+            print(blue(f'Columns of sheet {Extra.FULL} in test are:'))
+            print(df_xlsx.columns)
+            print(blue(f'... but columns of {Extra.FULL} in standard are:'))
+            print(df_stnd.columns)
+            if not args.ignore:
+                sys.exit(8)                
         df_key = pd_mock.parse(
             sheet_name=KEY_SHEET, header=[0],
             index_col=0, dtype={'NAME': bytearray, 'COLOR': str, 'HATCH': str,
@@ -805,7 +815,17 @@ def main():
                 skiprows=None, index_col=0,
                 engine='openpyxl',
             )
-            df_xlsx.columns = df_stnd.columns  # Normalize columns name
+            try:
+                df_xlsx.columns = df_stnd.columns  # Normalize columns name
+            except ValueError as e:
+                print(red('FAILED!'))
+                print(e)
+                print(blue('Columns of sheet {sheet} in test are:'))
+                print(df_xlsx.columns)
+                print(blue('... but columns of {sheet} in standard are:'))
+                print(df_stnd.columns)
+                if not args.ignore:
+                    sys.exit(8)                
             try:
                 assert_frame_equal(df_xlsx, df_stnd, check_exact=False)
             except AssertionError as e:
@@ -821,7 +841,7 @@ def main():
                 df_drop.dropna(axis=1, how='all', inplace=True)
                 print(df_drop)
                 if not args.ignore:
-                    sys.exit(8)
+                    sys.exit(9)
             else:
                 print(green('OK!'))
 
