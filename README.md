@@ -5,7 +5,7 @@
 
 
 ____
-[![Retest](https://github.com/khyox/Recentrifuge/actions/workflows/retest.yaml/badge.svg?branch=v1.15.0)](https://github.com/khyox/recentrifuge/actions/workflows/retest.yaml)
+[![Retest](https://github.com/khyox/Recentrifuge/actions/workflows/retest.yaml/badge.svg?branch=v1.16.0)](https://github.com/khyox/recentrifuge/actions/workflows/retest.yaml)
 [![](https://img.shields.io/maintenance/yes/2025.svg)](http://www.recentrifuge.org)
 [![](https://img.shields.io/github/languages/top/khyox/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
 [![](https://img.shields.io/pypi/pyversions/recentrifuge.svg)](https://pypi.org/project/recentrifuge/)
@@ -25,7 +25,7 @@ With Recentrifuge, researchers can interactively explore what organisms are in t
 
 Recentrifuge enables researchers to analyze results from [Centrifuge](http://www.ccb.jhu.edu/software/centrifuge/), [LMAT](https://computation.llnl.gov/projects/livermore-metagenomics-analysis-toolkit), [CLARK](http://clark.cs.ucr.edu/), [Kraken](http://ccb.jhu.edu/software/kraken/), and many other taxonomic classifiers using interactive pie charts, by placing great emphasis on the confidence level (score) of the taxonomic classifications. 
 
-The arithmetic of scored taxonomic trees of Recentrifuge supports the 48 taxonomic ranks of the [NCBI Taxonomy](https://www.ncbi.nlm.nih.gov/taxonomy), including several infraspecific levels such as strain or isolate. In addition to the scored charts for the original samples, different sets of scored plots are generated for each taxonomic level of interest, like shared taxa and exclusive taxa per sample.
+The arithmetic of scored taxonomic trees of Recentrifuge supports the 49 taxonomic ranks of the [NCBI Taxonomy](https://www.ncbi.nlm.nih.gov/taxonomy), including several infraspecific levels such as strain or isolate. In addition to the scored charts for the original samples, different sets of scored plots are generated for each taxonomic level of interest, like shared taxa and exclusive taxa per sample.
 
 ### Robust contamination removal
 

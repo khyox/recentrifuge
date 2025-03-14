@@ -45,9 +45,10 @@ class Rank(Enum):
     """
     # pylint: disable=invalid-name
     ROOT = ()
-    DOMAIN = ()
+    DOMAIN = ()  # Level readded to NCBI Taxonomy in March 2025
     D = 'DOMAIN'
-    SUPERKINGDOM = ()
+    REALM = ()  # Level added to NCBI Taxonomy in March 2025
+    SUPERKINGDOM = ()  # Level discontinued in NCBI Taxonomy from March 2025
     KINGDOM = ()
     K = 'KINGDOM'
     SUBKINGDOM = ()
@@ -84,7 +85,7 @@ class Rank(Enum):
     SPECIES_SUBGROUP = ()
     SPECIES = ()
     S = 'SPECIES'
-    # CAUTION: Hierarchy for   (those below the rank of
+    # CAUTION: Hierarchy for infraspecific ranks (those below the rank of
     #   species) is tentative as the relative order is not always clear
     SUBSPECIES = ()
     FORMA_SPECIALIS = ()  # Level added to NCBI Taxonomy in June 2020
