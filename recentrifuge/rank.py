@@ -45,6 +45,8 @@ class Rank(Enum):
     """
     # pylint: disable=invalid-name
     ROOT = ()
+    CELLULAR_ROOT = ()  # Level added to NCBI Taxonomy in April 2025
+    ACELLULAR_ROOT = ()  # Level added to NCBI Taxonomy in April 2025
     DOMAIN = ()  # Level readded to NCBI Taxonomy in March 2025
     D = 'DOMAIN'
     REALM = ()  # Level added to NCBI Taxonomy in March 2025
