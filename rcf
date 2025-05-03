@@ -764,7 +764,7 @@ def main():
         else:
             raise Exception(f'ERROR! Unknown Extra option "{extra}"')
         if xlsxwriter is not None:
-            xlsxwriter.save()
+            xlsxwriter.close()
         print(green('OK!'))
 
         # Serialize dataframes in compressed pickle files
