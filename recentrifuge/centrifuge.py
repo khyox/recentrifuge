@@ -1,5 +1,5 @@
 """
-Functions directly related with Centrifuge (or Kraken).
+Functions directly related with Centrifuge or Centrifuger
 
 """
 
@@ -58,7 +58,7 @@ def read_report(report_file: str) -> Tuple[str, Counter[Id],
 
 def read_output(output_file: Filename,
                 scoring: Scoring = Scoring.SHEL,
-                minscore: Score = None,
+                minscore: Score | None = None,
                 ) -> Tuple[str, SampleStats,
                            Counter[Id], Dict[Id, Score]]:
     """

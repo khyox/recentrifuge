@@ -2,7 +2,7 @@
 
 You are expected to use this module via the Bio.SeqIO functions."""
 
-from Bio.Seq import UnknownSeq
+from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 __docformat__ = "restructuredtext en"
@@ -74,7 +74,7 @@ def cfg_out_iterator(handle):
             print(f'Error parsing score ({second_score}) for taxid {tax_id}'
                   f' in {handle}...')
             raise
-        yield SeqRecord(UnknownSeq(0),
+        yield SeqRecord(Seq(None, length=0),
                         id=first_word,
                         name=first_word,
                         description=read_id,

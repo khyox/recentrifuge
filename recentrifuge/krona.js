@@ -73,7 +73,7 @@
 // 
 //----------------------------------------------------------------------------
 //
-// Copyright (C) 2017-2025 Jose Manuel Martí Martínez, for the changes in
+// Copyright (C) 2017-2026 Jose Manuel Martí Martínez, for the changes in
 // this file from the Krona Javascript 2.0 release.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -5094,6 +5094,54 @@ function load() {
     updateViewNeeded = true;
 }
 
+// Parse delimited or sparse attribute format (v2 optimization)
+// Format v2: Text content is comma-delimited values OR sparse format (idx:val,idx:val,...)
+function parseAttributeValues(element, numDatasets) {
+    var isSparse = element.getAttribute('s') === 'T';
+    var hasHref = element.getAttribute('href');
+    var textContent = element.firstChild ? element.firstChild.nodeValue : '';
+    var values = new Array(numDatasets);
+    
+    // Initialize all values to empty string
+    for (var i = 0; i < numDatasets; i++) {
+        values[i] = '';
+    }
+    
+    if (textContent && textContent.trim()) {
+        if (isSparse) {
+            // Sparse format: "idx1:val1,idx2:val2,..."
+            var pairs = textContent.split(',');
+            for (var i = 0; i < pairs.length; i++) {
+                var pair = pairs[i].split(':');
+                if (pair.length === 2) {
+                    var idx = parseInt(pair[0], 10);
+                    var val = pair[1];
+                    if (idx >= 0 && idx < numDatasets) {
+                        values[idx] = val;
+                    }
+                }
+            }
+        } else {
+            // Delimited format: "val1,val2,val3,..."
+            var parts = textContent.split(',');
+            for (var i = 0; i < parts.length && i < numDatasets; i++) {
+                values[i] = parts[i];
+            }
+        }
+    }
+    
+    // If element has href, wrap value in anchor tag (for TID and similar)
+    if (hasHref) {
+        // For single-value attributes with href (like TID)
+        // The entire text is the value, href is the link
+        values = new Array(1);
+        values[0] = textContent || '';
+        // Note: href handling will be done by caller if needed
+    }
+    
+    return {values: values, hasHref: hasHref};
+}
+
 function loadTreeDOM
 (domNode,
  magnitudeName,
@@ -5140,38 +5188,76 @@ function loadTreeDOM
                 var index = attributeIndex(attributeName);
                 //
                 newNode.attributes[index] = new Array();
-                //
-                for (var j = getFirstChild(i); j; j = getNextSibling(j)) {
-                    if (attributes[index] == undefined) {
-                        var x = 5;
-                    }
-                    if (attributes[index].list) {
-                        newNode.attributes[index].push(new Array());
-
-                        for (var k = getFirstChild(j); k; k = getNextSibling(k)) {
-                            newNode.attributes[index][
-                            newNode.attributes[
-                                index].length - 1].push(
-                                k.firstChild.nodeValue);
+                
+                // Check if this is the new v2 optimized format (no <val> children)
+                var firstChild = getFirstChild(i);
+                var hasValChildren = firstChild &&
+                    (firstChild.tagName && firstChild.tagName.toLowerCase() === 'val');
+                
+                if (!hasValChildren && i.firstChild) {
+                    // New v2 format: delimited or sparse values in text content
+                    var parsed = parseAttributeValues(i, datasets);
+                    
+                    if (parsed.hasHref) {
+                        // Single value with href (like TID)
+                        var value = parsed.values[0];
+                        var href = i.getAttribute('href');
+                        var target = '';
+                        
+                        if (attributes[index] && attributes[index].target) {
+                            target = ' target="' + attributes[index].target + '"';
+                        }
+                        
+                        if (href && attributes[index] && attributes[index].hrefBase) {
+                            value = '<a href="' + attributes[index].hrefBase
+                                + href + '"' + target + '>' + value + '</a>';
+                        }
+                        
+                        newNode.attributes[index].push(value);
+                    } else {
+                        // Check if this is a mono attribute (single value for all datasets)
+                        if (attributes[index] && attributes[index].mono) {
+                            // Mono attribute: store first value as single-element array
+                            newNode.attributes[index].push(parsed.values[0]);
+                        } else {
+                            // Multi-value attribute (cnt, una, sco, etc.)
+                            newNode.attributes[index] = parsed.values;
                         }
                     }
-                    else {
-                        var value = j.firstChild ? j.firstChild.nodeValue : '';
+                } else {
+                    // Legacy format: <val> children
+                    for (var j = getFirstChild(i); j; j = getNextSibling(j)) {
+                        if (attributes[index] == undefined) {
+                            var x = 5;
+                        }
+                        if (attributes[index].list) {
+                            newNode.attributes[index].push(new Array());
 
-                        if (j.getAttribute('href')) {
-                            var target;
+                            for (var k = getFirstChild(j); k; k = getNextSibling(k)) {
+                                newNode.attributes[index][
+                                newNode.attributes[
+                                    index].length - 1].push(
+                                    k.firstChild.nodeValue);
+                            }
+                        }
+                        else {
+                            var value = j.firstChild ? j.firstChild.nodeValue : '';
 
-                            if (attributes[index].target) {
-                                target = ' target="'
-                                    + attributes[index].target + '"';
+                            if (j.getAttribute('href')) {
+                                var target;
+
+                                if (attributes[index].target) {
+                                    target = ' target="'
+                                        + attributes[index].target + '"';
+                                }
+
+                                value = '<a href="' + attributes[index].hrefBase
+                                    + j.getAttribute('href') + '"'
+                                    + target + '>' + value + '</a>';
                             }
 
-                            value = '<a href="' + attributes[index].hrefBase
-                                + j.getAttribute('href') + '"'
-                                + target + '>' + value + '</a>';
+                            newNode.attributes[index].push(value);
                         }
-
-                        newNode.attributes[index].push(value);
                     }
                 }
                 //

@@ -9,7 +9,7 @@ import os
 import re
 from math import log10
 from statistics import mean
-from typing import Tuple, Counter, Dict, List, Set, Any, Union, TextIO, IO
+from typing import Tuple, Counter, Dict, List, Set, Any, Union, TextIO, IO, Optional
 
 from recentrifuge.config import Filename, Id, Score, Scoring
 from recentrifuge.config import gray, red, green, yellow, blue, magenta
@@ -36,7 +36,7 @@ def open_compressed_and_uncompressed(filename: Filename
 
 def read_kraken_output(output_file: Filename,
                       scoring: Scoring = Scoring.KRAKEN,
-                      minscore: Score = None,
+                      minscore: Optional[Score] = None,
                       ) -> Tuple[str, SampleStats,
                            Counter[Id], Dict[Id, Score]]:
     """
@@ -74,6 +74,7 @@ def read_kraken_output(output_file: Filename,
                 print(magenta('Found:'), '\t'.join(header), end='')
                 print(blue('HINT:'), 'Use Kraken or Kraken2 direct output.')
                 raise Exception('Unsupported file format. Aborting.')
+            output_line: str = ''  # Initialize for potential error reporting
             for raw_line in file:
                 try:
                     output_line = raw_line.strip()
@@ -97,7 +98,10 @@ def read_kraken_output(output_file: Filename,
                     try:
                         tid = Id(str(int(_tid)))
                     except ValueError:
-                        tid = Id(re.search('\(taxid (\d+)\)', _tid).group(1))
+                        match = re.search(r'\(taxid (\d+)\)', _tid)
+                        if match is None:
+                            raise ValueError(f'Cannot parse taxid from: {_tid}')
+                        tid = Id(match.group(1))
                     maps: List[str] = _maps.split()
                     try:
                         maps.remove('|:|')

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-#     Copyright (C) 2017–2025 Jose Manuel Martí Martínez
+#     Copyright (C) 2017–2026 Jose Manuel Martí Martínez
 #
 #     This program is free software: you can redistribute it and/or modify
 #     it under the terms of the GNU Affero General Public License as
@@ -40,13 +40,15 @@ import re
 import subprocess as sp
 import sys
 import time
-from distutils.version import StrictVersion
 from statistics import mean
-from typing import Counter, List, Dict, Any, Tuple
+from typing import Counter, List, Dict, Any, Tuple, Optional
 from warnings import filterwarnings
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+from pandas import ExcelFile
+from pandas.testing import assert_frame_equal
 
 from recentrifuge import __version__, __author__, __date__
 from recentrifuge import __path__  # type: ignore  # mypy issue #1422
@@ -58,23 +60,6 @@ from recentrifuge.config import REXTRACT_TEST_TAXID, GZEXT
 from recentrifuge.config import STATS_SHEET_NAME, TEST_OUTPUT_DIR, STR_CONTROL
 from recentrifuge.config import MOCK_XLSX, MOCK_SHEET, KEY_SHEET, UNASSIGNED
 from recentrifuge.config import gray, blue, magenta, green, red, yellow
-
-# Check for general optional dependencies but required for retest
-# # pandas (to read Excel with mock layout)
-try:
-    import pandas as pd
-
-    if StrictVersion(pd.__version__) < StrictVersion('0.23.2'):
-        print(red('ERROR!'), 'Please upgrade pandas to v0.23.2 or higher for '
-                             'testing recentrifuge.')
-        sys.exit(1)
-except ImportError:
-    pd = None
-    print(red('ERROR!'), 'Please install pandas (v0.23.2 or higher) for '
-                         'testing recentrifuge.')
-    sys.exit(1)
-else:
-    from pandas.testing import assert_frame_equal
 
 # # BioPython
 try:
@@ -118,6 +103,8 @@ F_RND = '-r='
 F_MIN = '-m='
 F_CTR_MIN = '-w='
 F_PKL = '--pickle'
+F_THR = '-T='
+THREADS_DEFAULT = 0  # Legacy mode: use min(cpu_count, samples)
 XLSX_PATH: Filename = Filename(os.path.join(TEST_OUTPUT_DIR, XLSX_FIL))
 STND_PATH: Filename = Filename(os.path.join(PATH_TEST, XLSX_FIL))
 MOCK_PATH: Filename = Filename(os.path.join(PATH_TEST, MOCK_XLSX))
@@ -135,10 +122,24 @@ DEBUG_SP: Sample = Sample('smplH')
 def main():
     """Main entry point to script."""
 
+    def to_native(obj):
+        """Convert numpy types to native Python types for cleaner printing"""
+        if isinstance(obj, dict):
+            return {k: to_native(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return type(obj)(to_native(v) for v in obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return obj
+
     def vprint(*arguments, **kargs) -> None:
         """Print only if verbose/debug mode is enabled"""
         if args.debug:
-            print(*arguments, **kargs)
+            print(*[to_native(arg) for arg in arguments], **kargs)
 
     def configure_parser():
         """Argument Parser Configuration"""
@@ -183,9 +184,9 @@ def main():
                  'plot ROC figure by mintaxa (results should be available)'
         )
         parser_advanced.add_argument(
-            '--strain',
+            '--no-strain',
             action='store_true',
-            help='set this same flag in rcf [experimental feature]'
+            help='set this same flag in rcf to disable strain level'
         )
         parser.add_argument(
             '-y', '--minscore',
@@ -216,9 +217,9 @@ def main():
             for var in ['TAXDUMP_PATH', 'PATH', 'PATH_TEST',
                         'XLSX_PATH', 'STND_PATH', 'MOCK_PATH']:
                 print(gray(f'\t{var} ='), f'{eval(var)}')  # Safe eval of const
-        # Check for strain experimental mode
-        if args.strain:
-            print(yellow('CAUTION!'), '--strain experimental mode activated!')
+        # Check for no-strain mode (strain is now default)
+        if args.no_strain:
+            print(gray('INFO:'), 'Strain level disabled in rcf')
 
     def test_version():
         """Test version matching"""
@@ -270,18 +271,21 @@ def main():
                 sys.exit(4)
 
     def test_rcf(out_prefix: Filename = OUT_PRE,
-                 mintaxa: int = None):
+                 mintaxa: int | None = None):
         """Test recentrifuge"""
         prog: Filename = Filename(prefix + 'rcf')
         print(magenta(f'\n>>> TESTING {prog} WITH MINTAXA {mintaxa} ...'))
         argums = [prog, F_TAX, F_FIL, F_PKL, F_PKL,  # '--pickle' twice
                   F_OUT + os.path.join(TEST_OUTPUT_DIR, out_prefix),
-                  F_CTR, F_MHL + str(minscore), F_D]
+                  F_CTR, F_MHL + str(minscore), F_THR + str(THREADS_DEFAULT),
+                  F_D]
         if mintaxa is not None:
             argums.append(F_MIN + str(mintaxa))
             argums.append(F_CTR_MIN + str(mintaxa))
-        if args.strain:
-            argums.append('--strain')
+        if args.no_strain:
+            argums.append('--no-strain')
+        else:
+            pass  # Strain is now default, so we don't need to add anything
         if args.debug:
             print(argums)
         cproc = sp.run(argums, universal_newlines=True)
@@ -309,7 +313,7 @@ def main():
             if not args.ignore:
                 sys.exit(6)
 
-    def load_excels(just_excel: Filename = None):
+    def load_excels(just_excel: Filename | None = None):
         """Load excels from standard and recentrifuge results"""
         nonlocal pd_xlsx, pd_stnd, pd_mock  # type: ignore  # mypy issue #7057
         if just_excel is None:
@@ -363,6 +367,7 @@ def main():
         print(magenta(f'\n>>> CHECKING {prog} RESULTS AGAINST STANDARD ... '),
               end='', flush=True)
 
+        assert pd_mock is not None, "pd_mock must be loaded before calling test_rextract_results"
         df_mock = pd_mock.parse(
             sheet_name=MOCK_SHEET, header=[0],
             index_col=1, skipfooter=1,
@@ -398,12 +403,14 @@ def main():
             nrows=2, ncols=1, squeeze=False, sharey='col', sharex='col',
             figsize=(20, 12)
         )
-        fig.set_tight_layout({'rect': [0.0, 0.0, 1.0, 1.0],
-                              'w_pad': 0, 'h_pad': 0.1})
+        fig.tight_layout(rect=(0.0, 0.0, 1.0, 1.0), w_pad=0, h_pad=0.1)
         ax_raw = ax[0, 0]
         ax_ctr = ax[1, 0]
 
         # Load data sheets as pandas DataFrames
+        assert pd_stnd is not None, "pd_stnd must be loaded before calling analyze_robust_contam_removal"
+        assert pd_xlsx is not None, "pd_xlsx must be loaded before calling analyze_robust_contam_removal"
+        assert pd_mock is not None, "pd_mock must be loaded before calling analyze_robust_contam_removal"
         df_stnd = pd_stnd.parse(
             sheet_name=str(Extra.FULL), header=[0, 1],
             skiprows=None, index_col=0,
@@ -428,8 +435,8 @@ def main():
                 sys.exit(8)                
         df_key = pd_mock.parse(
             sheet_name=KEY_SHEET, header=[0],
-            index_col=0, dtype={'NAME': bytearray, 'COLOR': str, 'HATCH': str,
-                                'NATIVES': list, 'RANK': str, 'HIST': bool},
+            index_col=0, dtype={'NAME': str, 'COLOR': str, 'HATCH': str,
+                                'NATIVES': str, 'RANK': str, 'HIST': bool},
             engine='openpyxl',
         )
 
@@ -446,17 +453,28 @@ def main():
         for num, (taxid, taxon) in enumerate(df_key.iterrows()):
             if not taxon['HIST']:
                 break
+            taxid_int = int(str(taxid))
+            # Convert empty/whitespace/NaN hatch values to None for matplotlib compatibility
+            # Note: Excel data has quotes around values, so empty hatch is '""' not ''
+            hatch_raw = taxon["HATCH"]
+            hatch_str = str(hatch_raw) if hatch_raw is not None else ''
+            # Strip quotes and whitespace, check if result is empty
+            hatch_stripped = hatch_str.strip().strip('"').strip("'")
+            if pd.isna(hatch_raw) or len(hatch_stripped) == 0:
+                hatch_val = None
+            else:
+                hatch_val = hatch_stripped
             rects.append(
                 ax_raw.bar(
                     ind + num * width,
-                    [df_xlsx[s][UNASSIGNED][int(taxid)] for s in SAMPLES],
-                    width, color=[taxon["COLOR"]], hatch=taxon["HATCH"],
+                    [df_xlsx[s][UNASSIGNED][taxid_int] for s in SAMPLES],
+                    width, color=[taxon["COLOR"]], hatch=hatch_val,
                     alpha=0.5, label=taxon["NAME"])
             )
             ax_ctr.bar(ind + num * width,
                        [0.1, 0.1, 0.1] +
-                       [df_xlsx[s][UNASSIGNED][int(taxid)] for s in CTRL_SP],
-                       width, color=[taxon["COLOR"]], hatch=taxon["HATCH"],
+                       [df_xlsx[s][UNASSIGNED][taxid_int] for s in CTRL_SP],
+                       width, color=[taxon["COLOR"]], hatch=hatch_val,
                        alpha=0.5, label=taxon["NAME"])
         # Add mintaxa threshold
         rects.append(ax_raw.axhline(y=MINTAXA_DEFAULT, color='r', lw=1))
@@ -546,6 +564,9 @@ def main():
             print(magenta(f'>> GET PARAMETERS... '), end='', flush=True)
 
         # Load data sheets as pandas DataFrames
+        assert pd_stnd is not None, "pd_stnd must be loaded before calling get_roc"
+        assert pd_xlsx is not None, "pd_xlsx must be loaded before calling get_roc"
+        assert pd_mock is not None, "pd_mock must be loaded before calling get_roc"
         df_stnd = pd_stnd.parse(
             sheet_name=str(Extra.FULL), header=[0, 1],
             skiprows=None, index_col=0,
@@ -564,8 +585,8 @@ def main():
         del df_mock['RECENTRIFUGE MOCK']
         df_key = pd_mock.parse(
             sheet_name=KEY_SHEET, header=[0],
-            index_col=0, dtype={'NAME': bytearray, 'COLOR': str, 'HATCH': str,
-                                'NATIVES': list, 'RANK': str, 'HIST': bool},
+            index_col=0, dtype={'NAME': str, 'COLOR': str, 'HATCH': str,
+                                'NATIVES': str, 'RANK': str, 'HIST': bool},
             engine='openpyxl',
         )
 
@@ -587,18 +608,19 @@ def main():
         for taxid, taxon in df_key.iterrows():
             if 'species' not in taxon['RANK']:
                 continue
+            taxid_int = int(str(taxid))
             for spl in SAMPLEX[3:]:
                 try:
-                    cnt_mck = df_mock[spl][int(taxid)]
+                    cnt_mck = df_mock[spl][taxid_int]
                 except KeyError:
                     cnt_mck = 0
                 try:
-                    cnt_raw = df_xlsx[spl][UNASSIGNED][int(taxid)]
+                    cnt_raw = df_xlsx[spl][UNASSIGNED][taxid_int]
                 except KeyError:
                     cnt_raw = 0
                 try:
                     cnt_ctr = df_xlsx[spl
-                                      + STR_CTRL_SP][UNASSIGNED][int(taxid)]
+                                      + STR_CTRL_SP][UNASSIGNED][taxid_int]
                 except KeyError:
                     cnt_ctr = 0
                 if spl in taxon['NATIVES']:
@@ -803,6 +825,8 @@ def main():
         prog: Filename = Filename(prefix + 'rcf')
         print(magenta(f'\n>>> COMPARING {prog} RESULTS WITH STANDARD:'))
 
+        assert pd_stnd is not None, "pd_stnd must be loaded before calling test_rcf_results"
+        assert pd_xlsx is not None, "pd_xlsx must be loaded before calling test_rcf_results"
         for sheet in [STATS_SHEET_NAME, str(Extra.FULL)]:
             print(magenta(f'>> TEST FOR {sheet}... '), end='')
             df_stnd = pd_stnd.parse(
@@ -868,15 +892,15 @@ def main():
     test_rcf()
     test_rextract()
 
-    pd_xlsx: pd.ExcelFile = None
-    pd_stnd: pd.ExcelFile = None
-    pd_mock: pd.ExcelFile = None
+    pd_xlsx: Optional[ExcelFile] = None
+    pd_stnd: Optional[ExcelFile] = None
+    pd_mock: Optional[ExcelFile] = None
 
     load_excels()
     test_rextract_results()
-    if args.strain:
+    if args.no_strain:
         print(blue('INFO:'),
-              gray('Skipping further tests due to the --strain option!'))
+              gray('Skipping further tests due to the --no-strain option!'))
     else:
         analyze_robust_contam_removal()
         if args.roc:

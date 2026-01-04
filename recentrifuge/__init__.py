@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2017–2025, Jose Manuel Martí Martínez
+#     Copyright (C) 2017–2026, Jose Manuel Martí Martínez
 #
 #     With the single exception of the file krona.js, which has embedded
 #     its own free software licence, you can redistribute Recentrifuge
@@ -28,13 +28,13 @@ __all__ = ['config', 'shared_counter', 'taxonomy', 'trees', 'rank', 'core',
            'ontology', 'params', 'stats', 'taxclass', 'mock',
            '__author__', '__date__', '__version__']
 __author__ = 'Jose Manuel Martí'
-__copyright__ = 'Copyright (C) 2017–2025 Jose Manuel Marti Martinez'
+__copyright__ = 'Copyright (C) 2017–2026 Jose Manuel Marti Martinez'
 __license__ = 'GNU Affero General Public License Version 3'
 __email__ = 'jse.mnl **AT** gmail.com'
 __maintainer__ = 'Jose Manuel Marti'
 __status__ = 'Production/Stable'
-__date__ = 'Apr 2025'
-__version__ = '1.16.1'
+__date__ = 'Jan 2026'
+__version__ = '2.0.0'
 
 import sys
 from Bio import SeqIO
@@ -44,13 +44,11 @@ from . import fastq_io  # Quick FASTQ support
 
 # python
 MAJOR, MINOR, *_ = sys.version_info
-PYTHON_REL = (MAJOR == 3 and MINOR >= 6)
+PYTHON_REL = (MAJOR == 3 and MINOR >= 12)
 if not PYTHON_REL:
-    raise ImportError('Recentrifuge requires Python 3.6 or later')
-if MINOR == 6:
-    FutureWarning("Support for Python 3.6 will be dropped very soon!")
-if MINOR == 7:
-    FutureWarning("Support for Python 3.7 will be dropped soon")
+    raise ImportError('Recentrifuge requires Python 3.12 or later')
+if MINOR == 12:
+    FutureWarning("Support for Python 3.12 will be dropped soon!")
 
 # Addition of new custom formats to SeqIO
 # pylint: disable=protected-access

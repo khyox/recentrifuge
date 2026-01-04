@@ -9,13 +9,16 @@ import os
 import subprocess
 import xml.etree.ElementTree as ETree
 from xml.dom import minidom
-from typing import List, Dict, NewType, Any, Optional
+from typing import List, Dict, Any
 
 from recentrifuge.config import Filename, Sample, Scoring, Chart, Attrib
 from recentrifuge.config import COUNT, UNASSIGNED, TID, RANK, SCORE
 from recentrifuge.config import JSLIB, HTML_SUFFIX
 from recentrifuge.config import yellow, red
 from recentrifuge.stats import SampleStats
+
+# Version for optimized XML format (backward compatibility)
+KRONA_FORMAT_VERSION = '2'  # Version 2 = optimized delimited/sparse format
 
 # Type annotations
 # pylint: disable=invalid-name
@@ -32,7 +35,7 @@ LOADING = '/img/loading.uri'
 FAVICON = '/img/favicon.uri'
 
 # Define encoding dialect for TSV files expected by Krona
-csv.register_dialect('krona', csv.get_dialect('unix'), delimiter='\t',
+csv.register_dialect('krona', 'unix', delimiter='\t',
                      quoting=csv.QUOTE_NONE)
 
 
@@ -42,8 +45,8 @@ class KronaTree(ETree.ElementTree):
     @staticmethod
     def sub(parent: Elm,
             tag: str,
-            attrib: Dict[str, str] = None,
-            text: str = None,
+            attrib: Dict[str, str] | None = None,
+            text: str | None = None,
             ) -> Elm:
         """Wrapper around ETree.SubElement."""
         if attrib:
@@ -54,6 +57,51 @@ class KronaTree(ETree.ElementTree):
             subelement.text = text
         return subelement
 
+    @staticmethod
+    def _to_sparse_or_delimited(values: List[str],
+                                threshold: float = 0.5
+                                ) -> tuple:
+        """Convert a list of values to sparse or delimited format.
+        
+        Args:
+            values: List of string values (may contain None or empty strings)
+            threshold: If fraction of non-zero values is below this, use sparse
+            
+        Returns:
+            Tuple of (is_sparse: bool, text: str)
+            - If sparse: text is "idx1:val1,idx2:val2,..."
+            - If delimited: text is "val1,val2,val3,..."
+        """
+        # Count non-zero/non-empty values
+        non_zero_count = 0
+        non_zero_items = []
+        
+        for i, val in enumerate(values):
+            if val is not None and val != '' and val != '0':
+                non_zero_count += 1
+                non_zero_items.append((i, val))
+        
+        # Decide format based on sparsity
+        # Use sparse if less than threshold fraction are non-zero
+        # and sparse representation would actually be shorter
+        total = len(values)
+        if total > 0 and non_zero_count / total < threshold:
+            # Estimate sizes: sparse = "idx:val," per item, delimited = "val," per item
+            sparse_size = sum(len(str(i)) + 1 + len(str(v)) + 1
+                             for i, v in non_zero_items)
+            # For delimited, empty values become empty strings between commas
+            delimited_size = sum(len(str(v)) if v else 0 for v in values) + total - 1
+            
+            if sparse_size < delimited_size and non_zero_items:
+                # Use sparse format
+                sparse_text = ','.join(f'{i}:{v}' for i, v in non_zero_items)
+                return (True, sparse_text)
+        
+        # Use delimited format - empty string for None/empty values
+        delimited_values = [str(v) if v is not None and v != '' else ''
+                           for v in values]
+        return (False, ','.join(delimited_values))
+
     def node(self,
              parent: Elm,
              name: str,
@@ -63,44 +111,67 @@ class KronaTree(ETree.ElementTree):
 
         For details, please consult:
         https://github.com/marbl/Krona/wiki/Krona-2.0-XML-Specification
+        
+        Format v2: Uses comma-delimited values and sparse representation
+        to reduce XML size.
         """
         subnode = self.sub(parent, 'n',  # 'node' in previous versions
                            {'name': name,})
-#                            'href': f'https://www.google.com/search?q={name}'})
-        count_node = self.sub(subnode, COUNT)
-        counts: Dict[Sample, str] = {sample: values[COUNT][sample]
-                                     for sample in self.samples}
+        
+        # COUNT attribute: use optimized format
+        counts_list = []
         for sample in self.samples:
-            counts_value: Optional[str] = counts[sample]
-            # Save space (warning! Empty tag instead of 0 inside <val></val>)
+            counts_value = values[COUNT].get(sample)
+            # Convert 0 to empty string to save space
             if counts_value is not None and int(counts_value) == 0:
-                counts_value = None
-            self.sub(count_node, 'val', None, counts_value)
+                counts_list.append('')
+            else:
+                counts_list.append(str(counts_value) if counts_value else '')
+        
+        is_sparse, counts_text = self._to_sparse_or_delimited(counts_list)
+        if is_sparse:
+            self.sub(subnode, COUNT, {'s': 'T'}, counts_text)
+        else:
+            self.sub(subnode, COUNT, None, counts_text)
+        
+        # UNASSIGNED attribute: use optimized format
         if values.get(UNASSIGNED) and any(values[UNASSIGNED].values()):
-            # Avoid including and save space if all the unassigned values are 0
-            unassigned_node = self.sub(subnode, UNASSIGNED)
-            unassigned: Dict[Sample, str] = {sample: values[UNASSIGNED][sample]
-                                             for sample in self.samples}
+            unassigned_list = []
             for sample in self.samples:
-                unassigned_value: Optional[str] = unassigned[sample]
-                # Save space (warning! Empty and not 0 after <val>)
+                unassigned_value = values[UNASSIGNED].get(sample)
+                # Convert 0 to empty string to save space
                 if unassigned_value is not None and int(unassigned_value) == 0:
-                    unassigned_value = None
-                self.sub(unassigned_node, 'val', None, unassigned_value)
+                    unassigned_list.append('')
+                else:
+                    unassigned_list.append(str(unassigned_value) if unassigned_value else '')
+            
+            is_sparse, unassigned_text = self._to_sparse_or_delimited(unassigned_list)
+            if is_sparse:
+                self.sub(subnode, UNASSIGNED, {'s': 'T'}, unassigned_text)
+            else:
+                self.sub(subnode, UNASSIGNED, None, unassigned_text)
+        
+        # TID attribute: single value with href (keep as attribute for href)
         if values.get(TID):
-            tid_node = self.sub(subnode, TID)
-            self.sub(tid_node, 'val',
-                     {'href': values[TID]},
-                     values[TID])
+            self.sub(subnode, TID, {'href': values[TID]}, values[TID])
+        
+        # RANK attribute: single value, direct text
         if values.get(RANK):
-            rank_node = self.sub(subnode, RANK)
-            self.sub(rank_node, 'val', None, values[RANK])
+            self.sub(subnode, RANK, None, values[RANK])
+        
+        # SCORE attribute: use optimized format
         if values.get(SCORE):
-            score_node = self.sub(subnode, SCORE)
-            scores: Dict[Sample, str] = {sample: values[SCORE][sample]
-                                         for sample in self.samples}
+            scores_list = []
             for sample in self.samples:
-                self.sub(score_node, 'val', None, scores[sample])
+                score_value = values[SCORE].get(sample)
+                scores_list.append(str(score_value) if score_value else '')
+            
+            is_sparse, scores_text = self._to_sparse_or_delimited(scores_list)
+            if is_sparse:
+                self.sub(subnode, SCORE, {'s': 'T'}, scores_text)
+            else:
+                self.sub(subnode, SCORE, None, scores_text)
+        
         return subnode
 
     @staticmethod
@@ -118,8 +189,8 @@ class KronaTree(ETree.ElementTree):
 
     def __init__(self,
                  samples: List[Sample],
-                 num_raw_samples: int = None,
-                 stats: Dict[Sample, SampleStats] = None,
+                 num_raw_samples: int | None = None,
+                 stats: Dict[Sample, SampleStats] | None = None,
                  min_score: float = 0.0,
                  max_score: float = 1.0,
                  scoring: Scoring = Scoring.SHEL,

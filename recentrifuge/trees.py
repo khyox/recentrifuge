@@ -20,7 +20,7 @@ from recentrifuge.shared_counter import SharedCounter
 class SampleDataById(object):
     """Typical data in a sample ordered by ID"""
 
-    def __init__(self, init: List[str] = None) -> None:
+    def __init__(self, init: Optional[List[str]] = None) -> None:
         """Initialize data structures
 
         Individual options: 'counts', 'ranks', 'scores', 'accs',
@@ -48,10 +48,10 @@ class SampleDataById(object):
             self.scores = SharedCounter()
 
     def set(self,
-            counts: UnionCounter = None,
-            ranks: Ranks = None,
-            scores: UnionScores = None,
-            accs: Counter[Id] = None) -> None:
+            counts: Optional[UnionCounter] = None,
+            ranks: Optional[Ranks] = None,
+            scores: Optional[UnionScores] = None,
+            accs: Optional[Counter[Id]] = None) -> None:
         """Set the data fields"""
         if counts is not None:
             self.counts = counts
@@ -153,18 +153,18 @@ class TaxTree(dict):
 
     def allin1(self,
                ontology: Ontology,
-               counts: Counter[Id] = None,
-               scores: Union[Dict[Id, Score], 'SharedCounter'] = None,
-               ancestors: Set[Id] = None,
-               tid: Id = None,
+               counts: Optional[Counter[Id]] = None,
+               scores: Optional[Union[Dict[Id, Score], 'SharedCounter']] = None,
+               ancestors: Optional[Set[Id]] = None,
+               tid: Optional[Id] = None,
                min_taxa: int = 1,
-               min_rank: Rank = None,
+               min_rank: Optional[Rank] = None,
                just_min_rank: bool = False,
                log_scores: bool = False,
                include: Union[Tuple, Set[Id]] = (),
                exclude: Union[Tuple, Set[Id]] = (),
-               out: SampleDataById = None,
-               _path: List[Id] = None) -> Union[int, None]:
+               out: Optional[SampleDataById] = None,
+               _path: Optional[List[Id]] = None) -> Optional[int]:
         """
         Recursively build an ontology tree.
 
@@ -222,7 +222,7 @@ class TaxTree(dict):
             return None
 
         rank: Rank = ontology.get_rank(tid)
-        parent_rank: Rank
+        parent_rank: Rank = Rank.ROOT  # Initialize to avoid unbound variable
         if min_rank:  # Get parent rank (NO_RANK is not an option)
             if tid == ontology.ROOT:
                 parent_rank = Rank.ROOT
@@ -352,15 +352,15 @@ class TaxTree(dict):
         return output.getvalue(), nodes_traced
 
     def get_taxa(self,
-                 counts: Counter[Id] = None,
-                 accs: Counter[Id] = None,
-                 scores: Union[Dict[Id, Score], SharedCounter] = None,
-                 ranks: Ranks = None,
+                 counts: Optional[Counter[Id]] = None,
+                 accs: Optional[Counter[Id]] = None,
+                 scores: Optional[Union[Dict[Id, Score], SharedCounter]] = None,
+                 ranks: Optional[Ranks] = None,
                  mindepth: int = 0,
                  maxdepth: int = 0,
                  include: Union[Tuple, Set[Id]] = (),
                  exclude: Union[Tuple, Set[Id]] = (),
-                 just_level: Rank = None,
+                 just_level: Optional[Rank] = None,
                  _in_branch: bool = False
                  ) -> None:
         """
@@ -422,12 +422,12 @@ class TaxTree(dict):
 
     def grow(self,
              ontology: Ontology,
-             counts: Counter[Id] = None,
-             scores: Union[Dict[Id, Score], SharedCounter] = None,
-             ancestors: Set[Id] = None,
+             counts: Optional[Counter[Id]] = None,
+             scores: Optional[Union[Dict[Id, Score], SharedCounter]] = None,
+             ancestors: Optional[Set[Id]] = None,
              look_ancestors: bool = True,
-             taxid: Id = None,
-             _path: List[Id] = None,
+             taxid: Optional[Id] = None,
+             _path: Optional[List[Id]] = None,
              ) -> None:
         """
         Recursively build an ontology tree.
@@ -474,7 +474,7 @@ class TaxTree(dict):
 
     def prune(self,
               min_taxa: int = 1,
-              min_rank: Rank = None,
+              min_rank: Optional[Rank] = None,
               collapse: bool = True,
               debug: bool = False) -> bool:
         """
@@ -596,7 +596,7 @@ class TaxTree(dict):
     def toxml(self,
               ontology: Ontology,
               krona: KronaTree,
-              node: Elm = None,
+              node: Optional[Elm] = None,
               mindepth: int = 0,
               maxdepth: int = 0,
               include: Union[Tuple, Set[Id]] = (),
@@ -634,19 +634,22 @@ class TaxTree(dict):
                          (tid in include))  # tid is to be included?
                         and tid not in exclude  # and not in exclude list
                 )
-                new_node: Elm
+                new_node: Optional[Elm] = None
                 if mindepth <= 0 and in_branch:
                     if node is None:
-                        node = krona.getroot()
-                    new_node = krona.node(
-                        node, ontology.get_name(tid),
-                        {COUNT: {krona.samples[0]: str(self[tid].acc)},
-                         UNASSIGNED: {krona.samples[0]: str(self[tid].counts)},
-                         TID: str(tid),
-                         RANK: ontology.get_rank(tid).name.lower(),
-                         SCORE: {krona.samples[0]: str(self[tid].score)}}
-                    )
-                if self[tid]:
+                        root_elm = krona.getroot()
+                        if root_elm is not None:
+                            node = root_elm
+                    if node is not None:
+                        new_node = krona.node(
+                            node, ontology.get_name(tid),
+                            {COUNT: {krona.samples[0]: str(self[tid].acc)},
+                             UNASSIGNED: {krona.samples[0]: str(self[tid].counts)},
+                             TID: str(tid),
+                             RANK: ontology.get_rank(tid).name.lower(),
+                             SCORE: {krona.samples[0]: str(self[tid].score)}}
+                        )
+                if self[tid] and new_node is not None:
                     self[tid].toxml(ontology,
                                     krona, new_node,
                                     mindepth, maxdepth,
@@ -691,10 +694,10 @@ class MultiTree(dict):
 
     def __init__(self, *args,
                  samples: List[Sample],
-                 counts: Dict[Sample, int] = None,
-                 accs: Dict[Sample, int] = None,
+                 counts: Optional[Dict[Sample, int]] = None,
+                 accs: Optional[Dict[Sample, int]] = None,
                  rank: Rank = Rank.UNCLASSIFIED,
-                 scores: Dict[Sample, Score] = None
+                 scores: Optional[Dict[Sample, Score]] = None
                  ) -> None:
         """
 
@@ -741,11 +744,11 @@ class MultiTree(dict):
 
     def grow(self,
              ontology: Ontology,
-             abundances: Dict[Sample, Counter[Id]] = None,
-             accs: Dict[Sample, Counter[Id]] = None,
-             scores: Dict[Sample, Dict[Id, Score]] = None,
-             taxid: Id = None,
-             _path: List[Id] = None) -> None:
+             abundances: Optional[Dict[Sample, Counter[Id]]] = None,
+             accs: Optional[Dict[Sample, Counter[Id]]] = None,
+             scores: Optional[Dict[Sample, Dict[Id, Score]]] = None,
+             taxid: Optional[Id] = None,
+             _path: Optional[List[Id]] = None) -> None:
         """
         Recursively build an ontology tree.
 
@@ -804,7 +807,7 @@ class MultiTree(dict):
     def toxml(self,
               ontology: Ontology,
               krona: KronaTree,
-              node: Elm = None,
+              node: Optional[Elm] = None,
               ) -> None:
         """
         Recursive method to generate XML.
@@ -819,7 +822,11 @@ class MultiTree(dict):
         """
         for tid in self:
             if node is None:
-                node = krona.getroot()
+                root_elm = krona.getroot()
+                if root_elm is not None:
+                    node = root_elm
+            if node is None:
+                continue  # Skip if no valid node available
             num_samples = len(self.samples)
             new_node: Elm = krona.node(
                 parent=node,
@@ -845,7 +852,7 @@ class MultiTree(dict):
                  ontology: Ontology,
                  odict: Dict[Id, List],
                  cmplxcruncher: bool = False,
-                 sample_indexes: List[int] = None
+                 sample_indexes: Optional[List[int]] = None
                  ) -> None:
         """
         Recursive method to populate an OrderedDict (used to feed a DataFrame).

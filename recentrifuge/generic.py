@@ -123,8 +123,8 @@ def open_compressed_and_uncompressed(filename: Filename
 
 def read_generic_output(output_file: Filename,
                         scoring: Scoring = Scoring.GENERIC,
-                        minscore: Score = None,
-                        genfmt: GenericFormat = None
+                        minscore: Score | None = None,
+                        genfmt: GenericFormat | None = None
                         ) -> Tuple[str, SampleStats,
                                    Counter[Id], Dict[Id, Score]]:
     """

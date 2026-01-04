@@ -23,7 +23,7 @@ class Taxonomy(Ontology):
     def __init__(self,
                  nodes_file: Filename,
                  names_file: Filename,
-                 plasmid_file: Filename = None,
+                 plasmid_file: Filename | None = None,
                  collapse: bool = True,
                  excluding: Union[Tuple, Set[Id]] = (),
                  including: Union[Tuple, Set[Id]] = (),
@@ -167,8 +167,8 @@ class Taxonomy(Ontology):
                         name = 'Plasmid ' + name.strip(r'"').strip(',')
                     except AttributeError:
                         try:
-                            name = pattern2.search(  # type: ignore
-                                last).group(1).strip()
+                            name = pattern2.search(
+                                last).group(1).strip()  # type: ignore[union-attr]
                             name = 'Plasmid ' + name
                         except AttributeError:
                             name = 'Plasmid ' + tid
@@ -206,13 +206,13 @@ class Taxonomy(Ontology):
             self.children[self.parents[tid]][tid] = 0
         print('\033[92m OK! \033[0m')
 
-    def get_rank(self, taxid: Id) -> Rank:
-        """Retrieve the rank for a Id."""
-        return self.ranks.get(taxid, Rank.UNCLASSIFIED)
+    def get_rank(self, anid: Id) -> Rank:
+        """Retrieve the rank for a taxid."""
+        return self.ranks.get(anid, Rank.UNCLASSIFIED)
 
-    def get_name(self, taxid: Id) -> str:
-        """Retrieve the name for a Id."""
-        return self.names.get(taxid, UNNAMED)
+    def get_name(self, anid: Id) -> str:
+        """Retrieve the name for a taxid."""
+        return self.names.get(anid, UNNAMED)
 
     def get_ancestors(self, leaves: Iterable[Id]
                       ) -> Tuple[Set[Id], Set[Id]]:

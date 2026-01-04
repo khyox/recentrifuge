@@ -9,7 +9,7 @@ import io
 import os
 from enum import Enum
 from statistics import mean
-from typing import Tuple, Counter, Dict, List, Set
+from typing import Tuple, Counter, Dict, List, Set, Optional
 
 from Bio import SeqIO
 
@@ -73,7 +73,7 @@ class Match(Enum):
 
 def read_lmat_output(output_file: Filename,
                      scoring: Scoring = Scoring.LMAT,
-                     minscore: Score = None,
+                     minscore: Optional[Score] = None,
                      ) -> Tuple[str, SampleStats,
                                 Counter[Id], Dict[Id, Score]]:
     """

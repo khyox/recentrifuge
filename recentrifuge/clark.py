@@ -21,7 +21,7 @@ K_MER_SIZE: int = 31  # Default k-mer size for CLARK(S)
 
 def read_clark_output(output_file: Filename,
                       scoring: Scoring = Scoring.CLARK_C,
-                      minscore: Score = None,
+                      minscore: Score | None = None,
                       ) -> Tuple[str, SampleStats,
                                  Counter[Id], Dict[Id, Score]]:
     """
@@ -62,8 +62,8 @@ def read_clark_output(output_file: Filename,
                                      'with full mode (', blue('-m 0'), ')')
                 raise Exception('Unsupported file format. Aborting.')
             for raw_line in file:
+                output_line = raw_line.strip()
                 try:
-                    output_line = raw_line.strip()
                     (_label, _length, _gamma, _tid1, _score1, _tid2, _score2,
                      _conf) = output_line.split(',')
                 except ValueError:

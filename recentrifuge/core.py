@@ -307,7 +307,7 @@ def process_rank(*args,
         exclude_candidates: Set[Id] = set()
         for i in range(controls):
             exclude_candidates.update(taxids[raws[i]][rank])
-        exclude_sets: Dict[Sample, Set[Id]]
+        exclude_sets: Dict[Sample, Set[Id]] = {}
         shared_crossover: Set[Id] = set()  # Shared taxa contaminating controls
         if controls and (len(raws) - controls >= ROBUST_MIN_SAMPLES):
             robust_contamination_removal()

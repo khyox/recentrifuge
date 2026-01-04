@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=75.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "recentrifuge"
+version = "2.0.0"
+description = "Robust comparative analysis and contamination removal for metagenomics"
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE.txt", "COPYING.txt"]
+authors = [
+    { name = "Jose Manuel Martí", email = "jse.mnl@gmail.com" }
+]
+keywords = ["metagenomics", "comparative-analysis", "contamination-removal"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: JavaScript",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "biopython==1.84",
+    "numpy>=2.3.4",
+    "openpyxl>=3.1.2",
+    "matplotlib>=3.3.4",
+    "pandas>=2.3.3",
+]
+
+[project.urls]
+Homepage = "http://www.recentrifuge.org"
+Documentation = "https://github.com/khyox/recentrifuge/wiki"
+Repository = "https://github.com/khyox/recentrifuge"
+Issues = "https://github.com/khyox/recentrifuge/issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "mypy>=1.10.0",
+]
+
+[tool.setuptools]
+packages = ["recentrifuge"]
+include-package-data = true
+script-files = [
+    "rcf",
+    "rextract",
+    "retaxdump",
+    "remock",
+    "retest",
+    "refasplit",
+    "rextraccnt",
+    "refafilt",
+    "rgf",
+]
+
+[tool.setuptools.package-data]
+recentrifuge = [
+    "img/*.uri",
+    "krona.js",
+    "test/*.mck",
+    "test/*.xlsx",
+    "test/*.html",
+]

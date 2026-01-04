@@ -1,7 +1,7 @@
 Recentrifuge: Robust comparative analysis and contamination removal
               for metagenomics
 
-    Copyright (C) 2017–2025, Jose Manuel Martí Martínez
+    Copyright (C) 2017–2026, Jose Manuel Martí Martínez
 
     With the single exception of the file krona.js, which has embedded
     its own free software licence, you can redistribute Recentrifuge

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-#     Copyright (C) 2017–2025, Jose Manuel Martí Martínez
+#     Copyright (C) 2017–2026, Jose Manuel Martí Martínez
 #
 #     This program is free software: you can redistribute it and/or modify
 #     it under the terms of the GNU Affero General Public License as
@@ -25,7 +25,7 @@ import os
 import sys
 import time
 from collections import Counter
-from typing import Callable, List, Set, TextIO
+from typing import Callable, List, Optional, Set, TextIO
 
 from Bio import SeqIO, SeqRecord
 
@@ -200,8 +200,9 @@ def main():
     check_debug()
 
     # Load NCBI nodes, names and build children
+    taxids: Set[Id] = set()  # Initialize for type safety
     if not unclass:
-        plasmidfile: Filename = None
+        plasmidfile: Optional[Filename] = None
         ncbi: Taxonomy = Taxonomy(nodesfile, namesfile, plasmidfile,
                                   False, excluding, including)
 
@@ -220,7 +221,7 @@ def main():
                       include=including,
                       exclude=excluding)
         print(green(' OK!'))
-        taxids: Set[Id] = set(ranks)
+        taxids = set(ranks)
         taxlevels: TaxLevels = Rank.ranks_to_taxlevels(ranks)
         num_taxlevels = Counter({rank: len(taxlevels[rank])
                                  for rank in taxlevels})
@@ -231,7 +232,9 @@ def main():
         print(f'{len(num_taxlevels)}', gray('different taxonomic levels:'))
         for rank in num_taxlevels:
             print(f'  Number of different {rank}: {num_taxlevels[rank]}')
-        assert taxids, red('ERROR! No taxids to search for!')
+        if not taxids:
+            print(red('ERROR!'), 'No taxids to search for!')
+            sys.exit(1)
 
     # Get the records
     records: List[SeqRecord.SeqRecord] = []
@@ -285,18 +288,18 @@ def main():
             return False
 
     # FASTQ sequence dealing
-    records_ids: Set[SeqRecord.SeqRecord] = {record.id for record in records}
+    records_ids: Set[str] = {record.id for record in records
+                             if record.id is not None}
     seqs1: List[SeqRecord.SeqRecord] = []
     seqs2: List[SeqRecord.SeqRecord] = []
     extracted: int = 0
-    failed: int = 0
     i: int = 0
     if fastq_2:
         print(gray('Loading FASTQ files'), fastq_1, gray('and'), fastq_2,
               gray('...\nMseqs: '), end='')
         sys.stdout.flush()
-        mate1handler: Callable[..., TextIO]
-        mate2handler: Callable[..., TextIO]
+        mate1handler: Callable[..., TextIO] = open
+        mate2handler: Callable[..., TextIO] = open
         if is_gzipped(fastq_1):
             mate1handler = gzip.open
         else:
@@ -329,14 +332,13 @@ def main():
                     elif not i % 100000:
                         print('.', end='')
                         sys.stdout.flush()
-                    try:
+                    if rec1.id in records_ids:
                         records_ids.remove(rec1.id)
-                    except KeyError:
-                        try: # Try again for labels like SIM3.1-1999998(/1|/2)
-                            records_ids.remove(rec1.id.split('/')[0])
-                        except KeyError:
-                            failed += 1
-                            continue
+                    elif rec1.id.split('/')[0] in records_ids:
+                        # Handle labels like SIM3.1-1999998(/1|/2)
+                        records_ids.remove(rec1.id.split('/')[0])
+                    else:
+                        continue  # Read not in our wanted set
                     seqs1.append(rec1)
                     seqs2.append(rec2)
                     extracted += 1
@@ -347,13 +349,11 @@ def main():
         print(gray('Loading FASTQ file'), f'{fastq_1}', gray('...\nMseqs: '),
               end='')
         sys.stdout.flush()
-        mate1handler: Callable[..., TextIO]
+        fq1handler: Callable[..., TextIO] = open
         if is_gzipped(fastq_1):
-            mate1handler = gzip.open
-        else:
-            mate1handler = open
+            fq1handler = gzip.open
         try:
-            with mate1handler(fastq_1, 'rt') as file1:
+            with fq1handler(fastq_1, 'rt') as file1:
                 for i, rec1 in enumerate(SeqIO.parse(file1, 'quickfastq')):
                     if not records_ids:
                         print(green(' [all records found]'), end='')
@@ -371,25 +371,25 @@ def main():
                     elif not i % 100000:
                         print('.', end='')
                         sys.stdout.flush()
-                    try:
+                    if rec1.id in records_ids:
                         records_ids.remove(rec1.id)
-                    except KeyError:
-                        failed += 1
-                    else:
                         seqs1.append(rec1)
                         extracted += 1
         except FileNotFoundError:
             raise Exception('\n\033[91mERROR!\033[0m Cannot read FASTQ file')
     print(cyan(f' {i / 1e+6:.3g} Mseqs'), green('OK! '))
-    print(extracted, gray('successfully extracted reads ('),
-          f'{extracted/i:.2%}', gray(') and'), failed,
-          gray('failed extracted reads ('), f'{failed/i:.2%}', gray(')'), '\n')
+    missing: int = len(records_ids)
+    if i > 0:
+        print(extracted, gray('successfully extracted reads ('),
+              f'{extracted / i:.2%}', gray(')'))
+    else:
+        print(extracted, gray('successfully extracted reads'))
     if not extracted:
-        print(yellow('ERROR!'), 'No matching read(s) in the FASTQ file(s)!')
+        print(red('ERROR!'), 'No matching read(s) in the FASTQ file(s)!')
         sys.exit(2)
-    elif failed:
-        print(yellow('WARNING!'), 'Some reads missing in the FASTQ file(s)!')
-        
+    if missing:
+        print(yellow('WARNING!'), f'{missing} reads from Centrifuge output',
+              'not found in the FASTQ file(s)!')
     sys.stdout.flush()
 
 

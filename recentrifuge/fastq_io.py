@@ -9,6 +9,8 @@ omitted, which improves the code performance.
 
 """
 
+from typing import TextIO, cast
+
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqIO.Interfaces import SequenceWriter
@@ -43,8 +45,19 @@ class QuickFastqWriter(SequenceWriter):
     ...     SeqIO.write(record_iterator, out_handle, "quickfastq")
     """
 
-    def write_record(self, record):
-        """Quickly write a single FASTQ record to the file."""
+    @property
+    def modes(self) -> str:  # type: ignore[override]  # Biopython base class types modes as None
+        """File modes (binary or text) that the writer can handle.
 
-        self.handle.write(f'@{record.description}\n{str(record.seq)}\n+'
-                          f'\n{record.annotations["quality"]}\n')
+        This property must be "t" (for text mode only), "b" (for binary mode
+        only), "tb" (if both text and binary mode are accepted, but text mode
+        is preferred), or "bt" (if both text and binary mode are accepted, but
+        binary mode is preferred).
+        """
+        return "t"
+
+    def write_record(self, record: SeqRecord) -> None:
+        """Quickly write a single FASTQ record to the file."""
+        handle = cast(TextIO, self.handle)
+        handle.write(f'@{record.description}\n{str(record.seq)}\n+'
+                     f'\n{record.annotations["quality"]}\n')

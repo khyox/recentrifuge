@@ -33,7 +33,14 @@ class SharedCounter(col.Counter):
 
     def __iand__(self, other):
         """c &= d add counts only for existing items in both c & d."""
-        self = SharedCounter.__and__(self, other)
+        if not isinstance(other, col.Counter):
+            return NotImplemented
+        result: SharedCounter = SharedCounter()
+        for item in other:
+            if item in self:
+                result[item] = self[item] + other[item]
+        self.clear()
+        self.update(result)
         return self
 
     def __mul__(self, other):
@@ -48,7 +55,11 @@ class SharedCounter(col.Counter):
 
     def __imul__(self, other):
         """c *= d multiply each element of c by the element in d, if exists."""
-        self = SharedCounter.__mul__(self, other)
+        result = SharedCounter.__mul__(self, other)
+        if result is NotImplemented:
+            return NotImplemented
+        self.clear()
+        self.update(result)
         return self
 
     def __truediv__(self, other):
@@ -63,7 +74,11 @@ class SharedCounter(col.Counter):
 
     def __itruediv__(self, other):
         """c /= d divide each element of c by the element in d, if exists."""
-        self = SharedCounter.__truediv__(self, other)
+        result = SharedCounter.__truediv__(self, other)
+        if result is NotImplemented:
+            return NotImplemented
+        self.clear()
+        self.update(result)
         return self
 
     def __floordiv__(self, other):

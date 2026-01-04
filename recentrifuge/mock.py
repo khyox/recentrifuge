@@ -157,8 +157,10 @@ def generate_mock(ncbi: Taxonomy,
             else:
                 mock_from_scratch(test, mock_layout)
 
-    def by_excel_file(dirname: Filename = None) -> None:
+    def by_excel_file(dirname: Filename | None = None) -> None:
         """Do the job in case of Excel file with all the details"""
+        if pd is None:
+            raise ImportError('pandas is required for Excel file processing')
         if dirname is None:
             dirname = Filename(os.path.dirname(xcel))
         os.makedirs(dirname, exist_ok=True)
@@ -170,10 +172,10 @@ def generate_mock(ncbi: Taxonomy,
                                 )
         del mock_df['RECENTRIFUGE MOCK']
         vprint(gray('Layout to generate the mock files:\n'), mock_df, '\n')
-        for name, series in mock_df.iteritems():
-            mock_layout: Counter[Id] = col.Counter(series.to_dict(dict))
+        for name, series in mock_df.items():
+            mock_layout: Counter[Id] = col.Counter(series.to_dict())
             # In prev, series.to_dict(col.Counter) fails, so this is workaround
-            test: Filename = Filename(os.path.join(dirname, name + '.out'))
+            test: Filename = Filename(os.path.join(dirname, str(name) + '.out'))
             if file:
                 mock_from_source(test, mock_layout)
             else:

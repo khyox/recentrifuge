@@ -75,7 +75,7 @@ def stats(dict_list: Dict[Id, List[Score]],
           tuple_cls: Type[ScoreStats],
           elems_cls: Type[Score]) -> ScoreStats:
     """PEP-484 overload: ScoreStats and Score"""
-    pass
+    ...
 
 
 @overload
@@ -83,23 +83,30 @@ def stats(dict_list: Dict[Id, List[int]],
           tuple_cls: Type[LengthStats],
           elems_cls: Type[NT]) -> LengthStats:
     """PEP-484 overload: LengthStats and NT"""
-    pass
+    ...
 
 
-def stats(dic_lst, tuple_cls, elems_cls):
+def stats(  # type: ignore[misc]  # Pylance overload implementation variance
+    dict_list,
+    tuple_cls,
+    elems_cls
+):
     """Get minimum, mean and maximum of dictionary of list"""
-    
-    statistics: tuple_cls  
     try:
         statistics = tuple_cls(
-            mini=elems_cls(min([min(e) for e in dic_lst.values()])),
-            mean=elems_cls(mean([val for lst in dic_lst.values() for val in lst])),
-            # mean=elems_cls(mean(chain.from_iterable(dic_lst.values()))),
+            mini=elems_cls(min([min(e) for e in dict_list.values()])),
+            mean=elems_cls(mean([val for lst in dict_list.values() for val in lst])),
+            # mean=elems_cls(mean(chain.from_iterable(dict_list.values()))),
             # Using itertools.chain here provided no benefit in the tests!
-            maxi=elems_cls(max([max(e) for e in dic_lst.values()]))
+            maxi=elems_cls(max([max(e) for e in dict_list.values()]))
         )
     except ValueError:
-        statistics = tuple_cls(mini=nan, mean=nan, maxi=nan)
+        # Return default tuple (uses NamedTuple defaults: NO_SCORE or NT(0))
+        # Note: nan is only valid for float-based Score, not int-based NT
+        if tuple_cls is ScoreStats:
+            statistics = ScoreStats(mini=Score(nan), mean=Score(nan), maxi=Score(nan))
+        else:
+            statistics = LengthStats()  # Uses NT(0) defaults
     return statistics
 # pylint: enable=function-redefined, unused-argument
 
@@ -108,15 +115,18 @@ class SampleStats(object):
     """Sample statistics"""
 
     def __init__(self, is_ctrl: bool = False,
-                 minscore: Score = None, mintaxa: int = None,
+                 minscore: Score | None = None,
+                 mintaxa: int | None = None,
                  nt_read: int = 0,
-                 seq_read: int = 0, seq_filt: int = 0,
-                 seq_clas: int = None, seq_unclas: int = 0,
-                 lens: Dict[Id, List[int]] = None,
-                 scores: Dict[Id, List[Score]] = None,
-                 scores2: Dict[Id, List[Score]] = None,
-                 scores3: Dict[Id, List[Score]] = None,
-                 tid_clas: int = None
+                 seq_read: int = 0,
+                 seq_filt: int = 0,
+                 seq_clas: int | None = None,
+                 seq_unclas: int = 0,
+                 lens: Dict[Id, List[int]] | None = None,
+                 scores: Dict[Id, List[Score]] | None = None,
+                 scores2: Dict[Id, List[Score]] | None = None,
+                 scores3: Dict[Id, List[Score]] | None = None,
+                 tid_clas: int | None = None
                  ) -> None:
         """Initialize some data and set up data structures"""
         self.is_ctrl: bool = is_ctrl
@@ -141,7 +151,8 @@ class SampleStats(object):
         else:
             self.len = LengthStats()
         if scores is not None:
-            self.sco: ScoreStats = stats(scores, ScoreStats, Score)
+            # type: ignore[arg-type] - Score is a NewType callable, not a class
+            self.sco: ScoreStats = stats(scores, ScoreStats, Score)  # type: ignore[arg-type]
             self.tid = TidStats(
                 clas=tid_clas if tid_clas else len(scores),
                 filt=len(scores),
@@ -152,9 +163,11 @@ class SampleStats(object):
             self.tid = TidStats()
             self.num_taxa = 0
         if scores2 is not None:
-            self.sco2: ScoreStats = stats(scores2, ScoreStats, Score)
+            # type: ignore[arg-type] - Score is a NewType callable, not a class
+            self.sco2: ScoreStats = stats(scores2, ScoreStats, Score)  # type: ignore[arg-type]
         if scores3 is not None:
-            self.sco3: ScoreStats = stats(scores3, ScoreStats, Score)
+            # type: ignore[arg-type] - Score is a NewType callable, not a class
+            self.sco3: ScoreStats = stats(scores3, ScoreStats, Score)  # type: ignore[arg-type]
 
     def to_odict(self) -> Dict[str, Union[int, Score, None]]:
         """

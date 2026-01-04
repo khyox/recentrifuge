@@ -3,17 +3,18 @@
 You are expected to use this module via the Bio.SeqIO functions.
 This module is for reading and writing LMAT output files as SeqRecord
 objects.  The code is partly inspired by Peter Cock FASTA Biopython module
-
 """
+
+from typing import Tuple, TextIO, Iterator, Generator, Optional, Callable, cast, Any, Dict
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.SeqIO.Interfaces import SequentialSequenceWriter
+from Bio.SeqIO.Interfaces import SequenceWriter
 
 __docformat__ = "restructuredtext en"
 
 
-def simple_lmat_out_parser(handle):
+def simple_lmat_out_parser(handle: TextIO) -> Generator[Tuple[str, str, str, str, str], None, None]:
     """Generator function to iterate LMAT output records (as string tuples)
 
     For each record a tuple of five strings is returned:
@@ -42,7 +43,7 @@ def simple_lmat_out_parser(handle):
         rawline = handle.readline()
 
 
-def lmat_out_iterator(handle):
+def lmat_out_iterator(handle: TextIO) -> Iterator[SeqRecord]:
     """Generator function to iterate LMAT output records (as SeqRecord objects)
 
     Arguments:
@@ -54,34 +55,42 @@ def lmat_out_iterator(handle):
         try:
             first_word = title.split(None, 1)[0]
         except IndexError:
-            assert not title, repr(title)
+            if title:  # Non-empty title but no words found is unexpected
+                raise ValueError(f'Unexpected title format: {repr(title)}')
             # Should we use SeqRecord default for no ID?
             first_word = ""
         avg, std, kms = stats.split()
-        statsdict = {'averg': float(avg),
-                     'stdev': float(std),
-                     'kmers': int(kms)}
+        statsdict: Dict[str, float | int] = {'averg': float(avg),
+                                              'stdev': float(std),
+                                              'kmers': int(kms)}
         final_taxid, final_score, final_match = finalcall.split()
         candids = candidates.split()
-        candidict = {}
+        candidict: Dict[str, float] = {}
         for i in range(0, len(candids), 2):
             candidict[candids[i]] = float(candids[i+1])
-        yield SeqRecord(Seq(sequence),
-                        id=first_word, name=first_word, description=title,
-                        annotations={'stats': stats,
-                                     'candidates': candidates,
-                                     'final_taxid': final_taxid,
-                                     'final_score': float(final_score),
-                                     'final_match': final_match,
-                                     'statsdict': statsdict,
-                                     'candidict': candidict,
-                                     'tags': set()
-                                     })
+        # Create SeqRecord and update annotations; cast to Dict[str, Any]
+        # to allow flexible value types (Biopython's _AnnotationsDict is strict)
+        record = SeqRecord(Seq(sequence),
+                           id=first_word, name=first_word, description=title)
+        annot = cast(Dict[str, Any], record.annotations)
+        annot['stats'] = stats
+        annot['candidates'] = candidates
+        annot['final_taxid'] = final_taxid
+        annot['final_score'] = float(final_score)
+        annot['final_match'] = final_match
+        annot['statsdict'] = statsdict
+        annot['candidict'] = candidict
+        annot['tags'] = set()
+        yield record
 
 
-class LmatOutWriter(SequentialSequenceWriter):
+class LmatOutWriter(SequenceWriter):
     """Class to write LMAT output files"""
-    def __init__(self, handle, record2title=None):
+    
+    record2title: Optional[Callable[[SeqRecord], str]]
+    
+    def __init__(self, handle: Any,
+                 record2title: Optional[Callable[[SeqRecord], str]] = None) -> None:
         """Create a LMAT output writer
 
         Arguments:
@@ -113,20 +122,23 @@ class LmatOutWriter(SequentialSequenceWriter):
             handle.close()
 
         """
-        SequentialSequenceWriter.__init__(self, handle)
+        SequenceWriter.__init__(self, handle)
         self.record2title = record2title
 
-    def write_record(self, record):
+    def write_record(self, record: SeqRecord) -> None:
         """Write a single LMAT output record to the file"""
-        assert self._header_written
-        assert not self._footer_written
-        self._record_written = True
+        # Validate writer state (replaces asserts for HPC code)
+        if not getattr(self, '_header_written', True):
+            raise RuntimeError('Header must be written before records')
+        if getattr(self, '_footer_written', False):
+            raise RuntimeError('Cannot write records after footer')
+        self._record_written = True  # type: ignore[attr-defined]
 
         if self.record2title:
             title = self.clean(self.record2title(record))
         else:
-            rec_id = self.clean(record.id)
-            description = self.clean(record.description)
+            rec_id = self.clean(record.id or '')
+            description = self.clean(record.description or '')
             if description and description.split(None, 1)[0] == rec_id:
                 # The description includes the rec_id at the start
                 title = description
@@ -135,16 +147,20 @@ class LmatOutWriter(SequentialSequenceWriter):
             else:
                 title = rec_id
 
-        assert '\n' not in title
-        assert '\r' not in title
-        self.handle.write('%s\t' % title)
+        # Validate title format (replaces asserts)
+        if '\n' in title or '\r' in title:
+            raise ValueError(f'Title contains newline characters: {repr(title)}')
+        
+        handle = cast(TextIO, self.handle)
+        handle.write('%s\t' % title)
 
-        data = self._get_seq_string(record)  # Catches sequence being None
+        data = self._get_seq_string(record)  # type: ignore[attr-defined]  # Catches sequence being None
 
-        assert '\n' not in data
-        assert '\r' not in data
+        # Validate data format (replaces asserts)
+        if '\n' in data or '\r' in data:
+            raise ValueError(f'Sequence data contains newline characters')
 
-        self.handle.write(data + '\t')
-        self.handle.write(record.annotations['stats'] + '\t')
-        self.handle.write(record.annotations['candidates'] + '\t')
-        self.handle.write(record.annotations['finalcall'] + '\n')
+        handle.write(data + '\t')
+        handle.write(str(record.annotations['stats']) + '\t')
+        handle.write(str(record.annotations['candidates']) + '\t')
+        handle.write(str(record.annotations['finalcall']) + '\n')

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-#     Copyright (C) 2017–2025, Jose Manuel Martí Martínez
+#     Copyright (C) 2017–2026, Jose Manuel Martí Martínez
 #
 #     This program is free software: you can redistribute it and/or modify
 #     it under the terms of the GNU Affero General Public License as
@@ -131,15 +131,15 @@ def main():
 
     # Prepare output
     handler: Callable[..., TextIO]
-    fext: Filename = Filename('.fa')
+    fext: str = '.fa'
     if compr:
         handler = gzip.open
         fext += GZEXT
     else:
         handler = open
-    nts: Counter[int] = collections.Counter()
+    nts: Counter[str] = collections.Counter()
     in_handler: Dict[str, TextIO] = {}
-    omag: str = ceil(log10(num_files))  # Get order of magnitude ceil
+    omag: int = ceil(log10(num_files))  # Get order of magnitude ceil
     for n in range(num_files):
         key: str = f'{n:0>{omag}}'
         in_handler[key] = handler(Filename(out_root + key + fext), 'wt')

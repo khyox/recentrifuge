@@ -4,7 +4,7 @@ Rank class for representing taxonomic levels or ranks.
 """
 
 from enum import Enum
-from typing import List, Iterator, NewType, Dict, Set
+from typing import List, Iterator, NewType, Dict, Set, Callable, Any, Optional, Union, Type, cast
 
 from recentrifuge.config import Id
 
@@ -16,14 +16,14 @@ TaxLevels = NewType('TaxLevels', Dict['Rank', Set[Id]])  # TaxIds for rank
 # pylint: enable=invalid-name
 
 
-class classproperty(object):  # pylint: disable=invalid-name
+class classproperty:  # pylint: disable=invalid-name
     """Decorator to emulate a class property."""
 
     # pylint: disable=too-few-public-methods
-    def __init__(self, fget):
+    def __init__(self, fget: Callable[[Any], Any]) -> None:
         self.fget = fget
 
-    def __get__(self, owner_self, owner_cls):
+    def __get__(self, owner_self: Any, owner_cls: type) -> Any:
         return self.fget(owner_cls)
 
 
@@ -123,10 +123,10 @@ class Rank(Enum):
     # pylint: enable=invalid-name
 
     @classproperty
-    def list(cls) -> List['Rank']:  # pylint: disable=no-self-argument
-        """List all the taxonomic ranks in a list"""
-        return [r for r in map(lambda r: r.name, cls)
-                if not r.startswith('GO')]
+    def list(cls) -> List[str]:  # pylint: disable=no-self-argument
+        """List all the taxonomic rank names in a list"""
+        # Use Rank.__members__ for Pylance compatibility with Enum iteration
+        return [name for name in Rank.__members__.keys() if not name.startswith('GO')]
 
     @classproperty
     def selected_ranks(cls) -> List['Rank']:  # pylint: disable=no-self-argument
