@@ -8,8 +8,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-15-intel]
+        os: [ubuntu-latest, macos-14]
         python-version: ["3.12", "3.13", "3.14"]
+        exclude:
+          # biopython 1.84 doesn't have pre-built wheels for Python 3.13/3.14 on macOS
+          - os: macos-14
+            python-version: "3.13"
+          - os: macos-14
+            python-version: "3.14"
 
     steps:
       - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
