@@ -33,8 +33,8 @@ __license__ = 'GNU Affero General Public License Version 3'
 __email__ = 'jse.mnl **AT** gmail.com'
 __maintainer__ = 'Jose Manuel Marti'
 __status__ = 'Production/Stable'
-__date__ = 'Jan 2026'
-__version__ = '2.0.0'
+__date__ = 'Feb 2026'
+__version__ = '2.1.0'
 
 import sys
 from Bio import SeqIO
@@ -55,6 +55,8 @@ if MINOR == 12:
 SeqIO._FormatToIterator["lmat"] = lmat_io.lmat_out_iterator
 SeqIO._FormatToIterator["centrifuge"] = centrifuge_io.cfg_out_iterator
 SeqIO._FormatToIterator["quickfastq"] = fastq_io.quick_fastq_iterator
+SeqIO._FormatToIterator["quickfasta"] = fastq_io.quick_fasta_iterator
 SeqIO._FormatToWriter["lmat"] = lmat_io.LmatOutWriter
 SeqIO._FormatToWriter["quickfastq"] = fastq_io.QuickFastqWriter
+SeqIO._FormatToWriter["quickfasta"] = fastq_io.QuickFastaWriter
 # pylint: enable=protected-access

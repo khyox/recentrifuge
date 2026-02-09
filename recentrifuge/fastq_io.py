@@ -1,11 +1,11 @@
-"""Bio.SeqIO quick support for FASTQ files
+"""Bio.SeqIO quick support for FASTA and FASTQ files
 
 You are expected to use this module via the Bio.SeqIO functions.
-This module is for reading and writing FASTQ output files as SeqRecord
-objects, but omitting some checks included in the Biopython method by Peter
-Cock. These checks were very useful in the "olden times" but, currently,
-with huge FASTQ files using standardized PHRED quality scores, they can be
-omitted, which improves the code performance.
+This module is for reading and writing FASTA and FASTQ output files as
+SeqRecord objects, but omitting some checks included in the Biopython method
+by Peter Cock. These checks were very useful in the "olden times" but,
+currently, with huge files using standardized formats, they can be omitted,
+which improves the code performance.
 
 """
 
@@ -15,6 +15,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqIO.Interfaces import SequenceWriter
 from Bio.SeqIO.QualityIO import FastqGeneralIterator
+from Bio.SeqIO.FastaIO import SimpleFastaParser
 
 __docformat__ = "restructuredtext en"
 
@@ -28,6 +29,15 @@ def quick_fastq_iterator(handle):
         yield SeqRecord(Seq(sequence),
                         id=first_word, name=first_word, description=title,
                         annotations={'quality': quality})
+
+
+def quick_fasta_iterator(handle):
+    """Parse FASTA files quickly using SimpleFastaParser.
+    """
+    for title, sequence in SimpleFastaParser(handle):
+        first_word = title.split()[0]
+        yield SeqRecord(Seq(sequence),
+                        id=first_word, name=first_word, description=title)
 
 
 class QuickFastqWriter(SequenceWriter):
@@ -61,3 +71,22 @@ class QuickFastqWriter(SequenceWriter):
         handle = cast(TextIO, self.handle)
         handle.write(f'@{record.description}\n{str(record.seq)}\n+'
                      f'\n{record.annotations["quality"]}\n')
+
+
+class QuickFastaWriter(SequenceWriter):
+    """Class to write standard FASTA format files.
+
+    Though you can use this class directly, you are strongly encouraged
+    to use the Bio.SeqIO.write() function instead, via the format name
+    "quickfasta".
+    """
+
+    @property
+    def modes(self) -> str:  # type: ignore[override]
+        """File modes (binary or text) that the writer can handle."""
+        return "t"
+
+    def write_record(self, record: SeqRecord) -> None:
+        """Quickly write a single FASTA record to the file."""
+        handle = cast(TextIO, self.handle)
+        handle.write(f'>{record.description}\n{str(record.seq)}\n')
