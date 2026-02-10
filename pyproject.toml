@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "recentrifuge"
-version = "2.0.0"
+version = "2.1.1"
 description = "Robust comparative analysis and contamination removal for metagenomics"
 readme = "README.md"
 license = "AGPL-3.0-or-later"

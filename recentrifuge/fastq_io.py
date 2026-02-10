@@ -1,7 +1,7 @@
-"""Bio.SeqIO quick support for FASTA and FASTQ files
+"""Bio.SeqIO quick support for FASTQ and FASTA files
 
 You are expected to use this module via the Bio.SeqIO functions.
-This module is for reading and writing FASTA and FASTQ output files as
+This module is for reading and writing FASTQ and FASTA output files as
 SeqRecord objects, but omitting some checks included in the Biopython method
 by Peter Cock. These checks were very useful in the "olden times" but,
 currently, with huge files using standardized formats, they can be omitted,

@@ -275,9 +275,9 @@ def main():
                         continue
                     score: Score = Score(record.annotations['score'])
                     if args.minscore is not None and score < args.minscore:
-                        continue  # Ignore read if confidence below threshold
+                        continue  # Discard read if classification score below threshold
                     if args.maxscore is not None and score > args.maxscore:
-                        continue  # Ignore read if confidence above threshold
+                        continue  # Discard read if classification score above threshold
                     records.append(record)
     except FileNotFoundError:
         raise Exception(red('ERROR!') + 'Cannot read "' +
