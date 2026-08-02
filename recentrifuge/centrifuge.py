@@ -19,6 +19,8 @@ from recentrifuge.stats import SampleStats
 
 # Centrifuge specific constants
 UNCLASSIFIED: Id = Id('0')
+SCORE_HIT_LENGTH_ADJUST: int = 15
+SCORE_OVERFLOW_THRESHOLD: int = 2**63
 
 
 def read_report(report_file: str) -> Tuple[str, Counter[Id],
@@ -82,6 +84,8 @@ def read_output(output_file: Filename,
     num_uncl: int = 0
     last_error_read: int = -1  # Number of read of the last error
     num_errors: int = 0  # Number or reads discarded due to error
+    num_score_overflows: int = 0  # Number of corrected score overflows
+    score_overflow_examples: List[str] = []
 
     output.write(gray(f'Loading output file {output_file}... '))
     try:
@@ -89,7 +93,7 @@ def read_output(output_file: Filename,
             file.readline()  # discard header
             for output_line in file:
                 try:
-                    _, _, _tid, _score, _, _, _length, *_ = output_line.split(
+                    _readid, _, _tid, _score, _, _, _length, *_ = output_line.split(
                         '\t')
                 except ValueError:
                     print(yellow('Failure'), 'parsing line elements:'
@@ -100,9 +104,20 @@ def read_output(output_file: Filename,
                     continue
                 tid = Id(_tid)
                 try:
-                    # From Centrifuge score get "single hit equivalent length"
-                    shel = Score(float(_score) ** 0.5 + 15)
                     length = int(_length)
+                    raw_score = int(_score)
+                    max_raw_score = max(length - SCORE_HIT_LENGTH_ADJUST, 0) ** 2
+                    if (raw_score >= SCORE_OVERFLOW_THRESHOLD or
+                            raw_score > max_raw_score):
+                        if raw_score > max_raw_score:
+                            num_score_overflows += 1
+                            if len(score_overflow_examples) < 5:
+                                score_overflow_examples.append(
+                                    f'{_readid}: score {_score} corrected to '
+                                    f'{max_raw_score} for query length {length}')
+                            raw_score = max_raw_score
+                    # From Centrifuge score get "single hit equivalent length"
+                    shel = Score(raw_score ** 0.5 + SCORE_HIT_LENGTH_ADJUST)
                 except ValueError:
                     print(yellow('Failure'), f'parsing score ({_score}) for ',
                           f'query length {_length} for taxid {_tid}',
@@ -151,6 +166,13 @@ def read_output(output_file: Filename,
         output.write(gray('  Seqs fail: ') + red(f'{num_errors:_d}\t') +
                      gray('(Last error in read ') + red(f'{last_error_read}') +
                      gray(')\n'))
+    if num_score_overflows:
+        output.write(yellow('  Score overflow corrections: ') +
+                     f'{num_score_overflows:_d}' + gray(
+                         ' Centrifuge/Centrifuger scores exceeded the maximum '
+                         'possible for their query length and were capped.\n'))
+        for example in score_overflow_examples:
+            output.write(gray('    - ') + example + '\n')
     output.write(gray('  Seqs read: ') + f'{stat.seq.read:_d}\t' + gray('[')
                  + f'{stat.nt_read}' + gray(']\n'))
     output.write(gray('  Seqs clas: ') + f'{stat.seq.clas:_d}\t' + gray('(') +

@@ -645,17 +645,23 @@ def main():
 
         print(gray('\nBuilding the taxonomy multiple tree... '), end='')
         sys.stdout.flush()
+        if scoring is Scoring.NORMA:
+            color_min_score = Score(0)
+            color_max_score = Score(100)
+        else:
+            color_min_score = Score(min([
+                min(scores[sample].values())
+                for sample in samples if len(scores[sample])
+            ]))
+            color_max_score = Score(max([
+                max(scores[sample].values())
+                for sample in samples if len(scores[sample])
+            ]))
         krona: KronaTree = KronaTree(samples,
                                      num_raw_samples=len(raw_samples),
                                      stats=stats,
-                                     min_score=Score(
-                                         min([min(scores[sample].values())
-                                              for sample in samples
-                                              if len(scores[sample])])),
-                                     max_score=Score(
-                                         max([max(scores[sample].values())
-                                              for sample in samples
-                                              if len(scores[sample])])),
+                                     min_score=color_min_score,
+                                     max_score=color_max_score,
                                      scoring=scoring,
                                      )
         polytree.grow(ontology=ncbi,
